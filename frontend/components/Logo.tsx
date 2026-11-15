@@ -13,20 +13,18 @@ export function Logo({
   href,
   external = false,
 }: LogoProps): JSX.Element {
-  
-  // CSS Trick: White background ko transparent karne ke liye aur black dino ko white karne ke liye
   const imgStyle: React.CSSProperties = {
     width: size,
     height: size,
     objectFit: "contain",
-    filter: "invert(1)", // Black dino ko white karega, white bg ko black
-    mixBlendMode: "screen", // Black bg ko transparent kar dega
+    filter: "invert(1)",
+    mixBlendMode: "screen",
     display: "block",
   };
 
   const img = (
     <img
-      src="/logo.png"
+      src="/logo.svg"
       alt="RAG Assistant Logo"
       style={imgStyle}
       className={className}
