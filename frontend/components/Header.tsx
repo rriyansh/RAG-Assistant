@@ -1,6 +1,7 @@
 "use client";
 
-import { MessageSquare, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
+import { Logo } from "./Logo";
 
 interface HeaderProps {
   onClear: () => void;
@@ -9,26 +10,25 @@ interface HeaderProps {
 
 export function Header({ onClear, canClear }: HeaderProps): JSX.Element {
   return (
-    <header className="border-b border-border bg-panel/80 backdrop-blur sticky top-0 z-10">
-      <div className="mx-auto max-w-3xl px-4 py-3 flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-10 border-b border-border bg-panel/80 backdrop-blur">
+      <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-3">
         <div className="flex items-center gap-3">
-          <div className="rounded-md bg-accent/15 p-2 text-accent">
-            <MessageSquare size={18} />
-          </div>
-          <div>
-            <h1 className="text-sm font-semibold text-gray-100">
-              RAG PDF Assistant
+          <Logo size={32} className="text-[#a9dcff] shrink-0" />
+          <div className="min-w-0">
+            <h1 className="font-display truncate text-[15px] font-semibold tracking-tight text-gray-100">
+              RAG Assistant
             </h1>
-            <p className="text-xs text-gray-400">
+            <p className="truncate text-xs text-gray-400">
               Ask questions from your documents
             </p>
           </div>
         </div>
+
         <button
           type="button"
           onClick={onClear}
           disabled={!canClear}
-          className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-gray-300 hover:bg-panel disabled:opacity-40 disabled:cursor-not-allowed transition"
+          className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-gray-300 transition hover:bg-panel disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Trash2 size={14} />
           Clear
