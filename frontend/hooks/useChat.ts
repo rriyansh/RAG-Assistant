@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useCallback, useState } from "react";
 import type { Message } from "@/lib/types";
 import { askQuestion } from "@/lib/api";
 import { genId } from "@/lib/utils";
+import { playSentSound, playReceivedSound } from "@/lib/sounds";
 
 interface UseChatResult {
   messages: Message[];
@@ -21,11 +22,13 @@ export function useChat(): UseChatResult {
       const trimmed = question.trim();
       if (!trimmed || isLoading) return;
 
+      playSentSound();
+
       const userMsg: Message = {
         id: genId(),
         role: "user",
         content: trimmed,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
 
       const assistantId = genId();
@@ -34,7 +37,7 @@ export function useChat(): UseChatResult {
         role: "assistant",
         content: "",
         timestamp: Date.now(),
-        pending: true
+        pending: true,
       };
 
       setMessages((prev) => [...prev, userMsg, pendingMsg]);
@@ -42,6 +45,7 @@ export function useChat(): UseChatResult {
 
       try {
         const data = await askQuestion(trimmed);
+        playReceivedSound();
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId
@@ -50,7 +54,7 @@ export function useChat(): UseChatResult {
                   content: data.answer,
                   sources: data.sources,
                   usedWebSearch: data.used_web_search,
-                  pending: false
+                  pending: false,
                 }
               : m
           )
@@ -60,12 +64,7 @@ export function useChat(): UseChatResult {
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId
-              ? {
-                  ...m,
-                  content: message,
-                  pending: false,
-                  error: true
-                }
+              ? { ...m, content: message, pending: false, error: true }
               : m
           )
         );
