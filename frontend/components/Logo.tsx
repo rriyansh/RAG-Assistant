@@ -1,13 +1,9 @@
 import * as React from "react";
-import Image from "next/image";
 
 export interface LogoProps {
-  /** Size in pixels. Defaults to 32. */
   size?: number;
   className?: string;
-  /** Optional link target. */
   href?: string;
-  /** Opens in new tab if true. */
   external?: boolean;
 }
 
@@ -18,14 +14,22 @@ export function Logo({
   external = false,
 }: LogoProps): JSX.Element {
   
+  // CSS Trick: White background ko transparent karne ke liye aur black dino ko white karne ke liye
+  const imgStyle: React.CSSProperties = {
+    width: size,
+    height: size,
+    objectFit: "contain",
+    filter: "invert(1)", // Black dino ko white karega, white bg ko black
+    mixBlendMode: "screen", // Black bg ko transparent kar dega
+    display: "block",
+  };
+
   const img = (
-    <Image
+    <img
       src="/logo.png"
       alt="RAG Assistant Logo"
-      width={size}
-      height={size}
-      className={`object-contain ${className}`}
-      priority
+      style={imgStyle}
+      className={className}
     />
   );
 
