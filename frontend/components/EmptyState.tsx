@@ -1,43 +1,19 @@
 "use client";
 
-import { Bot } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
-interface EmptyStateProps {
-  onExample: (question: string) => void;
-}
-
-const EXAMPLES: readonly string[] = [
-  "What is the main topic of these documents?",
-  "Summarize the key recommendations.",
-  "What does the document say about data retention?",
-  "List the action items mentioned."
-];
-
-export function EmptyState({ onExample }: EmptyStateProps): JSX.Element {
+export function EmptyState(): JSX.Element {
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-4 py-16 text-center">
-      <div className="mb-4 rounded-lg bg-accent/15 p-3 text-accent">
-        <Bot size={24} />
+      <div className="mb-4 rounded-xl border border-white/10 bg-white/5 p-3 text-[#a9dcff] shadow-[inset_0_1px_0_rgba(255,255,255,.08)]">
+        <Sparkles size={22} />
       </div>
-      <h2 className="text-base font-semibold text-gray-100">
+      <h2 className="text-lg font-semibold tracking-tight text-gray-100">
         Ask about your documents
       </h2>
-      <p className="mt-1 max-w-md text-sm text-gray-400">
+      <p className="mt-1.5 max-w-md text-sm text-gray-400">
         Answers are grounded in your PDFs and come with page-level citations.
       </p>
-
-      <div className="mt-6 grid w-full max-w-md gap-2">
-        {EXAMPLES.map((q) => (
-          <button
-            key={q}
-            type="button"
-            onClick={() => onExample(q)}
-            className="rounded-md border border-border bg-panel/60 px-3 py-2 text-left text-sm text-gray-300 hover:bg-panel hover:text-gray-100 transition"
-          >
-            {q}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
