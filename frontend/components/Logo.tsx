@@ -62,3 +62,9 @@ export function Logo({
     </a>
   );
 }
+<Logo
+  size={32}
+  href="https://chatgpt.com/s/t_6af9d892f9b48191a7f8f71054589998"
+  external
+  className="text-[#a9dcff]"
+/>
