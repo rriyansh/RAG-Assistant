@@ -1,99 +1,68 @@
-"""Ingestion script to build the vector index from PDFs."""
-
-import argparse
-import logging
+"""
+Run this once after adding new PDFs or URLs.
+It reads everything, splits into chunks, embeds them,
+and saves them in the local vector database.
+"""
 import sys
 from pathlib import Path
 
-from src.ingestion.pdf_loader import load_pdfs_from_directory
-from src.ingestion.cleaner import clean_pages
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from src.utils.config import get_settings
+from src.ingestion.pdf_loader import load_all_pdfs
+from src.ingestion.web_loader import load_urls_from_file
 from src.ingestion.chunker import chunk_pages
-from src.embeddings.embedder import Embedder, EmbedderSettings
-from src.embeddings.vector_store import VectorStore, VectorStoreSettings
+from src.embeddings.embedder import embed_texts
+from src.embeddings.vector_store import upsert_chunks, reset_collection
+from src.utils.logger import setup_logger
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+BATCH_SIZE = 32
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Ingest PDFs into vector store")
-    parser.add_argument(
-        "--pdf-dir",
-        type=str,
-        default="./data/pdfs",
-        help="Directory containing PDF files"
-    )
-    parser.add_argument(
-        "--chunk-size",
-        type=int,
-        default=400,
-        help="Target token size per chunk"
-    )
-    parser.add_argument(
-        "--chunk-overlap",
-        type=int,
-        default=50,
-        help="Overlap tokens between chunks"
-    )
-    parser.add_argument(
-        "--clear",
-        action="store_true",
-        help="Clear existing collection before ingesting"
-    )
-    args = parser.parse_args()
+def main() -> None:
+    logger = setup_logger("ingest")
+    settings = get_settings()
 
-    pdf_dir = Path(args.pdf_dir)
-    if not pdf_dir.exists():
-        logger.error(f"PDF directory not found: {pdf_dir}")
-        sys.exit(1)
+    # ---- 1. Read PDFs ----
+    logger.info("Step 1/4: Loading PDFs from data/pdfs/")
+    pdf_pages = load_all_pdfs(Path("data/pdfs"))
+    logger.info("  -> %d PDF pages loaded", len(pdf_pages))
 
-    # Initialize components
-    embedder_settings = EmbedderSettings()
-    vector_store_settings = VectorStoreSettings()
+    # ---- 2. Read web pages from data/urls.txt ----
+    logger.info("Step 2/4: Loading web pages from data/urls.txt")
+    web_pages = load_urls_from_file("data/urls.txt")
+    logger.info("  -> %d web pages loaded", len(web_pages))
 
-    embedder = Embedder(embedder_settings)
-    vector_store = VectorStore(vector_store_settings)
-
-    if args.clear:
-        logger.info("Clearing existing collection...")
-        vector_store.clear_collection()
-
-    # Load and process PDFs
-    logger.info(f"Loading PDFs from {pdf_dir}")
-    pages = load_pdfs_from_directory(pdf_dir)
-
-    if not pages:
-        logger.warning("No PDF pages found")
+    all_pages = pdf_pages + web_pages
+    if not all_pages:
+        logger.error("Nothing to ingest. Add PDFs or URLs first.")
         return
 
-    logger.info(f"Loaded {len(pages)} pages")
+    # ---- 3. Split into chunks ----
+    logger.info("Step 3/4: Splitting into chunks")
+    chunks = chunk_pages(
+        all_pages,
+        settings.chunk_size,
+        settings.chunk_overlap,
+    )
+    logger.info("  -> %d chunks created", len(chunks))
 
-    # Clean text
-    pages = clean_pages(pages)
-    logger.info(f"Cleaned to {len(pages)} pages")
+    # ---- 4. Embed + store ----
+    logger.info("Step 4/4: Embedding and saving to Chroma")
+    reset_collection()
+    total_batches = (len(chunks) + BATCH_SIZE - 1) // BATCH_SIZE
 
-    # Chunk
-    chunks = chunk_pages(pages, args.chunk_size, args.chunk_overlap)
-    logger.info(f"Created {len(chunks)} chunks")
+    for batch_index in range(0, len(chunks), BATCH_SIZE):
+        batch = chunks[batch_index : batch_index + BATCH_SIZE]
+        vectors = embed_texts([c.text for c in batch])
+        upsert_chunks(batch, vectors)
+        logger.info(
+            "  Batch %d/%d done",
+            batch_index // BATCH_SIZE + 1,
+            total_batches,
+        )
 
-    # Generate embeddings
-    logger.info("Generating embeddings...")
-    texts = [c["text"] for c in chunks]
-    embeddings = embedder.embed_texts(texts)
-
-    if not embeddings:
-        logger.error("Failed to generate embeddings")
-        sys.exit(1)
-
-    # Store in vector DB
-    logger.info("Storing in vector database...")
-    vector_store.add_chunks(chunks, embeddings)
-
-    stats = vector_store.get_collection_stats()
-    logger.info(f"Ingestion complete! Total chunks in store: {stats['total_chunks']}")
+    logger.info("Ingestion complete.")
 
 
 if __name__ == "__main__":
