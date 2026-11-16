@@ -1,56 +1,48 @@
-"""Retriever module for vector search."""
+"""
+Given a question, find the most similar chunks already stored
+in the vector database (PDFs and saved web pages).
+"""
+from dataclasses import dataclass
+from src.embeddings.embedder import embed_query
+from src.embeddings.vector_store import get_collection
+from src.utils.config import get_settings
 
-import logging
-from typing import List, Dict, Any, Optional
-from src.embeddings.embedder import Embedder
-from src.embeddings.vector_store import VectorStore
 
-logger = logging.getLogger(__name__)
+@dataclass
+class RetrievedChunk:
+    chunk_id: str
+    doc_name: str
+    page_number: int
+    source_type: str
+    text: str
+    score: float
 
 
-class Retriever:
-    """Retrieves relevant chunks from vector store."""
+def retrieve(query: str, top_k: int | None = None) -> list[RetrievedChunk]:
+    settings = get_settings()
+    k = top_k or settings.top_k
+    collection = get_collection()
+    query_vector = embed_query(query)
 
-    def __init__(
-        self,
-        embedder: Embedder | None = None,
-        vector_store: VectorStore | None = None,
-        top_k: int = 8
-    ):
-        self.embedder = embedder or Embedder()
-        self.vector_store = vector_store or VectorStore()
-        self.top_k = top_k
+    result = collection.query(query_embeddings=[query_vector], n_results=k)
 
-    def retrieve(self, query: str, filter_dict: Optional[Dict] = None) -> List[Dict[str, Any]]:
-        """Retrieve relevant chunks for a query.
+    ids = result.get("ids", [[]])[0]
+    docs = result.get("documents", [[]])[0]
+    metas = result.get("metadatas", [[]])[0]
+    distances = result.get("distances", [[]])[0]
 
-        Args:
-            query: User query string.
-            filter_dict: Optional metadata filter.
-
-        Returns:
-            List of retrieved chunks with metadata and scores.
-        """
-        query_embedding = self.embedder.embed_query(query)
-        if not query_embedding:
-            logger.warning("Empty query embedding")
-            return []
-
-        results = self.vector_store.search(
-            query_embedding=query_embedding,
-            top_k=self.top_k,
-            filter_dict=filter_dict
+    out: list[RetrievedChunk] = []
+    for cid, doc, meta, dist in zip(ids, docs, metas, distances):
+        out.append(
+            RetrievedChunk(
+                chunk_id=cid,
+                doc_name=meta.get("doc_name", "unknown"),
+                page_number=int(meta.get("page_number", 0)),
+                source_type=meta.get("source_type", "pdf"),
+                text=doc,
+                # Chroma cosine distance: 0 = identical, 2 = opposite
+                # We flip it so 1.0 = perfect match.
+                score=float(1.0 - dist),
+            )
         )
-
-        logger.info(f"Retrieved {len(results)} chunks for query: {query[:50]}...")
-        return results
-
-    def retrieve_with_scores(self, query: str) -> List[Dict[str, Any]]:
-        """Retrieve with similarity scores converted to relevance scores."""
-        results = self.retrieve(query)
-        for r in results:
-            # Convert cosine distance to similarity score (1 - distance)
-            r["score"] = 1.0 - r["distance"]
-        # Sort by score descending
-        results.sort(key=lambda x: x["score"], reverse=True)
-        return results
+    return out
