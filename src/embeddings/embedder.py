@@ -1,67 +1,47 @@
-"""OpenAI embeddings module."""
+"""
+Turns text into vectors so we can search it later.
+Supports two providers:
+    - openai  (paid, best quality)
+    - ollama  (FREE, local, private)
+"""
+from openai import OpenAI
+from src.utils.config import get_settings
 
-import logging
-from typing import List
-import openai
-from pydantic_settings import BaseSettings
-
-logger = logging.getLogger(__name__)
-
-
-class EmbedderSettings(BaseSettings):
-    """Settings for the embedder."""
-    openai_api_key: str
-    embedding_model: str = "text-embedding-3-small"
-
-    class Config:
-        env_file = ".env"
+# Lazy singletons — we create the client only once.
+_embed_client: OpenAI | None = None
+_embed_model: str = ""
 
 
-class Embedder:
-    """Wrapper for OpenAI embeddings API."""
+def _init():
+    global _embed_client, _embed_model
+    if _embed_client is not None:
+        return
+    settings = get_settings()
 
-    def __init__(self, settings: EmbedderSettings | None = None):
-        self.settings = settings or EmbedderSettings()
-        self.client = openai.OpenAI(api_key=self.settings.openai_api_key)
-        self.model = self.settings.embedding_model
+    if settings.embedding_provider == "openai":
+        _embed_client = OpenAI(api_key=settings.openai_api_key)
+        _embed_model = settings.embedding_model_openai
+    elif settings.embedding_provider == "ollama":
+        _embed_client = OpenAI(
+            base_url=settings.ollama_base_url,
+            api_key="ollama",
+        )
+        _embed_model = settings.embedding_model_ollama
+    else:
+        raise ValueError(
+            f"Unknown EMBEDDING_PROVIDER '{settings.embedding_provider}'. "
+            f"Use 'openai' or 'ollama'."
+        )
 
-    def embed_texts(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings for a list of texts.
 
-        Args:
-            texts: List of text strings to embed.
+def embed_texts(texts: list[str]) -> list[list[float]]:
+    """Convert a list of strings into a list of vectors."""
+    _init()
+    assert _embed_client is not None
+    response = _embed_client.embeddings.create(model=_embed_model, input=texts)
+    return [item.embedding for item in response.data]
 
-        Returns:
-            List of embedding vectors.
-        """
-        if not texts:
-            return []
 
-        # Filter empty texts
-        valid_texts = [t for t in texts if t and t.strip()]
-        if not valid_texts:
-            return []
-
-        try:
-            response = self.client.embeddings.create(
-                model=self.model,
-                input=valid_texts
-            )
-            embeddings = [item.embedding for item in response.data]
-            logger.info(f"Generated {len(embeddings)} embeddings")
-            return embeddings
-        except Exception as e:
-            logger.error(f"Failed to generate embeddings: {e}")
-            raise
-
-    def embed_query(self, query: str) -> List[float]:
-        """Generate embedding for a single query.
-
-        Args:
-            query: Query text.
-
-        Returns:
-            Embedding vector.
-        """
-        embeddings = self.embed_texts([query])
-        return embeddings[0] if embeddings else []
+def embed_query(text: str) -> list[float]:
+    """Convert a single search query into a vector."""
+    return embed_texts([text])[0]
