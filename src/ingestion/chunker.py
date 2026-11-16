@@ -1,85 +1,58 @@
-"""Text chunking module."""
-
-import logging
-from typing import List, Dict, Any
+"""
+Splits long text into smaller pieces ("chunks") so we can
+search them individually. Each chunk remembers where it came from.
+"""
 import tiktoken
+from dataclasses import dataclass
+from src.ingestion.pdf_loader import Page
+from src.ingestion.cleaner import clean_text
 
-logger = logging.getLogger(__name__)
-
-
-def get_tokenizer(model_name: str = "cl100k_base"):
-    """Get tiktoken tokenizer for token counting."""
-    try:
-        return tiktoken.get_encoding(model_name)
-    except Exception:
-        return tiktoken.get_encoding("cl100k_base")
+_encoder = tiktoken.get_encoding("cl100k_base")
 
 
-def chunk_text(
-    text: str,
-    chunk_size: int = 400,
-    chunk_overlap: int = 50,
-    tokenizer_name: str = "cl100k_base"
-) -> List[str]:
-    """Split text into overlapping chunks by token count.
+@dataclass
+class Chunk:
+    chunk_id: str
+    doc_name: str
+    page_number: int
+    source_type: str        # "pdf" or "web"
+    text: str
 
-    Args:
-        text: Text to chunk.
-        chunk_size: Target tokens per chunk.
-        chunk_overlap: Overlap tokens between chunks.
-        tokenizer_name: Tiktoken encoding name.
 
-    Returns:
-        List of text chunks.
-    """
-    tokenizer = get_tokenizer(tokenizer_name)
-    tokens = tokenizer.encode(text)
+def chunk_page(page: Page, size: int, overlap: int) -> list[Chunk]:
+    text = clean_text(page.text)
+    if not text:
+        return []
 
-    if len(tokens) <= chunk_size:
-        return [text]
-
-    chunks = []
+    tokens = _encoder.encode(text)
+    chunks: list[Chunk] = []
     start = 0
+    index = 0
+    step = max(1, size - overlap)
+
     while start < len(tokens):
-        end = min(start + chunk_size, len(tokens))
-        chunk_tokens = tokens[start:end]
-        chunk_text = tokenizer.decode(chunk_tokens)
-        chunks.append(chunk_text)
-        start += chunk_size - chunk_overlap
+        end = min(start + size, len(tokens))
+        piece = _encoder.decode(tokens[start:end]).strip()
+        if piece:
+            chunks.append(
+                Chunk(
+                    chunk_id=f"{page.doc_name}::p{page.page_number}::c{index}",
+                    doc_name=page.doc_name,
+                    page_number=page.page_number,
+                    source_type=page.source_type,
+                    text=piece,
+                )
+            )
+            index += 1
+        if end == len(tokens):
+            break
+        start += step
 
     return chunks
 
 
-def chunk_pages(
-    pages: List[Dict[str, Any]],
-    chunk_size: int = 400,
-    chunk_overlap: int = 50
-) -> List[Dict[str, Any]]:
-    """Chunk a list of page dictionaries.
-
-    Args:
-        pages: List of page dicts with 'text', 'page_number', 'source'.
-        chunk_size: Target tokens per chunk.
-        chunk_overlap: Overlap tokens between chunks.
-
-    Returns:
-        List of chunk dicts with metadata.
-    """
-    all_chunks = []
-    chunk_id = 0
-
+def chunk_pages(pages: list[Page], size: int, overlap: int) -> list[Chunk]:
+    all_chunks: list[Chunk] = []
     for page in pages:
-        chunks = chunk_text(page["text"], chunk_size, chunk_overlap)
-        for i, chunk in enumerate(chunks):
-            all_chunks.append({
-                "chunk_id": chunk_id,
-                "text": chunk,
-                "page_number": page["page_number"],
-                "source": page["source"],
-                "chunk_index": i,
-                "total_chunks_in_page": len(chunks)
-            })
-            chunk_id += 1
-
-    logger.info(f"Created {len(all_chunks)} chunks from {len(pages)} pages")
+        all_chunks.extend(chunk_page(page, size, overlap))
     return all_chunks
