@@ -1,56 +1,45 @@
-"""PDF text extraction module."""
-
-import logging
+"""
+Reads every PDF in data/pdfs/ and returns one Page object per page.
+Keeps the file name and page number so the LLM can cite them later.
+"""
+from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Dict, Any
-import pypdf
+from pypdf import PdfReader
+from src.utils.logger import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
-def extract_text_from_pdf(pdf_path: Path) -> List[Dict[str, Any]]:
-    """Extract text from a PDF file with page numbers.
+@dataclass
+class Page:
+    doc_name: str
+    page_number: int   # 1-indexed
+    text: str
+    source_type: str = "pdf"   # "pdf" | "web"
 
-    Args:
-        pdf_path: Path to the PDF file.
 
-    Returns:
-        List of dictionaries containing page_number and text.
-    """
-    pages = []
-    try:
-        with open(pdf_path, "rb") as f:
-            reader = pypdf.PdfReader(f)
-            for page_num, page in enumerate(reader.pages, start=1):
-                text = page.extract_text()
-                if text and text.strip():
-                    pages.append({
-                        "page_number": page_num,
-                        "text": text.strip(),
-                        "source": pdf_path.name
-                    })
-        logger.info(f"Extracted {len(pages)} pages from {pdf_path.name}")
-    except Exception as e:
-        logger.error(f"Failed to extract text from {pdf_path}: {e}")
-        raise
+def load_pdf(path: Path) -> list[Page]:
+    reader = PdfReader(str(path))
+    pages: list[Page] = []
+    for i, raw_page in enumerate(reader.pages, start=1):
+        text = raw_page.extract_text() or ""
+        if text.strip():
+            pages.append(
+                Page(doc_name=path.name, page_number=i, text=text)
+            )
     return pages
 
 
-def load_pdfs_from_directory(pdf_dir: Path) -> List[Dict[str, Any]]:
-    """Load all PDFs from a directory.
-
-    Args:
-        pdf_dir: Directory containing PDF files.
-
-    Returns:
-        List of page dictionaries from all PDFs.
-    """
-    all_pages = []
-    pdf_files = list(pdf_dir.glob("*.pdf"))
-    logger.info(f"Found {len(pdf_files)} PDF files in {pdf_dir}")
-
-    for pdf_file in pdf_files:
-        pages = extract_text_from_pdf(pdf_file)
-        all_pages.extend(pages)
-
-    return all_pages
+def load_all_pdfs(pdf_dir: Path) -> list[Page]:
+    pages: list[Page] = []
+    pdfs = sorted(pdf_dir.glob("*.pdf"))
+    if not pdfs:
+        logger.warning("No PDFs found in %s", pdf_dir)
+        return pages
+    for pdf in pdfs:
+        try:
+            pages.extend(load_pdf(pdf))
+            logger.info("Loaded PDF: %s", pdf.name)
+        except Exception as exc:
+            logger.exception("Failed to load %s: %s", pdf.name, exc)
+    return pages
