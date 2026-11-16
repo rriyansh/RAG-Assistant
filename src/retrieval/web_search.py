@@ -1,84 +1,95 @@
-"""Web search module using Tavily API."""
+"""
+Two free web-search providers:
 
-import logging
-from typing import List, Dict, Any, Optional
-from pydantic_settings import BaseSettings
-import httpx
+  DuckDuckGo  — completely free, unlimited, no API key.
+  Tavily      — 1,000 free searches per month, higher quality.
 
-logger = logging.getLogger(__name__)
+You pick one in .env with WEB_SEARCH_PROVIDER=duckduckgo or tavily.
+"""
+from dataclasses import dataclass
+from src.utils.config import get_settings
+from src.utils.logger import setup_logger
 
-
-class WebSearchSettings(BaseSettings):
-    """Settings for web search."""
-    tavily_api_key: str = ""
-
-    class Config:
-        env_file = ".env"
+logger = setup_logger(__name__)
 
 
-class WebSearch:
-    """Web search using Tavily API."""
+@dataclass
+class WebResult:
+    title: str
+    url: str
+    snippet: str
 
-    def __init__(self, settings: WebSearchSettings | None = None):
-        self.settings = settings or WebSearchSettings()
-        self.api_key = self.settings.tavily_api_key
-        self.base_url = "https://api.tavily.com"
-        self.enabled = bool(self.api_key)
 
-    def search(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
-        """Search the web for relevant information.
+# ------------------------------------------------------------
+# DuckDuckGo — free, no key
+# ------------------------------------------------------------
+def _search_duckduckgo(query: str, max_results: int) -> list[WebResult]:
+    try:
+        from duckduckgo_search import DDGS
+    except ImportError:
+        logger.error("duckduckgo-search is not installed. Run pip install duckduckgo-search")
+        return []
 
-        Args:
-            query: Search query.
-            max_results: Maximum number of results.
+    try:
+        with DDGS() as ddgs:
+            raw = list(ddgs.text(query, max_results=max_results))
+    except Exception as exc:
+        logger.warning("DuckDuckGo failed: %s", exc)
+        return []
 
-        Returns:
-            List of search results with title, url, content.
-        """
-        if not self.enabled:
-            logger.warning("Web search disabled (no TAVILY_API_KEY)")
-            return []
+    return [
+        WebResult(
+            title=item.get("title", ""),
+            url=item.get("href", ""),
+            snippet=item.get("body", ""),
+        )
+        for item in raw
+    ]
 
-        try:
-            with httpx.Client(timeout=30.0) as client:
-                response = client.post(
-                    f"{self.base_url}/search",
-                    json={
-                        "api_key": self.api_key,
-                        "query": query,
-                        "max_results": max_results,
-                        "search_depth": "basic",
-                        "include_answer": True,
-                        "include_raw_content": False
-                    }
-                )
-                response.raise_for_status()
-                data = response.json()
 
-                results = []
-                for item in data.get("results", []):
-                    results.append({
-                        "title": item.get("title", ""),
-                        "url": item.get("url", ""),
-                        "content": item.get("content", ""),
-                        "score": item.get("score", 0)
-                    })
+# ------------------------------------------------------------
+# Tavily — free tier (1000/month)
+# ------------------------------------------------------------
+def _search_tavily(query: str, max_results: int) -> list[WebResult]:
+    settings = get_settings()
+    if not settings.tavily_api_key:
+        logger.warning("TAVILY_API_KEY is empty; falling back to DuckDuckGo")
+        return _search_duckduckgo(query, max_results)
 
-                logger.info(f"Web search returned {len(results)} results for: {query[:50]}...")
-                return results
+    try:
+        from tavily import TavilyClient
+    except ImportError:
+        logger.error("tavily-python is not installed. Run pip install tavily-python")
+        return []
 
-        except Exception as e:
-            logger.error(f"Web search failed: {e}")
-            return []
+    try:
+        client = TavilyClient(api_key=settings.tavily_api_key)
+        response = client.search(query=query, max_results=max_results)
+    except Exception as exc:
+        logger.warning("Tavily failed: %s", exc)
+        return []
 
-    def format_results(self, results: List[Dict[str, Any]]) -> str:
-        """Format search results for prompt inclusion."""
-        if not results:
-            return "No web search results found."
+    return [
+        WebResult(
+            title=item.get("title", ""),
+            url=item.get("url", ""),
+            snippet=item.get("content", ""),
+        )
+        for item in response.get("results", [])
+    ]
 
-        formatted = ["Web Search Results:"]
-        for i, r in enumerate(results, 1):
-            formatted.append(f"\n[{i}] {r['title']}")
-            formatted.append(f"    URL: {r['url']}")
-            formatted.append(f"    Content: {r['content'][:500]}...")
-        return "\n".join(formatted)
+
+# ------------------------------------------------------------
+# Public entry point — picks the right provider
+# ------------------------------------------------------------
+def web_search(query: str, max_results: int | None = None) -> list[WebResult]:
+    settings = get_settings()
+    if not settings.web_search_enabled:
+        return []
+
+    limit = max_results or settings.web_search_max_results
+    provider = settings.web_search_provider.lower()
+
+    if provider == "tavily":
+        return _search_tavily(query, limit)
+    return _search_duckduckgo(query, limit)
