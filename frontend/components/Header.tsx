@@ -1,14 +1,15 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { Trash2, Settings } from "lucide-react";
 import { Logo } from "./Logo";
 
 interface HeaderProps {
   onClear: () => void;
+  onOpenSettings: () => void;
   canClear: boolean;
 }
 
-export function Header({ onClear, canClear }: HeaderProps): JSX.Element {
+export function Header({ onClear, onOpenSettings, canClear }: HeaderProps): JSX.Element {
   return (
     <header className="sticky top-0 z-10 border-b border-border bg-panel/80 backdrop-blur">
       <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-3">
@@ -28,15 +29,23 @@ export function Header({ onClear, canClear }: HeaderProps): JSX.Element {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onClear}
-          disabled={!canClear}
-          className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-gray-300 transition hover:bg-panel disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <Trash2 size={14} />
-          Clear
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-gray-300 transition hover:bg-panel"
+          >
+            <Settings size={14} /> Settings
+          </button>
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={!canClear}
+            className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-gray-300 transition hover:bg-panel disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Trash2 size={14} /> Clear
+          </button>
+        </div>
       </div>
     </header>
   );
