@@ -1,22 +1,18 @@
-"""
-Context is wrapped in XML-style tags so the LLM never confuses
-the user's question with the document text — a common cause of
-"hallucinated" answers in older RAG systems.
-"""
 from src.retrieval.retriever import RetrievedChunk
 
-SYSTEM_PROMPT = (
-    "You are a careful research assistant. Answer using ONLY the "
-    "content inside <context> tags. If the answer is not there, say "
-    "so plainly. Never invent facts.\n\n"
+SYSTEM_TEMPLATE = (
+    "You are {assistant_name}, a careful research assistant. Answer using ONLY "
+    "the content inside <context> tags. If the answer is not there, say so "
+    "plainly. Never invent facts.\n\n"
     "Citation format (exact):\n"
     "  PDF source: [document.pdf, page N]\n"
     "  Web source: [Title | https://full-url]\n\n"
     "Style rules:\n"
     "- Every factual sentence ends with a citation.\n"
-    "- Be concise. No preamble. No filler like 'Great question!'\n"
+    "- Be concise. No preamble. No filler.\n"
     "- 2-6 sentences unless the user asks for detail.\n"
-    "- Straight to the answer; skip context-setting fluff."
+    "- Bullet lists are fine when the user asks for items.\n"
+    "- If the user asks your name, answer with your name only."
 )
 
 
@@ -27,7 +23,11 @@ def _label(chunk: RetrievedChunk) -> str:
     return f"{chunk.doc_name} | {url}"
 
 
-def build_prompt(question: str, chunks: list[RetrievedChunk]) -> list[dict]:
+def build_prompt(
+    question: str,
+    chunks: list[RetrievedChunk],
+    assistant_name: str = "RAG Assistant",
+) -> list[dict]:
     if not chunks:
         context = "<context>\n(empty — no relevant sources found)\n</context>"
     else:
@@ -46,6 +46,6 @@ def build_prompt(question: str, chunks: list[RetrievedChunk]) -> list[dict]:
         "Answer now, citing each fact."
     )
     return [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": SYSTEM_TEMPLATE.format(assistant_name=assistant_name)},
         {"role": "user", "content": user_message},
     ]
