@@ -505,4 +505,88 @@ export function SettingsModal({ open, onClose }: SettingsModalProps): JSX.Elemen
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md bg-[
+            className="rounded-md bg-[#5FB2F2] px-4 py-2 text-sm font-medium text-[#06233a] hover:brightness-110"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }): JSX.Element {
+  return (
+    <div>
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">{title}</h3>
+      <div className="space-y-3">{children}</div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }): JSX.Element {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-400 mb-1">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function AvatarPreview({ profile, kind }: { profile: Profile; kind: "user" | "logo" }): JSX.Element {
+  if (kind === "logo") {
+    if (profile.assistantLogo) {
+      return (
+        <img
+          src={profile.assistantLogo}
+          alt=""
+          className="h-12 w-12 rounded-full object-cover border border-white/10"
+        />
+      );
+    }
+    return (
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/5 border border-white/10">
+        <img src="/logo.svg" alt="" className="h-8 w-8 object-contain" style={{ filter: "invert(1)" }} />
+      </div>
+    );
+  }
+  if (profile.avatarDataUrl) {
+    return (
+      <img
+        src={profile.avatarDataUrl}
+        alt=""
+        className="h-12 w-12 rounded-full object-cover border border-white/10"
+      />
+    );
+  }
+  const initial = profile.name.trim().charAt(0).toUpperCase() || "?";
+  return (
+    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent text-white text-lg font-semibold border border-white/10">
+      {initial}
+    </div>
+  );
+}
+
+function ParamRow({ label, value }: { label: string; value: string }): JSX.Element {
+  return (
+    <div className="rounded-md border border-white/10 bg-[#0b0f14]/60 px-3 py-2">
+      <p className="text-[11px] uppercase tracking-wide text-gray-500">{label}</p>
+      <p className="mt-0.5 font-mono text-sm text-gray-100">{value}</p>
+    </div>
+  );
+}
+
+function StatusBar({ status }: { status: { kind: "ok" | "err" | "info"; text: string } }): JSX.Element {
+  const cls =
+    status.kind === "ok"
+      ? "bg-green-950/40 text-green-300 border-green-900/50"
+      : status.kind === "err"
+        ? "bg-red-950/40 text-red-300 border-red-900/50"
+        : "bg-blue-950/40 text-blue-300 border-blue-900/50";
+  return (
+    <div className={`flex items-start gap-2 rounded-md border px-3 py-2 text-xs ${cls}`}>
+      {status.kind === "err" && <AlertCircle size={14} className="mt-0.5 shrink-0" />}
+      <span>{status.text}</span>
+    </div>
+  );
+}
