@@ -4,11 +4,11 @@ import * as React from "react";
 import {
   X, Check, AlertCircle, Trash2, Upload, Plus, Info,
 } from "lucide-react";
-import type { KeySetPayload, ParamsInfo, Profile } from "@/lib/types";
+import type { KeySetPayload, ParamsInfo, Profile, FontId } from "@/lib/types";
 import { useKeys } from "@/hooks/useKeys";
 import { useProfile } from "@/hooks/useProfile";
 import { useCannedResponses } from "@/hooks/useCannedResponses";
-import { detectKey, fetchParams, enhancePrompt } from "@/lib/api";
+import { detectKey, fetchParams } from "@/lib/api";
 
 interface SettingsModalProps {
   open: boolean;
@@ -26,43 +26,49 @@ const PROVIDERS = [
   { id: "custom", label: "Custom endpoint", hint: "Any OpenAI-compatible URL" },
 ];
 
+const FONTS: Array<{ id: FontId; label: string }> = [
+  { id: "system", label: "System (SF Pro / Google Sans)" },
+  { id: "dm-sans", label: "DM Sans" },
+  { id: "josefin-sans", label: "Josefin Sans" },
+  { id: "fredoka", label: "Fredoka" },
+  { id: "open-sans", label: "Open Sans" },
+  { id: "outfit", label: "Outfit" },
+  { id: "plus-jakarta-sans", label: "Plus Jakarta Sans" },
+];
+
 export function SettingsModal({ open, onClose }: SettingsModalProps): JSX.Element | null {
   const [tab, setTab] = React.useState<Tab>("identity");
   const { keys, test, save, remove } = useKeys();
-  const { profile, setName, setAvatarFromFile, clearAvatar } = useProfile();
+  const {
+    profile, update,
+    setAvatarFromFile, clearAvatar,
+    setAssistantLogoFromFile, clearAssistantLogo,
+  } = useProfile();
   const { items: canned, add: addCanned, remove: removeCanned } = useCannedResponses();
 
-  // ---- API key state ----
   const [rawKey, setRawKey] = React.useState("");
-  const [detected, setDetected] = React.useState<string>("");
-  const [detectedHint, setDetectedHint] = React.useState<string>("");
+  const [detected, setDetected] = React.useState("");
+  const [detectedHint, setDetectedHint] = React.useState("");
   const [provider, setProvider] = React.useState("groq");
   const [model, setModel] = React.useState("");
   const [baseUrl, setBaseUrl] = React.useState("");
   const [busy, setBusy] = React.useState(false);
-  const [status, setStatus] = React.useState<
-    { kind: "ok" | "err" | "info"; text: string } | null
-  >(null);
+  const [status, setStatus] = React.useState<{ kind: "ok" | "err" | "info"; text: string } | null>(null);
 
-  // ---- Params state ----
   const [params, setParams] = React.useState<ParamsInfo | null>(null);
 
-  // ---- Canned state ----
   const [cannedTrigger, setCannedTrigger] = React.useState("");
   const [cannedResponse, setCannedResponse] = React.useState("");
   const [cannedMode, setCannedMode] = React.useState<"contains" | "exact">("contains");
 
-  // ---- Avatar file input ----
   const avatarInputRef = React.useRef<HTMLInputElement | null>(null);
+  const logoInputRef = React.useRef<HTMLInputElement | null>(null);
 
-  // Load params when the modal opens on the params tab
   React.useEffect(() => {
-    if (!open) return;
-    if (tab !== "params") return;
+    if (!open || tab !== "params") return;
     void fetchParams().then(setParams).catch(() => setParams(null));
   }, [open, tab]);
 
-  // Debounced detection as the user types the key
   React.useEffect(() => {
     if (!rawKey.trim()) {
       setDetected("");
@@ -134,10 +140,20 @@ export function SettingsModal({ open, onClose }: SettingsModalProps): JSX.Elemen
     }
   };
 
+  const onLogoPicked = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      await setAssistantLogoFromFile(file);
+    } catch (err) {
+      setStatus({ kind: "err", text: err instanceof Error ? err.message : "Upload failed" });
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-white/10 bg-[#131923] shadow-2xl">
-        {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-3">
           <h2 className="font-display text-lg font-semibold text-gray-100">Settings</h2>
           <button
@@ -149,7 +165,6 @@ export function SettingsModal({ open, onClose }: SettingsModalProps): JSX.Elemen
           </button>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-1 border-b border-white/10 px-3 py-2 overflow-x-auto">
           {([
             ["identity", "Identity"],
@@ -162,9 +177,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps): JSX.Elemen
               type="button"
               onClick={() => { setTab(id); setStatus(null); }}
               className={`rounded-md px-3 py-1.5 text-xs font-medium transition whitespace-nowrap ${
-                tab === id
-                  ? "bg-[#5FB2F2] text-[#06233a]"
-                  : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
+                tab === id ? "bg-[#5FB2F2] text-[#06233a]" : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
               }`}
             >
               {label}
@@ -172,55 +185,126 @@ export function SettingsModal({ open, onClose }: SettingsModalProps): JSX.Elemen
           ))}
         </div>
 
-        {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
-
-          {/* ============ IDENTITY ============ */}
           {tab === "identity" && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <AvatarPreview profile={profile} />
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-400 mb-1">Display name</label>
+            <div className="space-y-5">
+              <Section title="Assistant">
+                <Field label="Assistant name">
+                  <input
+                    value={profile.assistantName}
+                    onChange={(e) => update({ assistantName: e.target.value })}
+                    className="w-full rounded-md border border-white/10 bg-[#0b0f14] px-3 py-2 text-sm text-gray-100"
+                    placeholder="RAG Assistant"
+                  />
+                </Field>
+                <Field label="Headline">
+                  <input
+                    value={profile.headline}
+                    onChange={(e) => update({ headline: e.target.value })}
+                    className="w-full rounded-md border border-white/10 bg-[#0b0f14] px-3 py-2 text-sm text-gray-100"
+                    placeholder="Ask questions from your documents"
+                  />
+                </Field>
+                <Field label="Body text">
+                  <textarea
+                    value={profile.bodyText}
+                    onChange={(e) => update({ bodyText: e.target.value })}
+                    rows={2}
+                    className="w-full rounded-md border border-white/10 bg-[#0b0f14] px-3 py-2 text-sm text-gray-100 resize-none"
+                    placeholder="Answers are grounded in your PDFs and come with page-level citations."
+                  />
+                </Field>
+                <div className="flex items-center gap-3">
+                  <AvatarPreview profile={profile} kind="logo" />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => logoInputRef.current?.click()}
+                      className="flex items-center gap-1.5 rounded-md border border-white/10 px-3 py-2 text-xs text-gray-200 hover:bg-white/5"
+                    >
+                      <Upload size={14} /> Upload logo
+                    </button>
+                    {profile.assistantLogo && (
+                      <button
+                        type="button"
+                        onClick={clearAssistantLogo}
+                        className="flex items-center gap-1.5 rounded-md border border-white/10 px-3 py-2 text-xs text-red-300 hover:bg-red-950/30"
+                      >
+                        <Trash2 size={14} /> Remove
+                      </button>
+                    )}
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={onLogoPicked}
+                    />
+                  </div>
+                </div>
+              </Section>
+
+              <Section title="You">
+                <Field label="Display name">
                   <input
                     value={profile.name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e) => update({ name: e.target.value })}
                     className="w-full rounded-md border border-white/10 bg-[#0b0f14] px-3 py-2 text-sm text-gray-100"
                     placeholder="Your name"
                   />
+                </Field>
+                <div className="flex items-center gap-3">
+                  <AvatarPreview profile={profile} kind="user" />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => avatarInputRef.current?.click()}
+                      className="flex items-center gap-1.5 rounded-md border border-white/10 px-3 py-2 text-xs text-gray-200 hover:bg-white/5"
+                    >
+                      <Upload size={14} /> Upload avatar
+                    </button>
+                    {profile.avatarDataUrl && (
+                      <button
+                        type="button"
+                        onClick={clearAvatar}
+                        className="flex items-center gap-1.5 rounded-md border border-white/10 px-3 py-2 text-xs text-red-300 hover:bg-red-950/30"
+                      >
+                        <Trash2 size={14} /> Remove
+                      </button>
+                    )}
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={onAvatarPicked}
+                    />
+                  </div>
                 </div>
-              </div>
+              </Section>
 
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => avatarInputRef.current?.click()}
-                  className="flex items-center gap-1.5 rounded-md border border-white/10 px-3 py-2 text-xs text-gray-200 hover:bg-white/5"
-                >
-                  <Upload size={14} /> Upload avatar
-                </button>
-                {profile.avatarDataUrl && (
-                  <button
-                    type="button"
-                    onClick={clearAvatar}
-                    className="flex items-center gap-1.5 rounded-md border border-white/10 px-3 py-2 text-xs text-red-300 hover:bg-red-950/30"
+              <Section title="Font">
+                <Field label="Interface font">
+                  <select
+                    value={profile.font}
+                    onChange={(e) => update({ font: e.target.value as FontId })}
+                    className="w-full rounded-md border border-white/10 bg-[#0b0f14] px-3 py-2 text-sm text-gray-100"
                   >
-                    <Trash2 size={14} /> Remove
-                  </button>
-                )}
-                <input
-                  ref={avatarInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={onAvatarPicked}
-                />
-              </div>
-              <p className="text-xs text-gray-500">Avatar is stored locally in your browser. Max 2 MB.</p>
+                    {FONTS.map((f) => (
+                      <option key={f.id} value={f.id}>{f.label}</option>
+                    ))}
+                  </select>
+                </Field>
+                <p
+                  className="text-sm text-gray-400"
+                  style={{ fontFamily: `var(--font-body)` }}
+                >
+                  Preview: The quick brown fox jumps over the lazy dog.
+                </p>
+              </Section>
             </div>
           )}
 
-          {/* ============ API KEY ============ */}
           {tab === "api" && (
             <div className="space-y-4">
               <div>
@@ -231,7 +315,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps): JSX.Elemen
                   type="password"
                   value={rawKey}
                   onChange={(e) => setRawKey(e.target.value)}
-                  placeholder="sk-..., gsk_..., AIza..., sk-or-v1-..."
+                  placeholder="Paste your key"
                   className="w-full rounded-md border border-white/10 bg-[#0b0f14] px-3 py-2 text-sm text-gray-100 font-mono"
                 />
                 {detected && detected !== "unknown" && (
@@ -280,11 +364,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps): JSX.Elemen
                   <input
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
-                    placeholder={
-                      provider === "ollama"
-                        ? "http://localhost:11434/v1"
-                        : "https://your-server.com/v1"
-                    }
+                    placeholder={provider === "ollama" ? "http://localhost:11434/v1" : "https://your-server.com/v1"}
                     className="w-full rounded-md border border-white/10 bg-[#0b0f14] px-3 py-2 text-sm text-gray-100"
                   />
                 </div>
@@ -323,18 +403,9 @@ export function SettingsModal({ open, onClose }: SettingsModalProps): JSX.Elemen
                   Save
                 </button>
               </div>
-
-              <div className="rounded-md border border-white/10 bg-[#0b0f14]/60 px-3 py-2 text-[11px] text-gray-500">
-                <strong className="text-gray-400">Detected key formats:</strong>{" "}
-                <span className="font-mono">gsk_</span> (Groq),{" "}
-                <span className="font-mono">AIza</span> (Gemini),{" "}
-                <span className="font-mono">sk-or-v1-</span> (OpenRouter),{" "}
-                <span className="font-mono">sk-</span> (OpenAI). Anthropic keys are detected but not yet supported as a provider.
-              </div>
             </div>
           )}
 
-          {/* ============ PARAMS ============ */}
           {tab === "params" && (
             <div>
               {!params && <p className="text-sm text-gray-400">Loading…</p>}
@@ -348,16 +419,12 @@ export function SettingsModal({ open, onClose }: SettingsModalProps): JSX.Elemen
                   <ParamRow label="Top-K chunks" value={String(params.top_k)} />
                   <ParamRow label="Web search" value={params.web_search_enabled ? "On" : "Off"} />
                   <ParamRow label="Web provider" value={params.web_search_provider} />
-                  <ParamRow
-                    label="Web fallback threshold"
-                    value={params.web_fallback_threshold.toFixed(2)}
-                  />
+                  <ParamRow label="Web fallback threshold" value={params.web_fallback_threshold.toFixed(2)} />
                 </div>
               )}
             </div>
           )}
 
-          {/* ============ CANNED ============ */}
           {tab === "canned" && (
             <div className="space-y-4">
               <p className="text-xs text-gray-500">
@@ -411,19 +478,13 @@ export function SettingsModal({ open, onClose }: SettingsModalProps): JSX.Elemen
 
               <div className="space-y-2">
                 {canned.map((c) => (
-                  <div
-                    key={c.id}
-                    className="rounded-md border border-white/10 bg-[#0b0f14]/60 px-3 py-2 text-xs"
-                  >
+                  <div key={c.id} className="rounded-md border border-white/10 bg-[#0b0f14]/60 px-3 py-2 text-xs">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="font-mono text-[#5FB2F2] truncate">
-                          {c.trigger}{" "}
-                          <span className="text-gray-600">({c.matchMode})</span>
+                          {c.trigger} <span className="text-gray-600">({c.matchMode})</span>
                         </p>
-                        <p className="mt-1 text-gray-300 whitespace-pre-wrap break-words">
-                          {c.response}
-                        </p>
+                        <p className="mt-1 text-gray-300 whitespace-pre-wrap break-words">{c.response}</p>
                       </div>
                       <button
                         type="button"
@@ -440,63 +501,8 @@ export function SettingsModal({ open, onClose }: SettingsModalProps): JSX.Elemen
           )}
         </div>
 
-        {/* Footer */}
         <div className="border-t border-white/10 px-5 py-3 flex justify-end">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md bg-[#5FB2F2] px-4 py-2 text-sm font-medium text-[#06233a] hover:brightness-110"
-          >
-            Done
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AvatarPreview({ profile }: { profile: Profile }): JSX.Element {
-  if (profile.avatarDataUrl) {
-    return (
-      <img
-        src={profile.avatarDataUrl}
-        alt=""
-        className="h-16 w-16 rounded-full object-cover border border-white/10"
-      />
-    );
-  }
-  const initial = profile.name.trim().charAt(0).toUpperCase() || "?";
-  return (
-    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-white text-xl font-semibold border border-white/10">
-      {initial}
-    </div>
-  );
-}
-
-function ParamRow({ label, value }: { label: string; value: string }): JSX.Element {
-  return (
-    <div className="rounded-md border border-white/10 bg-[#0b0f14]/60 px-3 py-2">
-      <p className="text-[11px] uppercase tracking-wide text-gray-500">{label}</p>
-      <p className="mt-0.5 font-mono text-sm text-gray-100">{value}</p>
-    </div>
-  );
-}
-
-function StatusBar({
-  status,
-}: {
-  status: { kind: "ok" | "err" | "info"; text: string };
-}): JSX.Element {
-  const cls =
-    status.kind === "ok"
-      ? "bg-green-950/40 text-green-300 border-green-900/50"
-      : status.kind === "err"
-        ? "bg-red-950/40 text-red-300 border-red-900/50"
-        : "bg-blue-950/40 text-blue-300 border-blue-900/50";
-  return (
-    <div className={`flex items-start gap-2 rounded-md border px-3 py-2 text-xs ${cls}`}>
-      {status.kind === "err" && <AlertCircle size={14} className="mt-0.5 shrink-0" />}
-      <span>{status.text}</span>
-    </div>
-  );
-}
+            className="rounded-md bg-[
