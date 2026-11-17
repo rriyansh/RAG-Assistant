@@ -1,24 +1,28 @@
-from src.api.schemas import (
-    # ... existing imports ...
-    KeyDetectRequest, KeyDetectResponse,
-    EnhanceRequest, EnhanceResponse,
-    ParamsResponse,
-)
-from src.utils.key_detect import detect_provider
-from src.generation.prompt_enhancer import enhance_prompt
-from src.utils.config import get_settings as _get_settings
 from fastapi import APIRouter, HTTPException
 
 from src.api.schemas import (
-    AskRequest, AskResponse, SourceItem, HealthResponse,
-    KeySetRequest, KeyTestRequest, KeyTestResponse,
-    KeyListResponse, ThinkingResponse,
+    AskRequest,
+    AskResponse,
+    SourceItem,
+    HealthResponse,
+    KeySetRequest,
+    KeyTestRequest,
+    KeyTestResponse,
+    KeyListResponse,
+    KeyDetectRequest,
+    KeyDetectResponse,
+    ThinkingResponse,
+    EnhanceRequest,
+    EnhanceResponse,
+    ParamsResponse,
 )
 from src.retrieval.hybrid_retriever import hybrid_retrieve
 from src.generation.generator import generate_answer
 from src.generation.answer_parser import collect_sources
+from src.generation.prompt_enhancer import enhance_prompt
 from src.utils.config import get_settings
-from src.utils.key_store import set_key, list_keys, clear_key, get_key
+from src.utils.key_store import set_key, list_keys, clear_key
+from src.utils.key_detect import detect_provider
 from src.llm.factory import test_provider, create_llm
 from src.llm.thinking_messages import random_messages, generate_with_llm
 from src.utils.logger import setup_logger
@@ -46,6 +50,27 @@ def config_info() -> dict:
     }
 
 
+@router.get("/config/params", response_model=ParamsResponse)
+def config_params() -> ParamsResponse:
+    settings = get_settings()
+    embed_model = (
+        settings.embedding_model_openai
+        if settings.embedding_provider == "openai"
+        else settings.embedding_model_ollama
+    )
+    return ParamsResponse(
+        llm_provider=settings.llm_provider,
+        embedding_provider=settings.embedding_provider,
+        embedding_model=embed_model,
+        chunk_size=settings.chunk_size,
+        chunk_overlap=settings.chunk_overlap,
+        top_k=settings.top_k,
+        web_search_provider=settings.web_search_provider,
+        web_search_enabled=settings.web_search_enabled,
+        web_fallback_threshold=settings.web_fallback_threshold,
+    )
+
+
 # ============================================================
 # Ask — the main endpoint
 # ============================================================
@@ -68,7 +93,7 @@ def ask(req: AskRequest) -> AskResponse:
 
 
 # ============================================================
-# Key management — what the frontend Settings modal uses
+# Key management — used by Settings modal
 # ============================================================
 @router.get("/keys", response_model=KeyListResponse)
 def keys_list() -> KeyListResponse:
@@ -79,9 +104,14 @@ def keys_list() -> KeyListResponse:
     )
 
 
+@router.post("/keys/detect", response_model=KeyDetectResponse)
+def keys_detect(req: KeyDetectRequest) -> KeyDetectResponse:
+    provider, hint = detect_provider(req.api_key)
+    return KeyDetectResponse(provider=provider, hint=hint)
+
+
 @router.post("/keys/test", response_model=KeyTestResponse)
 def keys_test(req: KeyTestRequest) -> KeyTestResponse:
-    """Try the key WITHOUT saving. Fast fail if it's wrong."""
     result = test_provider(
         provider=req.provider,
         api_key=req.api_key,
@@ -97,7 +127,6 @@ def keys_test(req: KeyTestRequest) -> KeyTestResponse:
 
 @router.post("/keys/set")
 def keys_set(req: KeySetRequest) -> dict:
-    """Save a key. Also optionally test it first? No — caller's job."""
     try:
         set_key(
             provider=req.provider,
@@ -117,14 +146,10 @@ def keys_delete(provider: str) -> dict:
 
 
 # ============================================================
-# Thinking messages — 1000 procedurally generated + LLM option
+# Thinking messages
 # ============================================================
 @router.get("/thinking/messages", response_model=ThinkingResponse)
 def thinking_messages(count: int = 20) -> ThinkingResponse:
-    """
-    Return `count` shuffled messages. Default 20.
-    The frontend rotates through them while waiting for /ask.
-    """
     return ThinkingResponse(
         messages=random_messages(min(count, 1000)),
         generated_by="template",
@@ -133,10 +158,6 @@ def thinking_messages(count: int = 20) -> ThinkingResponse:
 
 @router.post("/thinking/generate", response_model=ThinkingResponse)
 def thinking_generate(count: int = 20) -> ThinkingResponse:
-    """
-    Ask the active LLM to write `count` fresh messages. Cached.
-    Falls back to templates if the LLM fails.
-    """
     try:
         llm = create_llm()
         messages = generate_with_llm(llm, min(count, 50))
@@ -147,3 +168,12 @@ def thinking_generate(count: int = 20) -> ThinkingResponse:
             messages=random_messages(min(count, 1000)),
             generated_by="template",
         )
+
+
+# ============================================================
+# Prompt enhancement
+# ============================================================
+@router.post("/prompt/enhance", response_model=EnhanceResponse)
+def prompt_enhance(req: EnhanceRequest) -> EnhanceResponse:
+    enhanced = enhance_prompt(req.prompt)
+    return EnhanceResponse(original=req.prompt, enhanced=enhanced)
