@@ -5,6 +5,7 @@ import type { Message } from "@/lib/types";
 import { askQuestion } from "@/lib/api";
 import { genId } from "@/lib/utils";
 import { playSentSound, playReceivedSound } from "@/lib/sounds";
+import { useCannedResponses } from "./useCannedResponses";
 
 interface UseChatResult {
   messages: Message[];
@@ -16,21 +17,39 @@ interface UseChatResult {
 export function useChat(): UseChatResult {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const { findMatch } = useCannedResponses();
 
   const sendMessage = useCallback(
     async (question: string): Promise<void> => {
       const trimmed = question.trim();
       if (!trimmed || isLoading) return;
 
-      playSentSound();
+      // 1. Canned response path — no backend, no loading, no sound blip.
+      const canned = findMatch(trimmed);
+      if (canned) {
+        const now = Date.now();
+        setMessages((prev) => [
+          ...prev,
+          { id: genId(), role: "user", content: trimmed, timestamp: now },
+          {
+            id: genId(),
+            role: "assistant",
+            content: canned.response,
+            timestamp: now + 1,
+            local: true,
+          },
+        ]);
+        return;
+      }
 
+      // 2. Normal path
+      playSentSound();
       const userMsg: Message = {
         id: genId(),
         role: "user",
         content: trimmed,
         timestamp: Date.now(),
       };
-
       const assistantId = genId();
       const pendingMsg: Message = {
         id: assistantId,
@@ -72,7 +91,7 @@ export function useChat(): UseChatResult {
         setIsLoading(false);
       }
     },
-    [isLoading]
+    [isLoading, findMatch]
   );
 
   const clearChat = useCallback((): void => {
