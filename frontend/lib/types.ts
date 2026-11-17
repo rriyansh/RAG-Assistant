@@ -21,6 +21,8 @@ export interface Message {
   timestamp: number;
   pending?: boolean;
   error?: boolean;
+  local?: boolean;      // came from a canned response, not the API
+  enhanced?: boolean;   // prompt was enhanced before sending
 }
 
 export interface KeyStatus {
@@ -48,7 +50,41 @@ export interface KeyTestResponse {
   error: string;
 }
 
+export interface KeyDetectResponse {
+  provider: string;
+  hint: string;
+}
+
 export interface ThinkingResponse {
   messages: string[];
   generated_by: "template" | "llm";
+}
+
+export interface EnhanceResponse {
+  original: string;
+  enhanced: string;
+}
+
+export interface ParamsInfo {
+  llm_provider: string;
+  embedding_provider: string;
+  embedding_model: string;
+  chunk_size: number;
+  chunk_overlap: number;
+  top_k: number;
+  web_search_provider: string;
+  web_search_enabled: boolean;
+  web_fallback_threshold: number;
+}
+
+export interface Profile {
+  name: string;
+  avatarDataUrl: string;
+}
+
+export interface CannedResponse {
+  id: string;
+  trigger: string;
+  response: string;
+  matchMode: "contains" | "exact";
 }
