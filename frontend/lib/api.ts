@@ -1,12 +1,6 @@
 import type {
-  AskResponse,
-  KeyListResponse,
-  KeySetPayload,
-  KeyTestResponse,
-  KeyDetectResponse,
-  ThinkingResponse,
-  EnhanceResponse,
-  ParamsInfo,
+  AskResponse, KeyListResponse, KeySetPayload, KeyTestResponse,
+  KeyDetectResponse, ThinkingResponse, EnhanceResponse, ParamsInfo,
 } from "./types";
 
 const jsonHeaders = { "Content-Type": "application/json" };
@@ -23,11 +17,14 @@ async function asJson<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function askQuestion(question: string): Promise<AskResponse> {
+export async function askQuestion(
+  question: string,
+  assistantName = "RAG Assistant"
+): Promise<AskResponse> {
   const res = await fetch("/api/ask", {
     method: "POST",
     headers: jsonHeaders,
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({ question, assistant_name: assistantName }),
     cache: "no-store",
   });
   return asJson<AskResponse>(res);
@@ -71,9 +68,7 @@ export async function deleteKey(provider: string): Promise<{ ok: boolean }> {
 }
 
 export async function fetchThinking(count = 20): Promise<ThinkingResponse> {
-  const res = await fetch(`/api/thinking/messages?count=${count}`, {
-    cache: "no-store",
-  });
+  const res = await fetch(`/api/thinking/messages?count=${count}`, { cache: "no-store" });
   return asJson<ThinkingResponse>(res);
 }
 
