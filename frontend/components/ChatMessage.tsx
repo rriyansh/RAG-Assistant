@@ -3,8 +3,8 @@
 import { AlertCircle, Bot, User } from "lucide-react";
 import type { Message } from "@/lib/types";
 import { cn, formatTime } from "@/lib/utils";
-import { LoadingDots } from "./LoadingDots";
 import { SourceList } from "./SourceList";
+import { ThinkingIndicator } from "./ThinkingIndicator";
 
 interface ChatMessageProps {
   message: Message;
@@ -15,12 +15,7 @@ export function ChatMessage({ message }: ChatMessageProps): JSX.Element {
   const isError = message.error === true;
 
   return (
-    <div
-      className={cn(
-        "flex gap-3 w-full",
-        isUser ? "flex-row-reverse" : "flex-row"
-      )}
-    >
+    <div className={cn("flex gap-3 w-full", isUser ? "flex-row-reverse" : "flex-row")}>
       <div
         className={cn(
           "flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
@@ -42,31 +37,21 @@ export function ChatMessage({ message }: ChatMessageProps): JSX.Element {
           )}
         >
           {message.pending ? (
-            <LoadingDots />
+            <ThinkingIndicator />
           ) : (
             <span className="inline-flex items-start gap-2">
-              {isError && (
-                <AlertCircle size={14} className="mt-1 shrink-0" />
-              )}
+              {isError && <AlertCircle size={14} className="mt-1 shrink-0" />}
               <span>{message.content}</span>
             </span>
           )}
         </div>
 
-        <div
-          className={cn(
-            "mt-1 flex items-center gap-2 text-[11px] text-gray-500",
-            isUser && "flex-row-reverse"
-          )}
-        >
+        <div className={cn("mt-1 flex items-center gap-2 text-[11px] text-gray-500", isUser && "flex-row-reverse")}>
           <span>{formatTime(message.timestamp)}</span>
         </div>
 
         {!isUser && !message.pending && !isError && message.sources && (
-          <SourceList
-            sources={message.sources}
-            usedWebSearch={message.usedWebSearch}
-          />
+          <SourceList sources={message.sources} usedWebSearch={message.usedWebSearch} />
         )}
       </div>
     </div>
