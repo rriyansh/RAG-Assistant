@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -24,8 +23,11 @@ export function useKeys(): UseKeysResult {
     setLoading(true);
     try {
       const data = await fetchKeys();
-      setKeys(data.keys);
-      setActiveProvider(data.active_provider);
+      setKeys(data.keys ?? {});
+      setActiveProvider(data.active_provider ?? "");
+    } catch {
+      setKeys({});
+      setActiveProvider("");
     } finally {
       setLoading(false);
     }
@@ -35,10 +37,7 @@ export function useKeys(): UseKeysResult {
     void refresh();
   }, [refresh]);
 
-  const test = useCallback(
-    (p: KeySetPayload): Promise<KeyTestResponse> => testKey(p),
-    []
-  );
+  const test = useCallback((p: KeySetPayload) => testKey(p), []);
 
   const save = useCallback(
     async (p: KeySetPayload): Promise<void> => {
