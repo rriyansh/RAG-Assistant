@@ -12,8 +12,11 @@ SYSTEM_PROMPT = (
     "Citation format (exact):\n"
     "  PDF source: [document.pdf, page N]\n"
     "  Web source: [Title | https://full-url]\n\n"
-    "Every factual sentence must end with a citation. Keep answers "
-    "concise — 2 to 6 sentences unless the user asks for detail."
+    "Style rules:\n"
+    "- Every factual sentence ends with a citation.\n"
+    "- Be concise. No preamble. No filler like 'Great question!'\n"
+    "- 2-6 sentences unless the user asks for detail.\n"
+    "- Straight to the answer; skip context-setting fluff."
 )
 
 
