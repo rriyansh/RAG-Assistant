@@ -6,6 +6,7 @@ import { askQuestion } from "@/lib/api";
 import { genId } from "@/lib/utils";
 import { playSentSound, playReceivedSound } from "@/lib/sounds";
 import { useCannedResponses } from "./useCannedResponses";
+import { useProfile } from "./useProfile";
 
 interface UseChatResult {
   messages: Message[];
@@ -18,13 +19,13 @@ export function useChat(): UseChatResult {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { findMatch } = useCannedResponses();
+  const { profile } = useProfile();
 
   const sendMessage = useCallback(
     async (question: string): Promise<void> => {
       const trimmed = question.trim();
       if (!trimmed || isLoading) return;
 
-      // 1. Canned response path — no backend, no loading, no sound blip.
       const canned = findMatch(trimmed);
       if (canned) {
         const now = Date.now();
@@ -42,7 +43,6 @@ export function useChat(): UseChatResult {
         return;
       }
 
-      // 2. Normal path
       playSentSound();
       const userMsg: Message = {
         id: genId(),
@@ -63,7 +63,7 @@ export function useChat(): UseChatResult {
       setIsLoading(true);
 
       try {
-        const data = await askQuestion(trimmed);
+        const data = await askQuestion(trimmed, profile.assistantName);
         playReceivedSound();
         setMessages((prev) =>
           prev.map((m) =>
@@ -91,7 +91,7 @@ export function useChat(): UseChatResult {
         setIsLoading(false);
       }
     },
-    [isLoading, findMatch]
+    [isLoading, findMatch, profile.assistantName]
   );
 
   const clearChat = useCallback((): void => {
