@@ -1,3 +1,12 @@
+from src.api.schemas import (
+    # ... existing imports ...
+    KeyDetectRequest, KeyDetectResponse,
+    EnhanceRequest, EnhanceResponse,
+    ParamsResponse,
+)
+from src.utils.key_detect import detect_provider
+from src.generation.prompt_enhancer import enhance_prompt
+from src.utils.config import get_settings as _get_settings
 from fastapi import APIRouter, HTTPException
 
 from src.api.schemas import (
