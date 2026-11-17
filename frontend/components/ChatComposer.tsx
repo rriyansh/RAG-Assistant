@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { gsap } from "gsap";
+import { Wand2 } from "lucide-react";
+import { enhancePrompt } from "@/lib/api";
 
 export type ComposerAccent = "ice" | "ember" | "lime";
 
@@ -15,6 +17,8 @@ export interface ChatComposerProps {
   hint?: boolean;
   accent?: ComposerAccent;
   className?: string;
+  /** Called after a prompt has been enhanced, with the enhanced text. */
+  onEnhance?: (enhanced: string) => void;
 }
 
 const DEFAULT_PROMPTS = [
@@ -24,31 +28,10 @@ const DEFAULT_PROMPTS = [
   "Compare the two policy versions.",
 ];
 
-const ACCENTS: Record<
-  ComposerAccent,
-  { a1: string; a2: string; a3: string; glow: string; ink: string }
-> = {
-  ice: {
-    a1: "#e8f6ff",
-    a2: "#a9dcff",
-    a3: "#5fb2f2",
-    glow: "rgba(95,178,242,.42)",
-    ink: "#06233a",
-  },
-  ember: {
-    a1: "#fcc8a6",
-    a2: "#f49d70",
-    a3: "#e07a45",
-    glow: "rgba(224,122,69,.42)",
-    ink: "#3a1606",
-  },
-  lime: {
-    a1: "#efffc4",
-    a2: "#c4f26a",
-    a3: "#8fcf2e",
-    glow: "rgba(143,207,46,.38)",
-    ink: "#1c2a05",
-  },
+const ACCENTS: Record<ComposerAccent, { a1: string; a2: string; a3: string; glow: string; ink: string }> = {
+  ice: { a1: "#e8f6ff", a2: "#a9dcff", a3: "#5fb2f2", glow: "rgba(95,178,242,.42)", ink: "#06233a" },
+  ember: { a1: "#fcc8a6", a2: "#f49d70", a3: "#e07a45", glow: "rgba(224,122,69,.42)", ink: "#3a1606" },
+  lime: { a1: "#efffc4", a2: "#c4f26a", a3: "#8fcf2e", glow: "rgba(143,207,46,.38)", ink: "#1c2a05" },
 };
 
 const ICONS: Record<string, string> = {
@@ -64,21 +47,9 @@ function PixelIcon({ name }: { name: string }): JSX.Element {
     for (let x = 0; x < r.length; x += 1) if (r[x] === "#") cells.push([x, y]);
   });
   return (
-    <svg
-      className="ppc-icon"
-      viewBox="0 0 7 7"
-      aria-hidden="true"
-      focusable="false"
-    >
+    <svg className="ppc-icon" viewBox="0 0 7 7" aria-hidden="true" focusable="false">
       {cells.map(([x, y], i) => (
-        <rect
-          key={i}
-          x={x + 0.08}
-          y={y + 0.08}
-          width={0.84}
-          height={0.84}
-          rx={0.12}
-        />
+        <rect key={i} x={x + 0.08} y={y + 0.08} width={0.84} height={0.84} rx={0.12} />
       ))}
     </svg>
   );
@@ -87,8 +58,7 @@ function PixelIcon({ name }: { name: string }): JSX.Element {
 function useReducedMotion(): boolean {
   const [reduced, setReduced] = React.useState(false);
   React.useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function")
-      return;
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     const on = (): void => setReduced(mq.matches);
     on();
@@ -108,6 +78,7 @@ export default function ChatComposer({
   hint = false,
   accent = "ice",
   className,
+  onEnhance,
 }: ChatComposerProps): JSX.Element {
   const reduced = useReducedMotion();
   const uid = React.useId().replace(/[^a-zA-Z0-9_-]/g, "");
@@ -124,14 +95,11 @@ export default function ChatComposer({
   const [typed, setTyped] = React.useState("");
   const [focused, setFocused] = React.useState(false);
   const [nudge, setNudge] = React.useState(false);
+  const [enhancing, setEnhancing] = React.useState(false);
 
   const note = (i: number): string =>
     modelNotes?.[i] ??
-    (i === 0
-      ? "Fastest drafts"
-      : i === models.length - 1
-        ? "Most careful"
-        : "Balanced");
+    (i === 0 ? "Fastest drafts" : i === models.length - 1 ? "Most careful" : "Balanced");
 
   const submit = (e?: { preventDefault: () => void }): void => {
     if (e) e.preventDefault();
@@ -151,6 +119,22 @@ export default function ChatComposer({
         { scale: 1 },
         { scale: 0.995, duration: 0.12, yoyo: true, repeat: 1, ease: "power2.out" }
       );
+    }
+  };
+
+  const runEnhance = async (): Promise<void> => {
+    const text = value.trim();
+    if (!text || enhancing) return;
+    setEnhancing(true);
+    try {
+      const res = await enhancePrompt(text);
+      setValue(res.enhanced);
+      onEnhance?.(res.enhanced);
+      inputRef.current?.focus();
+    } catch {
+      // silently ignore — user still has the original text
+    } finally {
+      setEnhancing(false);
     }
   };
 
@@ -194,8 +178,7 @@ export default function ChatComposer({
 
   React.useEffect(() => {
     if (!menuOpen) return;
-    const first =
-      menuRef.current?.querySelector<HTMLElement>("[role=menuitemradio]");
+    const first = menuRef.current?.querySelector<HTMLElement>("[role=menuitemradio]");
     first?.focus();
     const down = (e: PointerEvent): void => {
       if (
@@ -226,8 +209,7 @@ export default function ChatComposer({
       menuRef.current?.querySelectorAll<HTMLElement>("[role=menuitemradio]") ?? []
     );
     const at = items.indexOf(document.activeElement as HTMLElement);
-    const next =
-      items[(at + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length];
+    const next = items[(at + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length];
     next?.focus();
   };
 
@@ -249,10 +231,7 @@ export default function ChatComposer({
   } as React.CSSProperties;
 
   return (
-    <div
-      className={`ppc-root${className ? ` ${className}` : ""}`}
-      style={style}
-    >
+    <div className={`ppc-root${className ? ` ${className}` : ""}`} style={style}>
       <style>{PPC_CSS}</style>
       <form
         ref={formRef}
@@ -265,9 +244,7 @@ export default function ChatComposer({
       >
         <span className="ppc-sheen" aria-hidden="true" />
         <div className="ppc-field ppc-enter">
-          <label htmlFor={ids.input} className="ppc-sr">
-            Ask a question
-          </label>
+          <label htmlFor={ids.input} className="ppc-sr">Ask a question</label>
           <textarea
             ref={inputRef}
             id={ids.input}
@@ -279,11 +256,7 @@ export default function ChatComposer({
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             onKeyDown={(e) => {
-              if (
-                e.key === "Enter" &&
-                !e.shiftKey &&
-                !e.nativeEvent.isComposing
-              ) {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 submit();
               }
@@ -302,6 +275,16 @@ export default function ChatComposer({
             RAG · citations on
           </span>
           <div className="ppc-right">
+            <button
+              type="button"
+              onClick={runEnhance}
+              disabled={disabled || enhancing || empty}
+              className="ppc-enhance"
+              aria-label="Enhance prompt"
+              title="Enhance prompt with AI"
+            >
+              <Wand2 size={14} className={enhancing ? "animate-pulse" : ""} />
+            </button>
             <div className="ppc-model-wrap">
               <button
                 ref={modelBtnRef}
@@ -316,25 +299,11 @@ export default function ChatComposer({
                 <PixelIcon name="bolt" />
                 <span>{models[model]}</span>
                 <svg className="ppc-chev" viewBox="0 0 10 6" aria-hidden="true">
-                  <path
-                    d="M1 1l4 4 4-4"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
+                  <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </button>
               {menuOpen && (
-                <div
-                  ref={menuRef}
-                  id={ids.menu}
-                  className="ppc-menu"
-                  role="menu"
-                  aria-label="Model"
-                  onKeyDown={menuKeys}
-                >
+                <div ref={menuRef} id={ids.menu} className="ppc-menu" role="menu" aria-label="Model" onKeyDown={menuKeys}>
                   {models.map((m, i) => (
                     <button
                       key={m}
@@ -369,8 +338,7 @@ export default function ChatComposer({
       </form>
       {hint && (
         <p className="ppc-hint">
-          <kbd>Enter</kbd> to send <span aria-hidden="true">/</span>{" "}
-          <kbd>Shift</kbd> + <kbd>Enter</kbd> for a new line
+          <kbd>Enter</kbd> to send <span aria-hidden="true">/</span> <kbd>Shift</kbd> + <kbd>Enter</kbd> for a new line
         </p>
       )}
     </div>
@@ -385,7 +353,6 @@ const PPC_CSS = `
 .ppc-root :where(button,textarea):focus-visible{outline:2px solid var(--ppc-a2);outline-offset:3px;border-radius:8px}
 .ppc-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .ppc-icon{fill:currentColor}
-
 .ppc-card{--mx:50%;--my:0%;position:relative;width:100%;border-radius:26px;padding:20px 16px 14px 22px;background:var(--ppc-glass);backdrop-filter:blur(26px) saturate(150%);-webkit-backdrop-filter:blur(26px) saturate(150%);box-shadow:inset 0 0 0 1px var(--ppc-line),inset 0 1px 0 rgba(255,255,255,.08),0 24px 70px rgba(0,0,0,.5);transition:box-shadow .35s ease}
 .ppc-card:focus-within{box-shadow:inset 0 0 0 1px rgba(214,228,255,.24),inset 0 1px 0 rgba(255,255,255,.1),0 0 0 6px rgba(255,255,255,.035),0 24px 70px rgba(0,0,0,.55)}
 .ppc-card[data-nudge="true"]{animation:ppc-nudge .45s cubic-bezier(.36,.07,.19,.97)}
@@ -402,6 +369,9 @@ const PPC_CSS = `
 .ppc-label{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:#9d9da4;font-weight:500}
 .ppc-label .ppc-icon{width:11px;height:11px;fill:var(--ppc-a2)}
 .ppc-right{display:flex;align-items:center;gap:6px;flex:none}
+.ppc-enhance{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;color:#a3a3aa;transition:background .2s,color .2s}
+.ppc-enhance:hover:not(:disabled){background:rgba(255,255,255,.07);color:var(--ppc-a2)}
+.ppc-enhance:disabled{opacity:.4;cursor:not-allowed}
 .ppc-model-wrap{position:relative}
 .ppc-model{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 10px;border-radius:10px;font-size:12.5px;color:#a3a3aa;transition:background .2s,color .2s}
 .ppc-model:hover,.ppc-model[aria-expanded="true"]{background:rgba(255,255,255,.07);color:#fff}
@@ -423,7 +393,6 @@ const PPC_CSS = `
 .ppc-send:active{transform:scale(.94)}
 .ppc-hint{font-size:12px;color:var(--ppc-mute);letter-spacing:.01em;text-shadow:0 1px 8px rgba(0,0,0,.8)}
 .ppc-hint kbd{font:inherit;font-size:11px;padding:1px 6px;border-radius:5px;background:rgba(20,20,24,.7);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);color:#e2e2e7}
-
 @media (max-width:760px){
 .ppc-card{padding:16px 12px 12px 16px;border-radius:22px}
 .ppc-tools{flex-direction:column;align-items:stretch;gap:12px;margin-top:14px}
