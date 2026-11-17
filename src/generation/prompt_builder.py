@@ -1,50 +1,47 @@
 """
-Turns the retrieved chunks + the user's question into a prompt
-the LLM can answer. Citations are clearly labelled:
-    - PDF chunks  → [doc.pdf, page 3]
-    - Web chunks  → [title | url]
+Context is wrapped in XML-style tags so the LLM never confuses
+the user's question with the document text — a common cause of
+"hallucinated" answers in older RAG systems.
 """
 from src.retrieval.retriever import RetrievedChunk
 
 SYSTEM_PROMPT = (
-    "You are a careful research assistant. Answer the user's question "
-    "using ONLY the provided context. If the context does not contain "
-    "the answer, say so explicitly — do not guess. "
-    "Cite your sources inline using the exact format shown in the context:\n"
-    "  - For PDFs:  [document name, page N]\n"
-    "  - For web:   [page title | full URL]\n"
-    "End every factual sentence with a citation."
+    "You are a careful research assistant. Answer using ONLY the "
+    "content inside <context> tags. If the answer is not there, say "
+    "so plainly. Never invent facts.\n\n"
+    "Citation format (exact):\n"
+    "  PDF source: [document.pdf, page N]\n"
+    "  Web source: [Title | https://full-url]\n\n"
+    "Every factual sentence must end with a citation. Keep answers "
+    "concise — 2 to 6 sentences unless the user asks for detail."
 )
 
 
-def build_prompt(
-    question: str,
-    chunks: list[RetrievedChunk],
-) -> list[dict]:
-    """Return an OpenAI-style messages list."""
+def _label(chunk: RetrievedChunk) -> str:
+    if chunk.source_type == "pdf":
+        return f"{chunk.doc_name} (page {chunk.page_number})"
+    url = chunk.chunk_id.split("::")[-1]
+    return f"{chunk.doc_name} | {url}"
 
+
+def build_prompt(question: str, chunks: list[RetrievedChunk]) -> list[dict]:
     if not chunks:
-        context_block = "(no relevant context was found)"
+        context = "<context>\n(empty — no relevant sources found)\n</context>"
     else:
-        pieces: list[str] = []
-        for index, chunk in enumerate(chunks, start=1):
-            if chunk.source_type == "pdf":
-                label = f"{chunk.doc_name} (page {chunk.page_number})"
-            else:
-                label = f"{chunk.doc_name} | {chunk.chunk_id.split('::')[-1]}"
-
+        pieces = []
+        for i, c in enumerate(chunks, start=1):
             pieces.append(
-                f"[{index}] Source: {label}\n"
-                f"{chunk.text}"
+                f"  <chunk id=\"{i}\" source=\"{_label(c)}\">\n"
+                f"    {c.text.strip()}\n"
+                f"  </chunk>"
             )
-        context_block = "\n\n".join(pieces)
+        context = "<context>\n" + "\n".join(pieces) + "\n</context>"
 
     user_message = (
-        f"Context:\n{context_block}\n\n"
-        f"Question: {question}\n\n"
-        "Answer in a helpful, concise way. Cite every fact."
+        f"{context}\n\n"
+        f"<question>{question}</question>\n\n"
+        "Answer now, citing each fact."
     )
-
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user_message},
