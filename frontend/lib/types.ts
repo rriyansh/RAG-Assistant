@@ -21,8 +21,8 @@ export interface Message {
   timestamp: number;
   pending?: boolean;
   error?: boolean;
-  local?: boolean;      // came from a canned response, not the API
-  enhanced?: boolean;   // prompt was enhanced before sending
+  local?: boolean;
+  enhanced?: boolean;
 }
 
 export interface KeyStatus {
@@ -77,9 +77,23 @@ export interface ParamsInfo {
   web_fallback_threshold: number;
 }
 
+export type FontId =
+  | "system"
+  | "dm-sans"
+  | "josefin-sans"
+  | "fredoka"
+  | "open-sans"
+  | "outfit"
+  | "plus-jakarta-sans";
+
 export interface Profile {
   name: string;
   avatarDataUrl: string;
+  assistantName: string;
+  assistantLogo: string;
+  headline: string;
+  bodyText: string;
+  font: FontId;
 }
 
 export interface CannedResponse {
