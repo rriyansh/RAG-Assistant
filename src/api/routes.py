@@ -1,20 +1,10 @@
 from fastapi import APIRouter, HTTPException
 
 from src.api.schemas import (
-    AskRequest,
-    AskResponse,
-    SourceItem,
-    HealthResponse,
-    KeySetRequest,
-    KeyTestRequest,
-    KeyTestResponse,
-    KeyListResponse,
-    KeyDetectRequest,
-    KeyDetectResponse,
-    ThinkingResponse,
-    EnhanceRequest,
-    EnhanceResponse,
-    ParamsResponse,
+    AskRequest, AskResponse, SourceItem, HealthResponse,
+    KeySetRequest, KeyTestRequest, KeyTestResponse, KeyListResponse,
+    KeyDetectRequest, KeyDetectResponse, ThinkingResponse,
+    EnhanceRequest, EnhanceResponse, ParamsResponse,
 )
 from src.retrieval.hybrid_retriever import hybrid_retrieve
 from src.generation.generator import generate_answer
@@ -31,9 +21,6 @@ router = APIRouter()
 logger = setup_logger(__name__)
 
 
-# ============================================================
-# Health & config
-# ============================================================
 @router.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse()
@@ -41,67 +28,57 @@ def health() -> HealthResponse:
 
 @router.get("/config")
 def config_info() -> dict:
-    settings = get_settings()
+    s = get_settings()
     return {
-        "llm_provider": settings.llm_provider,
-        "embedding_provider": settings.embedding_provider,
-        "web_search_provider": settings.web_search_provider,
-        "web_search_enabled": settings.web_search_enabled,
+        "llm_provider": s.llm_provider,
+        "embedding_provider": s.embedding_provider,
+        "web_search_provider": s.web_search_provider,
+        "web_search_enabled": s.web_search_enabled,
     }
 
 
 @router.get("/config/params", response_model=ParamsResponse)
 def config_params() -> ParamsResponse:
-    settings = get_settings()
+    s = get_settings()
     embed_model = (
-        settings.embedding_model_openai
-        if settings.embedding_provider == "openai"
-        else settings.embedding_model_ollama
+        s.embedding_model_openai if s.embedding_provider == "openai"
+        else s.embedding_model_ollama
     )
     return ParamsResponse(
-        llm_provider=settings.llm_provider,
-        embedding_provider=settings.embedding_provider,
+        llm_provider=s.llm_provider,
+        embedding_provider=s.embedding_provider,
         embedding_model=embed_model,
-        chunk_size=settings.chunk_size,
-        chunk_overlap=settings.chunk_overlap,
-        top_k=settings.top_k,
-        web_search_provider=settings.web_search_provider,
-        web_search_enabled=settings.web_search_enabled,
-        web_fallback_threshold=settings.web_fallback_threshold,
+        chunk_size=s.chunk_size,
+        chunk_overlap=s.chunk_overlap,
+        top_k=s.top_k,
+        web_search_provider=s.web_search_provider,
+        web_search_enabled=s.web_search_enabled,
+        web_fallback_threshold=s.web_fallback_threshold,
     )
 
 
-# ============================================================
-# Ask — the main endpoint
-# ============================================================
 @router.post("/ask", response_model=AskResponse)
 def ask(req: AskRequest) -> AskResponse:
-    settings = get_settings()
+    s = get_settings()
     try:
         chunks, used_web = hybrid_retrieve(req.question)
-        answer = generate_answer(req.question, chunks)
-        sources = [SourceItem(**s) for s in collect_sources(chunks)]
+        answer = generate_answer(req.question, chunks, req.assistant_name)
+        sources = [SourceItem(**x) for x in collect_sources(chunks)]
         return AskResponse(
             answer=answer,
             sources=sources,
             used_web_search=used_web,
-            llm_provider=settings.llm_provider,
+            llm_provider=s.llm_provider,
         )
     except Exception as exc:
         logger.exception("ask failed")
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-# ============================================================
-# Key management — used by Settings modal
-# ============================================================
 @router.get("/keys", response_model=KeyListResponse)
 def keys_list() -> KeyListResponse:
-    settings = get_settings()
-    return KeyListResponse(
-        keys=list_keys(),
-        active_provider=settings.llm_provider,
-    )
+    s = get_settings()
+    return KeyListResponse(keys=list_keys(), active_provider=s.llm_provider)
 
 
 @router.post("/keys/detect", response_model=KeyDetectResponse)
@@ -112,12 +89,7 @@ def keys_detect(req: KeyDetectRequest) -> KeyDetectResponse:
 
 @router.post("/keys/test", response_model=KeyTestResponse)
 def keys_test(req: KeyTestRequest) -> KeyTestResponse:
-    result = test_provider(
-        provider=req.provider,
-        api_key=req.api_key,
-        model=req.model,
-        base_url=req.base_url,
-    )
+    result = test_provider(req.provider, req.api_key, req.model, req.base_url)
     return KeyTestResponse(
         ok=result.get("ok", False),
         reply=result.get("reply", ""),
@@ -128,12 +100,7 @@ def keys_test(req: KeyTestRequest) -> KeyTestResponse:
 @router.post("/keys/set")
 def keys_set(req: KeySetRequest) -> dict:
     try:
-        set_key(
-            provider=req.provider,
-            api_key=req.api_key,
-            model=req.model,
-            base_url=req.base_url,
-        )
+        set_key(req.provider, req.api_key, req.model, req.base_url)
         return {"ok": True}
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -145,9 +112,6 @@ def keys_delete(provider: str) -> dict:
     return {"ok": True}
 
 
-# ============================================================
-# Thinking messages
-# ============================================================
 @router.get("/thinking/messages", response_model=ThinkingResponse)
 def thinking_messages(count: int = 20) -> ThinkingResponse:
     return ThinkingResponse(
@@ -160,20 +124,18 @@ def thinking_messages(count: int = 20) -> ThinkingResponse:
 def thinking_generate(count: int = 20) -> ThinkingResponse:
     try:
         llm = create_llm()
-        messages = generate_with_llm(llm, min(count, 50))
-        return ThinkingResponse(messages=messages, generated_by="llm")
+        return ThinkingResponse(
+            messages=generate_with_llm(llm, min(count, 50)),
+            generated_by="llm",
+        )
     except Exception as exc:
-        logger.warning("LLM generation failed, using templates: %s", exc)
+        logger.warning("LLM generation failed: %s", exc)
         return ThinkingResponse(
             messages=random_messages(min(count, 1000)),
             generated_by="template",
         )
 
 
-# ============================================================
-# Prompt enhancement
-# ============================================================
 @router.post("/prompt/enhance", response_model=EnhanceResponse)
 def prompt_enhance(req: EnhanceRequest) -> EnhanceResponse:
-    enhanced = enhance_prompt(req.prompt)
-    return EnhanceResponse(original=req.prompt, enhanced=enhanced)
+    return EnhanceResponse(original=req.prompt, enhanced=enhance_prompt(req.prompt))
