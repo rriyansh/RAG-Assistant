@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useChat } from "@/hooks/useChat";
 import { Header } from "@/components/Header";
 import { ChatMessage } from "@/components/ChatMessage";
 import ChatComposer from "@/components/ChatComposer";
 import { EmptyState } from "@/components/EmptyState";
+import { SettingsModal } from "@/components/SettingsModal";
 
 export default function HomePage(): JSX.Element {
   const { messages, isLoading, sendMessage, clearChat } = useChat();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -25,7 +27,11 @@ export default function HomePage(): JSX.Element {
 
   return (
     <div className="flex h-screen flex-col bg-[#0b0f14]">
-      <Header onClear={clearChat} canClear={messages.length > 0} />
+      <Header
+        onClear={clearChat}
+        onOpenSettings={() => setSettingsOpen(true)}
+        canClear={messages.length > 0}
+      />
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col px-4 py-6">
@@ -44,6 +50,8 @@ export default function HomePage(): JSX.Element {
       <div className="w-full px-4 pb-5 pt-2">
         <ChatComposer onSubmit={handleSubmit} disabled={isLoading} />
       </div>
+
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }
