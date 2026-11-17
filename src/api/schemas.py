@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 
 class AskRequest(BaseModel):
     question: str = Field(..., min_length=1)
+    assistant_name: str = "RAG Assistant"
 
 
 class SourceItem(BaseModel):
@@ -23,7 +24,6 @@ class HealthResponse(BaseModel):
     status: str = "ok"
 
 
-# ---- Key management ----
 class KeySetRequest(BaseModel):
     provider: str
     api_key: str = ""
@@ -58,13 +58,11 @@ class KeyDetectResponse(BaseModel):
     hint: str = ""
 
 
-# ---- Thinking messages ----
 class ThinkingResponse(BaseModel):
     messages: list[str]
     generated_by: str
 
 
-# ---- Prompt enhancement ----
 class EnhanceRequest(BaseModel):
     prompt: str = Field(..., min_length=1)
 
@@ -74,7 +72,6 @@ class EnhanceResponse(BaseModel):
     enhanced: str
 
 
-# ---- Config params ----
 class ParamsResponse(BaseModel):
     llm_provider: str
     embedding_provider: str
