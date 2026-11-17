@@ -17,8 +17,6 @@ export interface ChatComposerProps {
   hint?: boolean;
   accent?: ComposerAccent;
   className?: string;
-  /** Called after a prompt has been enhanced, with the enhanced text. */
-  onEnhance?: (enhanced: string) => void;
 }
 
 const DEFAULT_PROMPTS = [
@@ -35,13 +33,12 @@ const ACCENTS: Record<ComposerAccent, { a1: string; a2: string; a3: string; glow
 };
 
 const ICONS: Record<string, string> = {
-  spark: "...#.../...#.../..###../#######/..###../...#.../...#...",
   bolt: "....##./...##../..##.../.######/...##../..##.../.##....",
   arrow: "...#.../..###../.#.#.#./#..#..#/...#.../...#.../...#...",
 };
 
 function PixelIcon({ name }: { name: string }): JSX.Element {
-  const rows = (ICONS[name] ?? ICONS.spark).split("/");
+  const rows = (ICONS[name] ?? ICONS.bolt).split("/");
   const cells: Array<[number, number]> = [];
   rows.forEach((r, y) => {
     for (let x = 0; x < r.length; x += 1) if (r[x] === "#") cells.push([x, y]);
@@ -78,7 +75,6 @@ export default function ChatComposer({
   hint = false,
   accent = "ice",
   className,
-  onEnhance,
 }: ChatComposerProps): JSX.Element {
   const reduced = useReducedMotion();
   const uid = React.useId().replace(/[^a-zA-Z0-9_-]/g, "");
@@ -129,10 +125,9 @@ export default function ChatComposer({
     try {
       const res = await enhancePrompt(text);
       setValue(res.enhanced);
-      onEnhance?.(res.enhanced);
       inputRef.current?.focus();
     } catch {
-      // silently ignore — user still has the original text
+      // silent
     } finally {
       setEnhancing(false);
     }
@@ -240,7 +235,7 @@ export default function ChatComposer({
         data-disabled={disabled ? "true" : "false"}
         onSubmit={submit}
         onPointerMove={sheen}
-        aria-label="Ask a question about your documents"
+        aria-label="Ask a question"
       >
         <span className="ppc-sheen" aria-hidden="true" />
         <div className="ppc-field ppc-enter">
@@ -270,10 +265,6 @@ export default function ChatComposer({
           )}
         </div>
         <div className="ppc-tools ppc-enter">
-          <span className="ppc-label">
-            <PixelIcon name="spark" />
-            RAG · citations on
-          </span>
           <div className="ppc-right">
             <button
               type="button"
@@ -365,9 +356,7 @@ const PPC_CSS = `
 .ppc-ph{position:absolute;left:0;top:0;right:0;font-size:16px;line-height:1.55;color:#85868b;pointer-events:none;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .ppc-caret{display:inline-block;width:2px;height:1.05em;margin-left:2px;vertical-align:-2px;background:var(--ppc-a2);animation:ppc-blink 1s steps(1) infinite}
 @keyframes ppc-blink{50%{opacity:0}}
-.ppc-tools{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px}
-.ppc-label{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:#9d9da4;font-weight:500}
-.ppc-label .ppc-icon{width:11px;height:11px;fill:var(--ppc-a2)}
+.ppc-tools{display:flex;align-items:center;justify-content:flex-end;gap:12px;margin-top:16px}
 .ppc-right{display:flex;align-items:center;gap:6px;flex:none}
 .ppc-enhance{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;color:#a3a3aa;transition:background .2s,color .2s}
 .ppc-enhance:hover:not(:disabled){background:rgba(255,255,255,.07);color:var(--ppc-a2)}
@@ -395,7 +384,6 @@ const PPC_CSS = `
 .ppc-hint kbd{font:inherit;font-size:11px;padding:1px 6px;border-radius:5px;background:rgba(20,20,24,.7);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);color:#e2e2e7}
 @media (max-width:760px){
 .ppc-card{padding:16px 12px 12px 16px;border-radius:22px}
-.ppc-tools{flex-direction:column;align-items:stretch;gap:12px;margin-top:14px}
 .ppc-right{justify-content:flex-end}
 .ppc-model-wrap{margin-right:auto}
 .ppc-menu{left:0;right:auto;transform-origin:10% 100%}
