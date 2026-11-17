@@ -8,3 +8,4 @@ data/processed/
 .streamlit/
 .pytest_cache/
 .DS_Store
+data/keys.json
