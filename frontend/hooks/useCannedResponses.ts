@@ -4,24 +4,38 @@ import { useCallback, useEffect, useState } from "react";
 import type { CannedResponse } from "@/lib/types";
 
 const KEY = "rag.canned";
+const EVENT_NAME = "rag:canned";
+
+function createId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 function read(): CannedResponse[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw);
+    const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     return parsed
-      .filter((x): x is CannedResponse =>
-        !!x && typeof x.id === "string" && typeof x.trigger === "string" && typeof x.response === "string"
+      .filter(
+        (x): x is CannedResponse =>
+          !!x &&
+          typeof x === "object" &&
+          typeof (x as CannedResponse).id === "string" &&
+          typeof (x as CannedResponse).trigger === "string" &&
+          typeof (x as CannedResponse).response === "string"
       )
       .map((x) => ({
         id: x.id,
-        trigger: x.trigger,
-        response: x.response,
+        trigger: x.trigger.trim(),
+        response: x.response.trim(),
         matchMode: x.matchMode === "exact" ? "exact" : "contains",
-      }));
+      }))
+      .filter((x) => x.trigger.length > 0 && x.response.length > 0);
   } catch {
     return [];
   }
@@ -29,8 +43,12 @@ function read(): CannedResponse[] {
 
 function write(items: CannedResponse[]): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(KEY, JSON.stringify(items));
-  window.dispatchEvent(new CustomEvent("rag:canned"));
+  try {
+    localStorage.setItem(KEY, JSON.stringify(items));
+    window.dispatchEvent(new CustomEvent(EVENT_NAME));
+  } catch {
+    // Ignore storage quota or private-mode access errors
+  }
 }
 
 export interface UseCannedResult {
@@ -46,12 +64,19 @@ export function useCannedResponses(): UseCannedResult {
 
   useEffect(() => {
     setItems(read());
-    const on = (): void => setItems(read());
-    window.addEventListener("rag:canned", on);
-    window.addEventListener("storage", on);
+
+    const syncLocal = (): void => setItems(read());
+    const syncStorage = (e: StorageEvent): void => {
+      if (e.key === null || e.key === KEY) {
+        setItems(read());
+      }
+    };
+
+    window.addEventListener(EVENT_NAME, syncLocal);
+    window.addEventListener("storage", syncStorage);
     return () => {
-      window.removeEventListener("rag:canned", on);
-      window.removeEventListener("storage", on);
+      window.removeEventListener(EVENT_NAME, syncLocal);
+      window.removeEventListener("storage", syncStorage);
     };
   }, []);
 
@@ -60,13 +85,14 @@ export function useCannedResponses(): UseCannedResult {
       const trimmedTrigger = trigger.trim();
       const trimmedResponse = response.trim();
       if (!trimmedTrigger || !trimmedResponse) return;
+
       const next: CannedResponse[] = [
         ...read(),
         {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          id: createId(),
           trigger: trimmedTrigger,
           response: trimmedResponse,
-          matchMode,
+          matchMode: matchMode === "exact" ? "exact" : "contains",
         },
       ];
       write(next);
@@ -76,7 +102,29 @@ export function useCannedResponses(): UseCannedResult {
   );
 
   const update = useCallback((id: string, patch: Partial<CannedResponse>): void => {
-    const next = read().map((x) => (x.id === id ? { ...x, ...patch } : x));
+    const next = read().map((item) => {
+      if (item.id !== id) return item;
+
+      const nextTrigger =
+        typeof patch.trigger === "string" ? patch.trigger.trim() : item.trigger;
+      const nextResponse =
+        typeof patch.response === "string" ? patch.response.trim() : item.response;
+
+      if (!nextTrigger || !nextResponse) return item;
+
+      return {
+        ...item,
+        trigger: nextTrigger,
+        response: nextResponse,
+        matchMode:
+          patch.matchMode !== undefined
+            ? patch.matchMode === "exact"
+              ? "exact"
+              : "contains"
+            : item.matchMode,
+      };
+    });
+
     write(next);
     setItems(next);
   }, []);
@@ -90,15 +138,31 @@ export function useCannedResponses(): UseCannedResult {
   const findMatch = useCallback((question: string): CannedResponse | null => {
     const q = question.trim().toLowerCase();
     if (!q) return null;
+
     const all = read();
-    // exact match wins
+
+    // 1. Exact matches always take top priority
     for (const item of all) {
-      if (item.matchMode === "exact" && q === item.trigger.toLowerCase()) return item;
+      const trig = item.trigger.trim().toLowerCase();
+      if (!trig) continue;
+      if (item.matchMode === "exact" && q === trig) {
+        return item;
+      }
     }
+
+    // 2. For substring rules, prefer the most specific (longest) matching trigger
+    let bestContains: CannedResponse | null = null;
     for (const item of all) {
-      if (item.matchMode === "contains" && q.includes(item.trigger.toLowerCase())) return item;
+      const trig = item.trigger.trim().toLowerCase();
+      if (!trig) continue;
+      if (item.matchMode === "contains" && q.includes(trig)) {
+        if (!bestContains || trig.length > bestContains.trigger.trim().length) {
+          bestContains = item;
+        }
+      }
     }
-    return null;
+
+    return bestContains;
   }, []);
 
   return { items, add, update, remove, findMatch };
