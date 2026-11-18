@@ -4,7 +4,8 @@ import * as React from "react";
 import {
   X, Check, AlertCircle, Trash2, Upload, Plus, Info,
   User, KeyRound, SlidersHorizontal, MessageSquare, Shield,
-  ExternalLink,
+  ExternalLink, ChevronDown, Sparkles, Zap, Brain, Cpu,
+  Search, RotateCcw,
 } from "lucide-react";
 import type { KeySetPayload, ParamsInfo, Profile, FontId } from "@/lib/types";
 import { useKeys } from "@/hooks/useKeys";
@@ -18,6 +19,14 @@ interface SettingsModalProps {
 }
 
 type Tab = "account" | "api" | "params" | "canned" | "security";
+
+interface ModelOption {
+  id: string;
+  name: string;
+  tagline: string;
+  badge?: string;
+  tier: "flagship" | "reasoning" | "fast" | "local";
+}
 
 const SECTIONS: Array<{ id: Tab; label: string; Icon: typeof User }> = [
   { id: "account", label: "Account", Icon: User },
@@ -35,6 +44,147 @@ const PROVIDERS = [
   { id: "ollama", label: "Ollama (local)", hint: "No key — set base_url" },
   { id: "custom", label: "Custom endpoint", hint: "Any OpenAI-compatible URL" },
 ];
+
+const PROVIDER_MODELS: Record<string, ModelOption[]> = {
+  groq: [
+    {
+      id: "llama-3.3-70b-versatile",
+      name: "Llama 3.3 70B",
+      tagline: "Great for most document Q&A and synthesis",
+      badge: "Recommended",
+      tier: "flagship",
+    },
+    {
+      id: "deepseek-r1-distill-llama-70b",
+      name: "DeepSeek R1 70B",
+      tagline: "Uses step-by-step reasoning for complex queries",
+      badge: "Reasoning",
+      tier: "reasoning",
+    },
+    {
+      id: "llama-3.1-8b-instant",
+      name: "Llama 3.1 8B Instant",
+      tagline: "Ultra-low latency responses for quick lookups",
+      badge: "Fast",
+      tier: "fast",
+    },
+    {
+      id: "mixtral-8x7b-32768",
+      name: "Mixtral 8x7B",
+      tagline: "Balanced 32k context window MoE model",
+      badge: "32k ctx",
+      tier: "fast",
+    },
+  ],
+  gemini: [
+    {
+      id: "gemini-2.5-pro",
+      name: "Gemini 2.5 Pro",
+      tagline: "Reasoning, complex synthesis & deep citation analysis",
+      badge: "Pro",
+      tier: "reasoning",
+    },
+    {
+      id: "gemini-2.5-flash",
+      name: "Gemini 2.5 Flash",
+      tagline: "Fast all-around help with 1M token context",
+      badge: "1M ctx",
+      tier: "flagship",
+    },
+    {
+      id: "gemini-2.0-flash-lite",
+      name: "Gemini 2.0 Flash-Lite",
+      tagline: "Cost-efficient speed for high-volume queries",
+      badge: "Fast",
+      tier: "fast",
+    },
+  ],
+  openrouter: [
+    {
+      id: "meta-llama/llama-3.3-70b-instruct:free",
+      name: "Llama 3.3 70B (Free)",
+      tagline: "Zero-cost flagship open-weights performance",
+      badge: "Free",
+      tier: "flagship",
+    },
+    {
+      id: "deepseek/deepseek-r1:free",
+      name: "DeepSeek R1 (Free)",
+      tagline: "Advanced chain-of-thought reasoning",
+      badge: "Reasoning",
+      tier: "reasoning",
+    },
+    {
+      id: "google/gemini-2.5-flash",
+      name: "Gemini 2.5 Flash",
+      tagline: "Long-context retrieval routed via OpenRouter",
+      badge: "Fast",
+      tier: "fast",
+    },
+    {
+      id: "anthropic/claude-3.7-sonnet",
+      name: "Claude 3.7 Sonnet",
+      tagline: "Nuanced writing and structured extraction",
+      badge: "Flagship",
+      tier: "flagship",
+    },
+  ],
+  openai: [
+    {
+      id: "gpt-4o",
+      name: "GPT-4o",
+      tagline: "Great for most tasks and grounded document synthesis",
+      badge: "Flagship",
+      tier: "flagship",
+    },
+    {
+      id: "o3-mini",
+      name: "o3-mini",
+      tagline: "Fast reasoning for logic, math, and technical docs",
+      badge: "Reasoning",
+      tier: "reasoning",
+    },
+    {
+      id: "gpt-4o-mini",
+      name: "GPT-4o mini",
+      tagline: "Fast, lightweight model for everyday questions",
+      badge: "Fast",
+      tier: "fast",
+    },
+  ],
+  ollama: [
+    {
+      id: "llama3.2",
+      name: "Llama 3.2 (3B)",
+      tagline: "Lightweight local inference on consumer hardware",
+      badge: "Local",
+      tier: "local",
+    },
+    {
+      id: "qwen2.5:14b",
+      name: "Qwen 2.5 14B",
+      tagline: "Strong local multilingual & structured RAG accuracy",
+      badge: "Local",
+      tier: "flagship",
+    },
+    {
+      id: "deepseek-r1:8b",
+      name: "DeepSeek R1 8B",
+      tagline: "Local reasoning model with private execution",
+      badge: "Reasoning",
+      tier: "reasoning",
+    },
+  ],
+  custom: [
+    {
+      id: "default",
+      name: "Server Default",
+      tagline: "Uses the default model exposed by your endpoint",
+      badge: "Endpoint",
+      tier: "local",
+    },
+  ],
+};
 
 const FONTS: Array<{ id: FontId; label: string }> = [
   { id: "system", label: "System (SF Pro / DM Sans)" },
@@ -64,6 +214,11 @@ export function SettingsModal({ open, onClose }: SettingsModalProps): JSX.Elemen
   const [baseUrl, setBaseUrl] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [status, setStatus] = React.useState<{ kind: "ok" | "err" | "info"; text: string } | null>(null);
+
+  const [modelMenuOpen, setModelMenuOpen] = React.useState(false);
+  const [modelSearch, setModelSearch] = React.useState("");
+  const modelPickerRef = React.useRef<HTMLDivElement | null>(null);
+  const modelSearchInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const [params, setParams] = React.useState<ParamsInfo | null>(null);
 
@@ -99,9 +254,57 @@ export function SettingsModal({ open, onClose }: SettingsModalProps): JSX.Elemen
     return () => window.clearTimeout(t);
   }, [rawKey]);
 
+  React.useEffect(() => {
+    if (!modelMenuOpen) return;
+    const handlePointerDown = (e: MouseEvent): void => {
+      if (modelPickerRef.current && !modelPickerRef.current.contains(e.target as Node)) {
+        setModelMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setModelMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    const focusTimer = window.setTimeout(() => {
+      modelSearchInputRef.current?.focus();
+    }, 60);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.clearTimeout(focusTimer);
+    };
+  }, [modelMenuOpen]);
+
   if (!open) return null;
 
   const current = keys[provider];
+  const providerOptions = PROVIDER_MODELS[provider] ?? PROVIDER_MODELS.custom;
+  const selectedPreset = providerOptions.find((m) => m.id === model);
+  const filteredModels = providerOptions.filter((m) => {
+    const q = modelSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      m.name.toLowerCase().includes(q) ||
+      m.id.toLowerCase().includes(q) ||
+      m.tagline.toLowerCase().includes(q)
+    );
+  });
+
+  const handleProviderChange = (nextProvider: string): void => {
+    setProvider(nextProvider);
+    setModelSearch("");
+    setModelMenuOpen(false);
+    const wasPreset = Object.values(PROVIDER_MODELS)
+      .flat()
+      .some((m) => m.id === model);
+    if (wasPreset) {
+      setModel("");
+    }
+  };
 
   const runTest = async (): Promise<void> => {
     setBusy(true);
@@ -173,6 +376,37 @@ export function SettingsModal({ open, onClose }: SettingsModalProps): JSX.Elemen
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 fade-in">
+      <style>{`
+        @keyframes modelPopoverIn {
+          0% {
+            opacity: 0;
+            transform: translateY(-6px) scale(0.96);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+        @keyframes modelItemStagger {
+          0% {
+            opacity: 0;
+            transform: translateY(4px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .model-popover-enter {
+          animation: modelPopoverIn 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          transform-origin: top right;
+        }
+        .model-item-enter {
+          opacity: 0;
+          animation: modelItemStagger 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+      `}</style>
+
       <div className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-2xl border border-white/10 bg-[#131923] shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-3">
           <h2 className="font-display text-lg font-semibold text-gray-100">Settings</h2>
@@ -195,7 +429,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps): JSX.Elemen
                   <button
                     key={id}
                     type="button"
-                    onClick={() => { setTab(id); setStatus(null); }}
+                    onClick={() => { setTab(id); setStatus(null); setModelMenuOpen(false); }}
                     className={`flex items-center gap-2.5 whitespace-nowrap rounded-md px-3 py-2 text-sm transition-colors ${
                       active
                         ? "bg-white/10 text-gray-100"
@@ -371,12 +605,12 @@ export function SettingsModal({ open, onClose }: SettingsModalProps): JSX.Elemen
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-400 mb-1">Provider</label>
                     <select
                       value={provider}
-                      onChange={(e) => setProvider(e.target.value)}
+                      onChange={(e) => handleProviderChange(e.target.value)}
                       className="w-full rounded-md border border-white/10 bg-[#0b0f14] px-3 py-2 text-sm text-gray-100"
                     >
                       {PROVIDERS.map((p) => (
@@ -387,14 +621,201 @@ export function SettingsModal({ open, onClose }: SettingsModalProps): JSX.Elemen
                       {PROVIDERS.find((p) => p.id === provider)?.hint}
                     </p>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-400 mb-1">Model (optional)</label>
-                    <input
-                      value={model}
-                      onChange={(e) => setModel(e.target.value)}
-                      placeholder="Leave blank for default"
-                      className="w-full rounded-md border border-white/10 bg-[#0b0f14] px-3 py-2 text-sm text-gray-100"
-                    />
+
+                  {/* ChatGPT / Gemini style interactive Model Selector */}
+                  <div ref={modelPickerRef} className="relative">
+                    <label className="block text-xs font-medium text-gray-400 mb-1">Model</label>
+                    <button
+                      type="button"
+                      onClick={() => setModelMenuOpen((prev) => !prev)}
+                      aria-expanded={modelMenuOpen}
+                      aria-haspopup="listbox"
+                      className={`group flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-all duration-150 ${
+                        modelMenuOpen
+                          ? "border-[#5FB2F2]/60 bg-[#0b0f14] ring-2 ring-[#5FB2F2]/20"
+                          : "border-white/10 bg-[#0b0f14] hover:border-white/20 hover:bg-[#0b0f14]/90"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <ModelTierIcon tier={selectedPreset?.tier ?? "flagship"} />
+                        <span className="truncate font-medium text-gray-100">
+                          {selectedPreset
+                            ? selectedPreset.name
+                            : model.trim()
+                              ? model
+                              : "Provider default"}
+                        </span>
+                        {(selectedPreset?.badge || (!model.trim() && "Auto")) && (
+                          <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.06] px-1.5 py-0.5 text-[10px] font-medium text-gray-300">
+                            {selectedPreset?.badge ?? "Auto"}
+                          </span>
+                        )}
+                      </div>
+                      <ChevronDown
+                        size={15}
+                        className={`shrink-0 text-gray-400 transition-transform duration-200 ${
+                          modelMenuOpen ? "rotate-180 text-[#5FB2F2]" : "group-hover:text-gray-200"
+                        }`}
+                      />
+                    </button>
+                    <p className="mt-1 truncate text-[11px] text-gray-500">
+                      {selectedPreset
+                        ? selectedPreset.tagline
+                        : model.trim()
+                          ? `Custom model ID: ${model}`
+                          : "Uses recommended default for selected provider"}
+                    </p>
+
+                    {modelMenuOpen && (
+                      <div
+                        role="listbox"
+                        className="model-popover-enter absolute right-0 left-0 sm:left-auto sm:w-80 z-30 mt-2 rounded-xl border border-white/15 bg-[#161e2b]/95 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.65)] overflow-hidden"
+                      >
+                        <div className="border-b border-white/10 px-3 py-2.5">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                              {PROVIDERS.find((p) => p.id === provider)?.label} Models
+                            </span>
+                            {model && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setModel("");
+                                  setModelSearch("");
+                                  setModelMenuOpen(false);
+                                }}
+                                className="flex items-center gap-1 text-[11px] text-[#5FB2F2] hover:underline"
+                              >
+                                <RotateCcw size={10} /> Reset default
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="relative flex items-center">
+                            <Search size={13} className="pointer-events-none absolute left-2.5 text-gray-500" />
+                            <input
+                              ref={modelSearchInputRef}
+                              type="text"
+                              value={modelSearch}
+                              onChange={(e) => setModelSearch(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && modelSearch.trim()) {
+                                  e.preventDefault();
+                                  setModel(modelSearch.trim());
+                                  setModelSearch("");
+                                  setModelMenuOpen(false);
+                                }
+                              }}
+                              placeholder="Filter or type custom model ID..."
+                              className="w-full rounded-md border border-white/10 bg-[#0b0f14] py-1.5 pl-8 pr-2.5 text-xs text-gray-100 placeholder:text-gray-500 focus:border-[#5FB2F2]/50 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="max-h-64 overflow-y-auto p-1.5 space-y-1">
+                          {/* Default Auto Option */}
+                          {!modelSearch.trim() && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setModel("");
+                                setModelMenuOpen(false);
+                              }}
+                              className={`model-item-enter flex w-full items-start justify-between gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${
+                                model === ""
+                                  ? "bg-[#5FB2F2]/12 border border-[#5FB2F2]/30"
+                                  : "border border-transparent hover:bg-white/[0.06]"
+                              }`}
+                            >
+                              <div className="flex items-start gap-2.5 min-w-0">
+                                <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/[0.06] border border-white/10">
+                                  <Sparkles size={13} className="text-[#5FB2F2]" />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-xs font-semibold text-gray-100">Auto (Default)</span>
+                                    <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-gray-300">
+                                      Recommended
+                                    </span>
+                                  </div>
+                                  <p className="mt-0.5 text-[11px] text-gray-400 leading-snug">
+                                    Automatically picks the best default model for {provider}
+                                  </p>
+                                </div>
+                              </div>
+                              {model === "" && (
+                                <Check size={14} className="mt-1 shrink-0 text-[#5FB2F2]" />
+                              )}
+                            </button>
+                          )}
+
+                          {filteredModels.map((opt, idx) => {
+                            const isSelected = model === opt.id;
+                            return (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                style={{ animationDelay: `${(idx + 1) * 25}ms` }}
+                                onClick={() => {
+                                  setModel(opt.id);
+                                  setModelSearch("");
+                                  setModelMenuOpen(false);
+                                }}
+                                className={`model-item-enter flex w-full items-start justify-between gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${
+                                  isSelected
+                                    ? "bg-[#5FB2F2]/12 border border-[#5FB2F2]/30"
+                                    : "border border-transparent hover:bg-white/[0.06]"
+                                }`}
+                              >
+                                <div className="flex items-start gap-2.5 min-w-0">
+                                  <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/[0.06] border border-white/10">
+                                    <ModelTierIcon tier={opt.tier} />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="text-xs font-semibold text-gray-100">{opt.name}</span>
+                                      {opt.badge && (
+                                        <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-gray-300">
+                                          {opt.badge}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="mt-0.5 text-[11px] text-gray-400 leading-snug">
+                                      {opt.tagline}
+                                    </p>
+                                    <p className="mt-0.5 font-mono text-[10px] text-gray-500 truncate">
+                                      {opt.id}
+                                    </p>
+                                  </div>
+                                </div>
+                                {isSelected && (
+                                  <Check size={14} className="mt-1 shrink-0 text-[#5FB2F2]" />
+                                )}
+                              </button>
+                            );
+                          })}
+
+                          {modelSearch.trim() && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setModel(modelSearch.trim());
+                                setModelSearch("");
+                                setModelMenuOpen(false);
+                              }}
+                              className="flex w-full items-center justify-between gap-2 rounded-lg border border-dashed border-[#5FB2F2]/40 bg-[#5FB2F2]/10 px-2.5 py-2 text-left text-xs text-gray-100 hover:bg-[#5FB2F2]/15 transition-colors"
+                            >
+                              <span className="truncate">
+                                Use custom ID: <span className="font-mono text-[#5FB2F2]">{modelSearch.trim()}</span>
+                              </span>
+                              <span className="shrink-0 rounded bg-[#5FB2F2] px-1.5 py-0.5 text-[10px] font-semibold text-[#06233a]">
+                                Apply
+                              </span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -595,6 +1016,20 @@ export function SettingsModal({ open, onClose }: SettingsModalProps): JSX.Elemen
       </div>
     </div>
   );
+}
+
+function ModelTierIcon({ tier }: { tier: ModelOption["tier"] }): JSX.Element {
+  switch (tier) {
+    case "reasoning":
+      return <Brain size={13} className="shrink-0 text-purple-400" />;
+    case "fast":
+      return <Zap size={13} className="shrink-0 text-amber-400" />;
+    case "local":
+      return <Cpu size={13} className="shrink-0 text-emerald-400" />;
+    case "flagship":
+    default:
+      return <Sparkles size={13} className="shrink-0 text-[#5FB2F2]" />;
+  }
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }): JSX.Element {
