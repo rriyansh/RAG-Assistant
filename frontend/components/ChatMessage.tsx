@@ -23,7 +23,7 @@ function parseBlocks(text: string): Block[] {
   const blocks: Block[] = [];
   let para: string[] = [];
 
-  const flushPara = () => {
+  const flush = () => {
     if (para.length) {
       blocks.push({ type: "p", text: para.join(" ") });
       para = [];
@@ -32,68 +32,60 @@ function parseBlocks(text: string): Block[] {
 
   for (const raw of lines) {
     if (/^\s*[-*]\s+/.test(raw)) {
-      flushPara();
+      flush();
       blocks.push({ type: "li", text: raw.replace(/^\s*[-*]\s+/, "").trim() });
     } else if (raw.trim() === "") {
-      flushPara();
+      flush();
     } else {
       para.push(raw);
     }
   }
-  flushPara();
+  flush();
   return blocks;
 }
 
-function revealNodes(text: string, animate: boolean, startIndex: number): { nodes: React.ReactNode; nextIndex: number } {
-  if (!animate) return { nodes: <>{text}</>, nextIndex: startIndex };
+function reveal(text: string, animate: boolean, start: number): { nodes: React.ReactNode; next: number } {
+  if (!animate) return { nodes: <>{text}</>, next: start };
 
   const tokens = text.split(/(\s+)/);
-  let wordIndex = startIndex;
+  let word = start;
   const nodes = tokens.map((tok, i) => {
     if (!tok) return null;
-    if (/^\s+$/.test(tok)) return <span key={`sp-${i}`}>{tok}</span>;
-    const delay = Math.min(wordIndex * 14, 1400);
-    wordIndex += 1;
+    if (/^\s+$/.test(tok)) return <span key={`s${i}`}>{tok}</span>;
+    const delay = Math.min(word * 12, 1200);
+    word += 1;
     return (
-      <span key={`w-${i}`} className="reveal-w" style={{ animationDelay: `${delay}ms` }}>
+      <span key={`w${i}`} className="reveal-w" style={{ animationDelay: `${delay}ms` }}>
         {tok}
       </span>
     );
   });
-  return { nodes: <>{nodes}</>, nextIndex: wordIndex };
+  return { nodes: <>{nodes}</>, next: word };
 }
 
-function RenderedContent({ text, animate }: { text: string; animate: boolean }): JSX.Element {
+function Rendered({ text, animate }: { text: string; animate: boolean }): JSX.Element {
   const blocks = parseBlocks(text);
   const out: JSX.Element[] = [];
-  let pendingList: JSX.Element[] = [];
-  let wordIndex = 0;
+  let pending: JSX.Element[] = [];
+  let word = 0;
 
   const flushList = () => {
-    if (pendingList.length) {
-      out.push(
-        <ul key={`ul-${out.length}`} className="msg-list">
-          {pendingList}
-        </ul>
-      );
-      pendingList = [];
+    if (pending.length) {
+      out.push(<ul key={`ul${out.length}`} className="msg-list">{pending}</ul>);
+      pending = [];
     }
   };
 
   blocks.forEach((b, i) => {
     if (b.type === "li") {
-      const r = revealNodes(b.text, animate, wordIndex);
-      wordIndex = r.nextIndex;
-      pendingList.push(<li key={`li-${i}`}>{r.nodes}</li>);
+      const r = reveal(b.text, animate, word);
+      word = r.next;
+      pending.push(<li key={`li${i}`}>{r.nodes}</li>);
     } else {
       flushList();
-      const r = revealNodes(b.text, animate, wordIndex);
-      wordIndex = r.nextIndex;
-      out.push(
-        <p key={`p-${i}`} className="whitespace-pre-wrap break-words">
-          {r.nodes}
-        </p>
-      );
+      const r = reveal(b.text, animate, word);
+      word = r.next;
+      out.push(<p key={`p${i}`} className="whitespace-pre-wrap break-words">{r.nodes}</p>);
     }
   });
   flushList();
@@ -106,18 +98,24 @@ export function ChatMessage({ message }: ChatMessageProps): JSX.Element {
   const isError = message.error === true;
   const { profile } = useProfile();
 
-  const [animate, setAnimate] = React.useState(false);
+  const [animateText, setAnimateText] = React.useState(false);
   const wasPending = React.useRef(message.pending === true);
 
   React.useEffect(() => {
     if (wasPending.current && !message.pending && !message.error && !message.local) {
-      setAnimate(true);
+      setAnimateText(true);
     }
     wasPending.current = message.pending === true;
   }, [message.pending, message.error, message.local]);
 
   return (
-    <div className={cn("flex gap-3 w-full", isUser ? "flex-row-reverse" : "flex-row")}>
+    <div
+      className={cn(
+        "flex gap-3 w-full",
+        isUser ? "flex-row-reverse" : "flex-row",
+        isUser ? "msg-in-right" : "msg-in-left"
+      )}
+    >
       <div className="shrink-0">
         {isUser ? (
           <Avatar profile={profile} size={32} />
@@ -149,7 +147,7 @@ export function ChatMessage({ message }: ChatMessageProps): JSX.Element {
           ) : isUser ? (
             <span>{message.content}</span>
           ) : (
-            <RenderedContent text={message.content} animate={animate} />
+            <Rendered text={message.content} animate={animateText} />
           )}
         </div>
 
