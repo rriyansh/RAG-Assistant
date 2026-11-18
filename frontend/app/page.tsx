@@ -7,6 +7,7 @@ import { ChatMessage } from "@/components/ChatMessage";
 import ChatComposer from "@/components/ChatComposer";
 import { EmptyState } from "@/components/EmptyState";
 import { SettingsModal } from "@/components/SettingsModal";
+import { Footer } from "@/components/Footer";
 
 export default function HomePage(): JSX.Element {
   const { messages, isLoading, sendMessage, clearChat } = useChat();
@@ -15,7 +16,8 @@ export default function HomePage(): JSX.Element {
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [messages, isLoading]);
 
   const handleSubmit = useCallback(
@@ -47,9 +49,11 @@ export default function HomePage(): JSX.Element {
         </div>
       </div>
 
-      <div className="w-full px-4 pb-5 pt-2">
+      <div className="w-full px-4 pb-2 pt-2">
         <ChatComposer onSubmit={handleSubmit} disabled={isLoading} />
       </div>
+
+      <Footer />
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
