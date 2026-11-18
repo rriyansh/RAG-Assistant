@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import type { Profile, FontId } from "@/lib/types";
 
 const KEY = "rag.profile";
+const EVENT_NAME = "rag:profile";
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // 2 MB
 
 const DEFAULTS: Profile = {
   name: "You",
@@ -16,26 +18,51 @@ const DEFAULTS: Profile = {
 };
 
 const VALID_FONTS: FontId[] = [
-  "system", "dm-sans", "josefin-sans", "fredoka",
-  "open-sans", "outfit", "plus-jakarta-sans",
+  "system",
+  "dm-sans",
+  "josefin-sans",
+  "fredoka",
+  "open-sans",
+  "outfit",
+  "plus-jakarta-sans",
 ];
+
+function sanitizeImageDataUrl(value: unknown): string {
+  if (typeof value !== "string" || !value) return "";
+  // Allow standard raster image data URLs; disallow SVG data URLs to prevent embedded scripts
+  if (/^data:image\/(png|jpe?g|gif|webp|avif|bmp|x-icon|vnd\.microsoft\.icon);base64,/i.test(value)) {
+    return value;
+  }
+  return "";
+}
 
 function read(): Profile {
   if (typeof window === "undefined") return DEFAULTS;
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return DEFAULTS;
-    const parsed = JSON.parse(raw) as Partial<Profile>;
-    const font = VALID_FONTS.includes(parsed.font as FontId)
-      ? (parsed.font as FontId)
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return DEFAULTS;
+    }
+
+    const record = parsed as Partial<Profile>;
+    const font = VALID_FONTS.includes(record.font as FontId)
+      ? (record.font as FontId)
       : DEFAULTS.font;
+
     return {
-      name: parsed.name?.trim() || DEFAULTS.name,
-      avatarDataUrl: parsed.avatarDataUrl || DEFAULTS.avatarDataUrl,
-      assistantName: parsed.assistantName?.trim() || DEFAULTS.assistantName,
-      assistantLogo: parsed.assistantLogo || DEFAULTS.assistantLogo,
-      headline: parsed.headline?.trim() || DEFAULTS.headline,
-      bodyText: parsed.bodyText?.trim() || DEFAULTS.bodyText,
+      name: typeof record.name === "string" ? record.name : DEFAULTS.name,
+      avatarDataUrl: sanitizeImageDataUrl(record.avatarDataUrl),
+      assistantName:
+        typeof record.assistantName === "string"
+          ? record.assistantName
+          : DEFAULTS.assistantName,
+      assistantLogo: sanitizeImageDataUrl(record.assistantLogo),
+      headline:
+        typeof record.headline === "string" ? record.headline : DEFAULTS.headline,
+      bodyText:
+        typeof record.bodyText === "string" ? record.bodyText : DEFAULTS.bodyText,
       font,
     };
   } catch {
@@ -45,13 +72,18 @@ function read(): Profile {
 
 function write(p: Profile): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(KEY, JSON.stringify(p));
-  window.dispatchEvent(new CustomEvent("rag:profile"));
+  try {
+    localStorage.setItem(KEY, JSON.stringify(p));
+  } catch {
+    throw new Error("Browser storage is full. Please choose a smaller image.");
+  }
+  window.dispatchEvent(new CustomEvent(EVENT_NAME));
 }
 
 export interface UseProfileResult {
   profile: Profile;
   update: (patch: Partial<Profile>) => void;
+  reset: () => void;
   setName: (v: string) => void;
   setAvatarFromFile: (file: File) => Promise<void>;
   clearAvatar: () => void;
@@ -60,11 +92,23 @@ export interface UseProfileResult {
 }
 
 function readFileAsDataUrl(file: File): Promise<string> {
-  if (!file.type.startsWith("image/")) throw new Error("Please choose an image file");
-  if (file.size > 2 * 1024 * 1024) throw new Error("Image must be under 2 MB");
+  if (!file.type.startsWith("image/") || file.type === "image/svg+xml") {
+    throw new Error("Please choose a PNG, JPG, WebP, or GIF image");
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    throw new Error("Image must be under 2 MB");
+  }
+
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onload = () => {
+      const result = String(reader.result ?? "");
+      if (!sanitizeImageDataUrl(result)) {
+        reject(new Error("Unsupported image format"));
+        return;
+      }
+      resolve(result);
+    };
     reader.onerror = () => reject(new Error("Could not read file"));
     reader.readAsDataURL(file);
   });
@@ -75,12 +119,19 @@ export function useProfile(): UseProfileResult {
 
   useEffect(() => {
     setProfile(read());
-    const on = (): void => setProfile(read());
-    window.addEventListener("rag:profile", on);
-    window.addEventListener("storage", on);
+
+    const syncLocal = (): void => setProfile(read());
+    const syncStorage = (e: StorageEvent): void => {
+      if (e.key === null || e.key === KEY) {
+        setProfile(read());
+      }
+    };
+
+    window.addEventListener(EVENT_NAME, syncLocal);
+    window.addEventListener("storage", syncStorage);
     return () => {
-      window.removeEventListener("rag:profile", on);
-      window.removeEventListener("storage", on);
+      window.removeEventListener(EVENT_NAME, syncLocal);
+      window.removeEventListener("storage", syncStorage);
     };
   }, []);
 
@@ -90,32 +141,78 @@ export function useProfile(): UseProfileResult {
   }, [profile.font]);
 
   const update = useCallback((patch: Partial<Profile>): void => {
-    const next = { ...read(), ...patch };
+    const current = read();
+    const next: Profile = {
+      ...current,
+      ...patch,
+      font:
+        patch.font !== undefined && VALID_FONTS.includes(patch.font)
+          ? patch.font
+          : current.font,
+      avatarDataUrl:
+        patch.avatarDataUrl !== undefined
+          ? sanitizeImageDataUrl(patch.avatarDataUrl)
+          : current.avatarDataUrl,
+      assistantLogo:
+        patch.assistantLogo !== undefined
+          ? sanitizeImageDataUrl(patch.assistantLogo)
+          : current.assistantLogo,
+    };
     write(next);
     setProfile(next);
   }, []);
 
-  const setName = useCallback((v: string): void => {
-    update({ name: v.trim() || DEFAULTS.name });
-  }, [update]);
+  const reset = useCallback((): void => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem(KEY);
+      } catch {
+        // Ignore storage access errors
+      }
+      window.dispatchEvent(new CustomEvent(EVENT_NAME));
+    }
+    setProfile(DEFAULTS);
+  }, []);
 
-  const setAvatarFromFile = useCallback(async (file: File): Promise<void> => {
-    const dataUrl = await readFileAsDataUrl(file);
-    update({ avatarDataUrl: dataUrl });
-  }, [update]);
+  const setName = useCallback(
+    (v: string): void => {
+      update({ name: v.trim() || DEFAULTS.name });
+    },
+    [update]
+  );
+
+  const setAvatarFromFile = useCallback(
+    async (file: File): Promise<void> => {
+      const dataUrl = await readFileAsDataUrl(file);
+      update({ avatarDataUrl: dataUrl });
+    },
+    [update]
+  );
 
   const clearAvatar = useCallback((): void => {
     update({ avatarDataUrl: "" });
   }, [update]);
 
-  const setAssistantLogoFromFile = useCallback(async (file: File): Promise<void> => {
-    const dataUrl = await readFileAsDataUrl(file);
-    update({ assistantLogo: dataUrl });
-  }, [update]);
+  const setAssistantLogoFromFile = useCallback(
+    async (file: File): Promise<void> => {
+      const dataUrl = await readFileAsDataUrl(file);
+      update({ assistantLogo: dataUrl });
+    },
+    [update]
+  );
 
   const clearAssistantLogo = useCallback((): void => {
     update({ assistantLogo: "" });
   }, [update]);
 
-  return { profile, update, setName, setAvatarFromFile, clearAvatar, setAssistantLogoFromFile, clearAssistantLogo };
+  return {
+    profile,
+    update,
+    reset,
+    setName,
+    setAvatarFromFile,
+    clearAvatar,
+    setAssistantLogoFromFile,
+    clearAssistantLogo,
+  };
 }
