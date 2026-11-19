@@ -137,7 +137,6 @@ async def run_agent(
                 "status": "ok",
             }
 
-        # Check consent requirements across all requested tool calls before running any
         unapproved_tools: list[str] = []
         pending_consent_details: list[dict[str, Any]] = []
 
