@@ -4,8 +4,8 @@
 import React from "react";
 import { Bot, ExternalLink, FileText, Globe, User } from "lucide-react";
 import { ChatMessageItem } from "../lib/types";
-import ToolCalls from "./ToolCalls";
-import ConsentPrompt from "./ConsentPrompt";
+import { ToolCalls } from "./ToolCalls";
+import { ConsentPrompt } from "./ConsentPrompt";
 
 interface ChatMessageProps {
   message: ChatMessageItem;
@@ -15,7 +15,7 @@ interface ChatMessageProps {
   isLoading?: boolean;
 }
 
-export default function ChatMessage({
+export function ChatMessage({
   message,
   assistantName = "Assistant",
   onApproveConsent,
@@ -78,8 +78,7 @@ export default function ChatMessage({
         {!isUser && message.sources && message.sources.length > 0 && (
           <div className="flex flex-wrap gap-1.5 pt-1">
             {message.sources.map((src, idx) => {
-              const isWeb =
-                src.source_type === "web" || Boolean(src.url);
+              const isWeb = src.source_type === "web" || Boolean(src.url);
               const label =
                 src.doc_name || src.title || (isWeb ? "Web Source" : "PDF");
               return (
@@ -129,3 +128,5 @@ export default function ChatMessage({
     </div>
   );
 }
+
+export default ChatMessage;
