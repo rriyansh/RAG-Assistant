@@ -13,7 +13,7 @@ interface ConsentPromptProps {
   disabled?: boolean;
 }
 
-export default function ConsentPrompt({
+export function ConsentPrompt({
   pending,
   assistantName = "Assistant",
   onApprove,
@@ -60,3 +60,5 @@ export default function ConsentPrompt({
     </div>
   );
 }
+
+export default ConsentPrompt;
