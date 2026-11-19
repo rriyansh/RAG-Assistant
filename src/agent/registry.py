@@ -40,6 +40,7 @@ def _read_secure_json(path: Path) -> dict[str, Any]:
 
 
 def validate_against_schema(args: Any, schema: dict[str, Any]) -> None:
+    """Strict lightweight JSON Schema validator for tool call arguments."""
     raw_bytes = len(json.dumps(args).encode("utf-8"))
     if raw_bytes > MAX_ARGS_BYTES:
         raise ToolValidationError(
@@ -109,7 +110,7 @@ class ToolSpec:
     input_schema: dict[str, Any]
     handler: Callable[..., Any]
     requires_consent: bool = False
-    source: Literal["internal", "mcp"] = "internal"
+    source: Literal["internal", "connector", "mcp"] = "internal"
     server_id: str | None = None
     enabled: bool = True
 
