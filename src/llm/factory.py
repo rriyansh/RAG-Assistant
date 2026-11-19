@@ -1,155 +1,103 @@
-"""
-Provider factory. Runtime settings and saved API keys take precedence over .env.
-"""
+from __future__ import annotations
+
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 from src.llm.provider import LLMProvider
-from src.utils.config import get_settings
-from src.utils.key_store import get_key, list_keys
 
+KEYS_PATH = Path("data/keys.json")
 CONFIG_PATH = Path("data/config.json")
 
-DEFAULT_MODELS = {
-    "groq": "llama-3.3-70b-versatile",
-    "gemini": "gemini-2.0-flash",
-    "openrouter": "openrouter/free",
-    "openai": "gpt-4o-mini",
-    "ollama": "llama3.2",
-}
-
-DEFAULT_BASE_URLS = {
+PROVIDER_BASE_URLS: dict[str, str] = {
+    "nvidia": "https://integrate.api.nvidia.com/v1",
+    "grok": "https://api.x.ai/v1",
+    "deepseek": "https://api.deepseek.com/v1",
+    "qwen": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
     "groq": "https://api.groq.com/openai/v1",
     "gemini": "https://generativelanguage.googleapis.com/v1beta/openai/",
     "openrouter": "https://openrouter.ai/api/v1",
     "openai": "https://api.openai.com/v1",
+    "anthropic": "https://api.anthropic.com/v1/",
+    "mistral": "https://api.mistral.ai/v1",
     "ollama": "http://localhost:11434/v1",
 }
 
+PROVIDER_DEFAULT_MODELS: dict[str, str] = {
+    "nvidia": "meta/llama-3.1-70b-instruct",
+    "grok": "grok-2-latest",
+    "deepseek": "deepseek-chat",
+    "qwen": "qwen-plus",
+    "groq": "llama-3.3-70b-versatile",
+    "gemini": "gemini-2.0-flash",
+    "openrouter": "openrouter/free",
+    "openai": "gpt-4o-mini",
+    "anthropic": "claude-3-5-sonnet-latest",
+    "mistral": "mistral-large-latest",
+    "ollama": "llama3.2",
+}
 
-def _read_runtime_config() -> dict[str, Any]:
-    if not CONFIG_PATH.exists():
+
+def _read_json(path: Path) -> dict[str, Any]:
+    if not path.exists():
         return {}
     try:
-        config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise ValueError("Unable to read data/config.json.") from exc
-    if not isinstance(config, dict):
-        raise ValueError("data/config.json must contain a JSON object.")
-    return config
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
 
 
-def _resolve(provider: str) -> dict[str, str]:
-    """Merge a saved provider key over its environment fallback."""
-    settings = get_settings()
-    runtime = get_key(provider)
-    if not isinstance(runtime, dict):
-        runtime = {}
-
-    env_key_name = "custom_llm_api_key" if provider == "custom" else f"{provider}_api_key"
-    env_base_url_name = (
-        "custom_llm_base_url" if provider == "custom" else f"{provider}_base_url"
-    )
-    env_model_name = (
-        "custom_llm_model" if provider == "custom" else f"{provider}_model"
-    )
-
-    return {
-        "api_key": runtime.get("api_key") or getattr(settings, env_key_name, ""),
-        "model": runtime.get("model") or getattr(settings, env_model_name, ""),
-        "base_url": runtime.get("base_url") or getattr(settings, env_base_url_name, ""),
-    }
-
-
-def get_llm_config() -> dict[str, Any]:
-    """Return the effective non-secret LLM configuration."""
-    settings = get_settings()
-    runtime = _read_runtime_config()
-    requested_provider = str(runtime.get("provider") or settings.llm_provider).lower().strip()
-    provider = requested_provider
-    provider_config = _resolve(provider)
-
-    if not runtime.get("provider") and provider != "ollama" and not provider_config["api_key"]:
-        for candidate in list_keys():
-            if candidate == "ollama":
-                continue
-            candidate_config = _resolve(candidate)
-            if candidate_config["api_key"]:
-                provider = candidate
-                provider_config = candidate_config
-                break
-
-    model = (
-        runtime.get("model")
-        or provider_config["model"]
-        or DEFAULT_MODELS.get(provider)
+def get_builtin_nvidia_key() -> str:
+    return (
+        os.getenv("NVIDIA_API_KEY")
+        or os.getenv("DEFAULT_NVIDIA_API_KEY")
+        or os.getenv("FREE_NVIDIA_API_KEY")
         or ""
-    )
-    base_url = (
-        runtime.get("base_url")
-        or provider_config["base_url"]
-        or DEFAULT_BASE_URLS.get(provider)
-        or ""
-    )
-
-    return {
-        "provider": provider,
-        "model": model,
-        "base_url": base_url,
-        "temperature": float(runtime.get("temperature", 0.3)),
-        "max_tokens": int(runtime.get("max_tokens", 1024)),
-        "top_p": float(runtime.get("top_p", 0.9)),
-    }
+    ).strip()
 
 
 def create_llm() -> LLMProvider:
-    config = get_llm_config()
-    provider = config["provider"]
-    provider_config = _resolve(provider)
-    api_key = provider_config["api_key"]
+    cfg = _read_json(CONFIG_PATH)
+    keys = _read_json(KEYS_PATH)
 
-    if provider != "ollama" and not api_key:
-        raise ValueError(
-            f"No API key is configured for {provider}. Add a provider key in Settings."
-        )
-    if provider == "custom" and not config["base_url"]:
-        raise ValueError("A base URL is required for the custom provider.")
+    provider = str(cfg.get("provider") or os.getenv("LLM_PROVIDER") or "nvidia").lower()
+    saved_entry = keys.get(provider, {})
+    user_key = ""
+    if isinstance(saved_entry, dict):
+        user_key = str(saved_entry.get("api_key") or "").strip()
+    elif isinstance(saved_entry, str):
+        user_key = saved_entry.strip()
 
-    return LLMProvider(
-        base_url=config["base_url"],
-        api_key=api_key or "ollama",
-        model=config["model"],
-        temperature=config["temperature"],
-        max_tokens=config["max_tokens"],
-        top_p=config["top_p"],
+    if not user_key:
+        user_key = os.getenv(f"{provider.upper()}_API_KEY", "").strip()
+
+    if not user_key and provider != "ollama":
+        builtin_nv = get_builtin_nvidia_key()
+        if builtin_nv:
+            provider = "nvidia"
+            user_key = builtin_nv
+
+    base_url = (
+        str(cfg.get("base_url") or "").strip()
+        or (saved_entry.get("base_url") if isinstance(saved_entry, dict) else "")
+        or PROVIDER_BASE_URLS.get(provider, "https://integrate.api.nvidia.com/v1")
+    )
+    model = (
+        str(cfg.get("model") or "").strip()
+        or (saved_entry.get("model") if isinstance(saved_entry, dict) else "")
+        or PROVIDER_DEFAULT_MODELS.get(provider, "meta/llama-3.1-70b-instruct")
     )
 
+    temperature = float(cfg.get("temperature", 0.3))
+    max_tokens = int(cfg.get("max_tokens", 1024))
+    top_p = float(cfg.get("top_p", 0.9))
 
-def test_provider(
-    provider: str, api_key: str, model: str = "", base_url: str = ""
-) -> dict[str, Any]:
-    """Try a tiny call against a provider without saving its key."""
-    name = provider.lower().strip()
-    resolved_base_url = base_url or DEFAULT_BASE_URLS.get(name, "")
-    resolved_model = model or DEFAULT_MODELS.get(name, "")
-    if name == "custom" and (not resolved_base_url or not resolved_model):
-        return {"ok": False, "error": "Custom providers require a model and base URL."}
-    if name not in DEFAULT_BASE_URLS and name != "custom":
-        return {"ok": False, "error": f"Unknown provider '{provider}'."}
-
-    try:
-        probe = LLMProvider(
-            base_url=resolved_base_url,
-            api_key=api_key,
-            model=resolved_model,
-            max_tokens=8,
-            timeout=15.0,
-        )
-        reply = probe.generate(
-            "Reply with the single word: ok",
-            temperature=0,
-        )
-        return {"ok": True, "reply": reply.strip()[:80], "model": resolved_model}
-    except Exception as exc:
-        return {"ok": False, "error": str(exc)[:300], "model": resolved_model}
+    return LLMProvider(
+        api_key=user_key or "ollama",
+        base_url=base_url,
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        top_p=top_p,
+    )
