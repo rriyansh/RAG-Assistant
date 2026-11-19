@@ -1,11 +1,9 @@
-// lib/types.ts
-
 export type FontId =
+  | "open-sans"
   | "system"
   | "dm-sans"
   | "josefin-sans"
   | "fredoka"
-  | "open-sans"
   | "outfit"
   | "plus-jakarta-sans";
 
@@ -77,6 +75,13 @@ export interface PluginInfo {
   source: "internal" | "connector" | "mcp";
   enabled: boolean;
   server_id?: string | null;
+}
+
+export interface GeneratedFileItem {
+  filename: string;
+  language: string;
+  content: string;
+  mimeType: string;
 }
 
 export interface ChatMessageItem {
