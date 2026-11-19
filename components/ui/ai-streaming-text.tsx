@@ -1,4 +1,3 @@
-// components/ui/ai-streaming-text.tsx
 "use client";
 
 import * as React from "react";
@@ -18,16 +17,14 @@ export interface AiStreamingTextProps {
 
 export function AiStreamingText({
   text,
-  speed = 18,
+  speed = 16,
   mode = "character",
   showCursor = true,
   animate = true,
   onComplete,
   className,
 }: AiStreamingTextProps) {
-  const [displayedText, setDisplayedText] = React.useState(
-    animate ? "" : text
-  );
+  const [displayedText, setDisplayedText] = React.useState(animate ? "" : text);
   const [isComplete, setIsComplete] = React.useState(!animate);
 
   React.useEffect(() => {
@@ -50,17 +47,15 @@ export function AiStreamingText({
     let isCancelled = false;
     let lastTime = 0;
 
-    const step = (time: number) => {
+    const animateFrame = (time: number) => {
       if (isCancelled) return;
 
       if (time - lastTime >= speed) {
         lastTime = time;
-        // Advance multiple characters per frame for long responses so typing feels crisp and responsive
-        const charsPerTick =
-          mode === "character" && tokens.length > 350 ? 4 : 1;
+        const stepCount = mode === "character" && tokens.length > 320 ? 4 : 1;
         let chunk = "";
 
-        for (let i = 0; i < charsPerTick; i++) {
+        for (let i = 0; i < stepCount; i++) {
           const token = tokens[currentIndex];
           if (currentIndex < tokens.length && token !== undefined) {
             chunk += token;
@@ -68,7 +63,7 @@ export function AiStreamingText({
           }
         }
 
-        if (chunk.length > 0) {
+        if (chunk) {
           setDisplayedText((prev) => prev + chunk);
         }
 
@@ -81,10 +76,10 @@ export function AiStreamingText({
         }
       }
 
-      requestAnimationFrame(step);
+      requestAnimationFrame(animateFrame);
     };
 
-    const frameId = requestAnimationFrame(step);
+    const frameId = requestAnimationFrame(animateFrame);
 
     return () => {
       isCancelled = true;
@@ -102,7 +97,7 @@ export function AiStreamingText({
     >
       <span className="whitespace-pre-wrap">{displayedText}</span>
       {showCursor && !isComplete && (
-        <span className="ml-0.5 inline-block h-[1.15em] w-[2px] animate-pulse bg-indigo-400 align-middle will-change-[opacity]" />
+        <span className="ml-0.5 inline-block h-[1.15em] w-[2px] animate-pulse bg-[#f4f3f8] align-middle will-change-[opacity]" />
       )}
     </div>
   );
