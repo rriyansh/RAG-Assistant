@@ -33,7 +33,7 @@ class PluginInfoSchema(BaseModel):
     name: str
     description: str
     requires_consent: bool
-    source: Literal["internal", "mcp"]
+    source: Literal["internal", "connector", "mcp"]
     enabled: bool = True
     server_id: str | None = None
 
@@ -53,25 +53,52 @@ class PluginEnableResponse(BaseModel):
     status: str = "ok"
 
 
-class MCPServerSchema(BaseModel):
+class ConnectorFieldSchema(BaseModel):
+    key: str
+    label: str
+    type: str
+    placeholder: str
+    required: bool = True
+    helper_text: str = ""
+
+
+class ConnectorInfoSchema(BaseModel):
     id: str
-    transport: Literal["stdio", "http"]
-    status: str
-    tool_count: int
-    url_or_command: str
+    name: str
+    category: str
+    description: str
+    auth_type: str
+    built_in: bool = False
+    connected: bool = False
+    enabled: bool = False
+    status: str = "disconnected"
+    account_label: str = ""
+    tool_count: int = 0
+    tools: list[str] = Field(default_factory=list)
+    fields: list[ConnectorFieldSchema] = Field(default_factory=list)
 
 
-class MCPServersListResponse(BaseModel):
-    servers: list[MCPServerSchema]
+class ConnectorsListResponse(BaseModel):
+    connectors: list[ConnectorInfoSchema]
 
 
-class MCPServerCreateRequest(BaseModel):
+class ConnectorConnectRequest(BaseModel):
+    id: str = Field(..., min_length=1)
+    credentials: dict[str, Any] = Field(default_factory=dict)
+
+
+class CustomConnectorCreateRequest(BaseModel):
     id: str = Field(..., min_length=1, pattern=r"^[a-zA-Z0-9_-]+$")
-    transport: Literal["stdio", "http"]
-    command: str | None = None
-    args: list[str] | None = None
-    url: str | None = None
-    prefix: str | None = None
+    name: str = Field(..., min_length=1)
+    description: str = Field(default="Custom REST Webhook Connector")
+    endpoint_url: str = Field(..., min_length=1)
+    method: Literal["GET", "POST"] = "POST"
+    api_key: str = ""
+
+
+class ConnectorToggleRequest(BaseModel):
+    id: str
+    enabled: bool
 
 
 class KeyDetectRequest(BaseModel):
