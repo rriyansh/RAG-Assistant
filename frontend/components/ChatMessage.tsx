@@ -1,10 +1,13 @@
-// components/ChatMessage.tsx
 "use client";
 
-import React from "react";
-import { ExternalLink, FileText, Globe } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { Check, Copy, Download, ExternalLink, FileCode2, FileText, Globe } from "lucide-react";
 import { ChatMessageItem, UserProfile } from "../lib/types";
-import { DEFAULT_RAG_ASSISTANT_LOGO } from "../lib/utils";
+import {
+  DEFAULT_RAG_ASSISTANT_LOGO,
+  INBUILT_USER_PFPS,
+  triggerFileDownload,
+} from "../lib/utils";
 import { ToolCalls } from "./ToolCalls";
 import { ConsentPrompt } from "./ConsentPrompt";
 import { AiStreamingText } from "./ui/ai-streaming-text";
@@ -19,12 +22,59 @@ interface ChatMessageProps {
   isLoading?: boolean;
 }
 
-function getInitials(name: string): string {
-  const parts = (name || "User").trim().split(/\s+/);
-  if (parts.length >= 2) {
-    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+const LANG_EXTENSION_MAP: Record<string, string> = {
+  python: "py",
+  py: "py",
+  c: "c",
+  cpp: "cpp",
+  "c++": "cpp",
+  javascript: "js",
+  js: "js",
+  typescript: "ts",
+  ts: "ts",
+  tsx: "tsx",
+  jsx: "jsx",
+  java: "java",
+  go: "go",
+  rust: "rs",
+  html: "html",
+  css: "css",
+  json: "json",
+  sql: "sql",
+  bash: "sh",
+  sh: "sh",
+  markdown: "md",
+  md: "md",
+};
+
+interface ExtractedCodeFile {
+  filename: string;
+  language: string;
+  code: string;
+}
+
+function extractCodeBlocks(content: string): ExtractedCodeFile[] {
+  const regex = /```([a-zA-Z0-9_+-]*)\n([\s\S]*?)```/g;
+  const files: ExtractedCodeFile[] = [];
+  let match: RegExpExecArray | null;
+  let index = 1;
+
+  while ((match = regex.exec(content)) !== null) {
+    const rawLang = (match[1] || "txt").toLowerCase().trim();
+    const code = (match[2] || "").trim();
+    if (!code) continue;
+    const ext = LANG_EXTENSION_MAP[rawLang] || "txt";
+    const firstLine = code.split("\n")[0] || "";
+    const nameMatch = firstLine.match(/(?:\/\/|#|\/\*|--)\s*([a-zA-Z0-9_.-]+\.[a-zA-Z0-9]+)/);
+    const filename = nameMatch ? nameMatch[1] : `script_${index}.${ext}`;
+    files.push({
+      filename,
+      language: rawLang || "text",
+      code,
+    });
+    index++;
   }
-  return (name || "U").slice(0, 2).toUpperCase();
+  return files;
 }
 
 export function ChatMessage({
@@ -37,81 +87,144 @@ export function ChatMessage({
   isLoading = false,
 }: ChatMessageProps) {
   const isUser = message.role === "user";
-  const resolvedAssistantName =
-    profile?.assistantName || assistantName || "RAG Assistant";
-  const resolvedUserName = profile?.name || "You";
-  const assistantLogoSrc =
-    profile?.assistantLogo || DEFAULT_RAG_ASSISTANT_LOGO;
-  const userAvatarSrc = profile?.avatarDataUrl || "";
+  const [copied, setCopied] = useState(false);
+
+  const resolvedAssistantName = profile?.assistantName || assistantName || "RAG Assistant";
+  const resolvedUserName = profile?.name?.trim() || "User";
+  const assistantLogoSrc = profile?.assistantLogo || DEFAULT_RAG_ASSISTANT_LOGO;
+  const userAvatarSrc = profile?.avatarDataUrl || INBUILT_USER_PFPS[0].url;
+
+  const extractedFiles = useMemo(
+    () => (!isUser ? extractCodeBlocks(message.content) : []),
+    [isUser, message.content]
+  );
+
+  const handleCopyText = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {}
+  };
 
   return (
     <div
-      className={`flex w-full items-start gap-3.5 py-3.5 ${
+      className={`flex w-full items-start gap-3.5 py-4 ${
         isUser ? "justify-end" : "justify-start"
       }`}
     >
-      {/* Assistant Logo Avatar (Left side of every assistant message) */}
       {!isUser && (
-        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-indigo-400/30 bg-slate-900 shadow-md shadow-indigo-950/40">
+        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#e6e4f0]/20 bg-[#141417]">
           <img
             src={assistantLogoSrc}
-            alt={`${resolvedAssistantName} logo`}
+            alt={resolvedAssistantName}
             className="h-full w-full object-cover"
           />
         </div>
       )}
 
-      {/* Message Content Column */}
       <div
         className={`flex max-w-[82%] flex-col space-y-2 ${
           isUser ? "items-end" : "items-start"
         }`}
       >
-        {/* Sender Name & Timestamp Header */}
         <div
-          className={`flex items-center gap-2 px-1 text-[11px] ${
-            isUser ? "flex-row-reverse text-slate-400" : "text-slate-400"
+          className={`flex items-center gap-2 px-1 text-[11px] text-[#e6e4f0]/60 ${
+            isUser ? "flex-row-reverse" : ""
           }`}
         >
-          <span className="font-semibold text-slate-200">
+          <span className="font-semibold text-[#f4f3f8]">
             {isUser ? resolvedUserName : resolvedAssistantName}
           </span>
-          <span className="text-slate-500">·</span>
-          <span className="text-[10px] text-slate-500">{message.timestamp}</span>
+          <span>·</span>
+          <span className="text-[10px]">{message.timestamp}</span>
         </div>
 
-        {/* Bubble */}
         <div
-          className={`rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
+          className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
             isUser
-              ? "rounded-tr-sm bg-indigo-600 text-white"
-              : "rounded-tl-sm border border-slate-800 bg-slate-900/90 text-slate-100"
+              ? "rounded-tr-sm bg-[#f4f3f8] text-[#0c0c0e] font-medium"
+              : "rounded-tl-sm border border-[#e6e4f0]/15 bg-[#141417] text-[#f4f3f8]"
           }`}
         >
           {isUser ? (
-            <div className="whitespace-pre-wrap break-words">
-              {message.content}
-            </div>
+            <div className="whitespace-pre-wrap break-words">{message.content}</div>
           ) : (
             <AiStreamingText
               text={message.content}
-              speed={16}
+              speed={15}
               mode="character"
               animate={isLatestAssistant}
               showCursor={isLatestAssistant}
-              className="break-words text-slate-100"
+              className="break-words text-[#f4f3f8]"
             />
           )}
         </div>
 
-        {/* Collapsible Tool Calls Trace */}
+        {!isUser && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+            <button
+              type="button"
+              onClick={handleCopyText}
+              className="inline-flex items-center gap-1 rounded-lg border border-[#e6e4f0]/15 bg-[#141417] px-2.5 py-1 text-[11px] text-[#e6e4f0]/80 transition hover:border-[#f4f3f8]/40 hover:text-[#f4f3f8]"
+            >
+              {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+              {copied ? "Copied" : "Copy"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                triggerFileDownload(`response_${message.id}.pdf`, message.content, "pdf")
+              }
+              className="inline-flex items-center gap-1 rounded-lg border border-[#e6e4f0]/15 bg-[#141417] px-2.5 py-1 text-[11px] text-[#e6e4f0]/80 transition hover:border-[#f4f3f8]/40 hover:text-[#f4f3f8]"
+            >
+              <Download className="h-3 w-3" />
+              PDF
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                triggerFileDownload(`response_${message.id}.doc`, message.content, "doc")
+              }
+              className="inline-flex items-center gap-1 rounded-lg border border-[#e6e4f0]/15 bg-[#141417] px-2.5 py-1 text-[11px] text-[#e6e4f0]/80 transition hover:border-[#f4f3f8]/40 hover:text-[#f4f3f8]"
+            >
+              <Download className="h-3 w-3" />
+              DOC
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                triggerFileDownload(`response_${message.id}.txt`, message.content, "raw")
+              }
+              className="inline-flex items-center gap-1 rounded-lg border border-[#e6e4f0]/15 bg-[#141417] px-2.5 py-1 text-[11px] text-[#e6e4f0]/80 transition hover:border-[#f4f3f8]/40 hover:text-[#f4f3f8]"
+            >
+              <Download className="h-3 w-3" />
+              TXT
+            </button>
+
+            {extractedFiles.map((file, idx) => (
+              <button
+                key={`${file.filename}-${idx}`}
+                type="button"
+                onClick={() => triggerFileDownload(file.filename, file.code, "raw")}
+                className="inline-flex items-center gap-1 rounded-lg border border-[#f4f3f8]/30 bg-[#1c1c21] px-2.5 py-1 text-[11px] font-medium text-[#f4f3f8] transition hover:bg-[#f4f3f8] hover:text-[#0c0c0e]"
+              >
+                <FileCode2 className="h-3 w-3" />
+                Download {file.filename}
+              </button>
+            ))}
+          </div>
+        )}
+
         {!isUser && message.toolCalls && message.toolCalls.length > 0 && (
           <div className="w-full">
             <ToolCalls toolCalls={message.toolCalls} />
           </div>
         )}
 
-        {/* Interactive Consent Prompt Card */}
         {!isUser &&
           message.pendingConsent &&
           message.pendingConsent.length > 0 &&
@@ -131,7 +244,6 @@ export function ChatMessage({
             </div>
           ))}
 
-        {/* Grounded Citations / Sources */}
         {!isUser && message.sources && message.sources.length > 0 && (
           <div className="flex flex-wrap gap-1.5 pt-1">
             {message.sources.map((src, idx) => {
@@ -141,24 +253,23 @@ export function ChatMessage({
               return (
                 <div
                   key={`${label}-${idx}`}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-800 bg-slate-900/90 px-2.5 py-1 text-[11px] text-slate-300"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[#e6e4f0]/15 bg-[#141417] px-2.5 py-1 text-[11px] text-[#e6e4f0]"
                 >
                   {isWeb ? (
-                    <Globe className="h-3 w-3 text-sky-400" />
+                    <Globe className="h-3 w-3 text-[#f4f3f8]" />
                   ) : (
-                    <FileText className="h-3 w-3 text-emerald-400" />
+                    <FileText className="h-3 w-3 text-[#f4f3f8]" />
                   )}
                   <span className="max-w-[190px] truncate">{label}</span>
                   {src.page && !isWeb && (
-                    <span className="text-slate-500">p.{src.page}</span>
+                    <span className="text-[#e6e4f0]/50">p.{src.page}</span>
                   )}
                   {src.url && (
                     <a
                       href={src.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sky-400 hover:text-sky-300"
-                      aria-label={`Open ${label}`}
+                      className="text-[#f4f3f8] hover:opacity-80"
                     >
                       <ExternalLink className="h-3 w-3" />
                     </a>
@@ -170,18 +281,13 @@ export function ChatMessage({
         )}
       </div>
 
-      {/* User Logo / Avatar (Right side of every user message) */}
       {isUser && (
-        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/15 bg-gradient-to-br from-indigo-500 to-sky-600 text-xs font-bold text-white shadow-md">
-          {userAvatarSrc ? (
-            <img
-              src={userAvatarSrc}
-              alt={`${resolvedUserName} avatar`}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <span>{getInitials(resolvedUserName)}</span>
-          )}
+        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#e6e4f0]/20 bg-[#141417]">
+          <img
+            src={userAvatarSrc}
+            alt={resolvedUserName}
+            className="h-full w-full object-cover"
+          />
         </div>
       )}
     </div>
