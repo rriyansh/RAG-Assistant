@@ -1,22 +1,5 @@
 // lib/types.ts
 
-export interface SourceItem {
-  source_type?: "pdf" | "web" | "hybrid" | string;
-  doc_name?: string;
-  title?: string;
-  page?: number;
-  url?: string;
-  text?: string;
-  snippet?: string;
-  score?: number;
-}
-
-export interface Source extends SourceItem {
-  doc_name: string;
-  page_number: number;
-  score: number;
-}
-
 export type FontId =
   | "system"
   | "dm-sans"
@@ -26,21 +9,25 @@ export type FontId =
   | "outfit"
   | "plus-jakarta-sans";
 
-export interface Profile {
+export interface UserProfile {
   name: string;
-  avatarDataUrl: string;
   assistantName: string;
-  assistantLogo: string;
   headline: string;
   bodyText: string;
   font: FontId;
+  avatarDataUrl?: string;
+  assistantLogo?: string;
 }
 
-export interface CannedResponse {
-  id: string;
-  trigger: string;
-  response: string;
-  matchMode: "contains" | "exact";
+export interface SourceItem {
+  source_type?: "pdf" | "web" | "hybrid" | string;
+  doc_name?: string;
+  title?: string;
+  page?: number;
+  url?: string;
+  text?: string;
+  snippet?: string;
+  score?: number;
 }
 
 export interface ToolCall {
@@ -58,19 +45,36 @@ export interface PendingConsent {
   args: Record<string, unknown>;
 }
 
-export interface MCPServer {
+export interface ConnectorField {
+  key: string;
+  label: string;
+  type: "text" | "password" | "url" | string;
+  placeholder: string;
+  required: boolean;
+  helper_text?: string;
+}
+
+export interface ConnectorInfo {
   id: string;
-  transport: "stdio" | "http";
-  status: string;
+  name: string;
+  category: "built_in" | "google" | "productivity" | "developer" | "custom" | string;
+  description: string;
+  auth_type: string;
+  built_in: boolean;
+  connected: boolean;
+  enabled: boolean;
+  status: "connected" | "disabled" | "disconnected" | string;
+  account_label: string;
   tool_count: number;
-  url_or_command: string;
+  tools: string[];
+  fields: ConnectorField[];
 }
 
 export interface PluginInfo {
   name: string;
   description: string;
   requires_consent: boolean;
-  source: "internal" | "mcp";
+  source: "internal" | "connector" | "mcp";
   enabled: boolean;
   server_id?: string | null;
 }
@@ -117,19 +121,4 @@ export interface KeyStatusMap {
 export interface KeyListResponse {
   keys: KeyStatusMap;
   active_provider?: string;
-}
-
-export interface KeySetPayload {
-  provider: string;
-  api_key: string;
-  model?: string;
-  base_url?: string;
-}
-
-export interface KeyTestResponse {
-  valid: boolean;
-  provider?: string;
-  model?: string;
-  reply?: string;
-  error?: string;
 }
