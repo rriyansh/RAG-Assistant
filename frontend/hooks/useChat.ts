@@ -1,211 +1,157 @@
+// hooks/useChat.ts
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { Message } from "@/lib/types";
-import { askQuestion } from "@/lib/api";
-import { genId } from "@/lib/utils";
-import { playSentSound, playReceivedSound } from "@/lib/sounds";
-import { useCannedResponses } from "./useCannedResponses";
-import { useProfile } from "./useProfile";
+import { useCallback, useState } from "react";
+import { askQuestion } from "../lib/api";
+import { ChatMessageItem, PendingConsent, ToolCall } from "../lib/types";
 
-const HISTORY_KEY = "rag.history";
-
-interface UseChatResult {
-  messages: Message[];
-  isLoading: boolean;
-  sendMessage: (question: string) => Promise<void>;
-  stopGeneration: () => void;
-  clearChat: () => void;
-}
-
-function readHistory(): Message[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(HISTORY_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed
-      .filter(
-        (m): m is Message =>
-          !!m &&
-          typeof m === "object" &&
-          typeof (m as Message).id === "string" &&
-          ((m as Message).role === "user" || (m as Message).role === "assistant") &&
-          typeof (m as Message).content === "string"
-      )
-      .map((m) =>
-        m.pending
-          ? {
-              ...m,
-              pending: false,
-              error: true,
-              content: m.content || "Request interrupted before completion.",
-            }
-          : m
-      );
-  } catch {
-    return [];
-  }
-}
-
-function writeHistory(messages: Message[]): void {
-  if (typeof window === "undefined") return;
-  try {
-    if (messages.length === 0) {
-      localStorage.removeItem(HISTORY_KEY);
-    } else {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(messages));
-    }
-  } catch {
-    // Ignore storage quota or private-mode access errors
-  }
-}
-
-export function useChat(): UseChatResult {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const { findMatch } = useCannedResponses();
-  const { profile } = useProfile();
-
-  const hydratedRef = useRef(false);
-  const inFlightRef = useRef(false);
-  const generationRef = useRef(0);
-
-  // Hydrate persisted history on mount and sync across tabs / Settings resets.
-  useEffect(() => {
-    setMessages(readHistory());
-    hydratedRef.current = true;
-
-    const onStorage = (e: StorageEvent): void => {
-      if (e.key === null || e.key === HISTORY_KEY) {
-        setMessages(readHistory());
-      }
-    };
-
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
-
-  // Persist conversation updates once initial hydration completes.
-  useEffect(() => {
-    if (!hydratedRef.current) return;
-    writeHistory(messages);
-  }, [messages]);
+export function useChat(assistantName: string = "Assistant") {
+  const [messages, setMessages] = useState<ChatMessageItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
   const sendMessage = useCallback(
-    async (question: string): Promise<void> => {
+    async (
+      question: string,
+      consent: string[] = [],
+      replaceMessageId?: string
+    ) => {
       const trimmed = question.trim();
-      if (!trimmed || isLoading || inFlightRef.current) return;
+      if (!trimmed) return;
 
-      const canned = findMatch(trimmed);
-      if (canned) {
-        playSentSound();
-        const now = Date.now();
-        setMessages((prev) => [
-          ...prev,
-          { id: genId(), role: "user", content: trimmed, timestamp: now },
-          {
-            id: genId(),
-            role: "assistant",
-            content: canned.response,
-            timestamp: now + 1,
-            local: true,
-          },
-        ]);
-        playReceivedSound();
-        return;
-      }
-
-      inFlightRef.current = true;
-      const requestGen = ++generationRef.current;
-
-      playSentSound();
-      const now = Date.now();
-      const userMsg: Message = {
-        id: genId(),
-        role: "user",
-        content: trimmed,
-        timestamp: now,
-      };
-      const assistantId = genId();
-      const pendingMsg: Message = {
-        id: assistantId,
-        role: "assistant",
-        content: "",
-        timestamp: now + 1,
-        pending: true,
-      };
-
-      setMessages((prev) => [...prev, userMsg, pendingMsg]);
+      setError(null);
       setIsLoading(true);
 
+      if (!replaceMessageId) {
+        const userMessage: ChatMessageItem = {
+          id: `user-${Date.now()}`,
+          role: "user",
+          content: trimmed,
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        };
+        setMessages((prev) => [...prev, userMessage]);
+      }
+
       try {
-        const data = await askQuestion(trimmed, profile.assistantName);
-        if (generationRef.current !== requestGen) return;
+        const response = await askQuestion(trimmed, assistantName, consent);
+        const toolCalls: ToolCall[] = response.tool_calls || [];
+        const pendingNames: string[] = response.pending_consent || [];
 
-        playReceivedSound();
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId
-              ? {
-                  ...m,
-                  content: data.answer,
-                  sources: data.sources,
-                  usedWebSearch: data.used_web_search,
-                  pending: false,
-                }
-              : m
-          )
+        const pendingConsentList: PendingConsent[] = pendingNames.map(
+          (tName) => {
+            const matchingCall = toolCalls.find(
+              (tc) => tc.name === tName && tc.status === "pending"
+            );
+            return {
+              name: tName,
+              args: matchingCall ? matchingCall.args : {},
+            };
+          }
         );
-      } catch (err) {
-        if (generationRef.current !== requestGen) return;
 
-        const message = err instanceof Error ? err.message : "Unknown error";
+        const assistantMessage: ChatMessageItem = {
+          id: replaceMessageId || `assistant-${Date.now()}`,
+          role: "assistant",
+          content: response.answer,
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          sources: response.sources || [],
+          sourceType: response.source_type || "hybrid",
+          toolCalls,
+          pendingConsent: pendingConsentList,
+          originalQuestion: trimmed,
+          approvedConsent: consent,
+        };
+
+        setMessages((prev) => {
+          if (replaceMessageId) {
+            return prev.map((m) =>
+              m.id === replaceMessageId ? assistantMessage : m
+            );
+          }
+          return [...prev, assistantMessage];
+        });
+      } catch (err) {
+        const errMsg =
+          err instanceof Error ? err.message : "Failed to get a response.";
+        setError(errMsg);
+        const failMessage: ChatMessageItem = {
+          id: replaceMessageId || `assistant-err-${Date.now()}`,
+          role: "assistant",
+          content: `Error: ${errMsg}`,
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        };
         setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId
-              ? { ...m, content: message, pending: false, error: true }
-              : m
-          )
+          replaceMessageId
+            ? prev.map((m) => (m.id === replaceMessageId ? failMessage : m))
+            : [...prev, failMessage]
         );
       } finally {
-        if (generationRef.current === requestGen) {
-          inFlightRef.current = false;
-          setIsLoading(false);
-        }
+        setIsLoading(false);
       }
     },
-    [isLoading, findMatch, profile.assistantName]
+    [assistantName]
   );
 
-  const stopGeneration = useCallback((): void => {
-    if (!inFlightRef.current) return;
-    generationRef.current += 1;
-    inFlightRef.current = false;
-    setIsLoading(false);
+  const approveToolConsent = useCallback(
+    async (messageId: string, toolName: string) => {
+      const target = messages.find((m) => m.id === messageId);
+      if (!target || !target.originalQuestion) return;
+
+      const updatedConsent = Array.from(
+        new Set([...(target.approvedConsent || []), toolName])
+      );
+      await sendMessage(target.originalQuestion, updatedConsent, messageId);
+    },
+    [messages, sendMessage]
+  );
+
+  const denyToolConsent = useCallback((messageId: string, toolName: string) => {
     setMessages((prev) =>
-      prev.map((m) =>
-        m.pending
-          ? {
-              ...m,
-              pending: false,
-              error: true,
-              content: "Generation stopped.",
-            }
-          : m
-      )
+      prev.map((m) => {
+        if (m.id !== messageId) return m;
+        const remaining = (m.pendingConsent || []).filter(
+          (p) => p.name !== toolName
+        );
+        return {
+          ...m,
+          content: `Tool execution of \`${toolName}\` was denied by the user.`,
+          pendingConsent: remaining,
+          toolCalls: (m.toolCalls || []).map((tc) =>
+            tc.name === toolName && tc.status === "pending"
+              ? {
+                  ...tc,
+                  status: "error",
+                  result_summary: "Denied by user.",
+                }
+              : tc
+          ),
+        };
+      })
     );
   }, []);
 
-  const clearChat = useCallback((): void => {
-    generationRef.current += 1;
-    inFlightRef.current = false;
-    setIsLoading(false);
+  const clearMessages = useCallback(() => {
     setMessages([]);
-    writeHistory([]);
+    setError(null);
   }, []);
 
-  return { messages, isLoading, sendMessage, stopGeneration, clearChat };
+  return {
+    messages,
+    isLoading,
+    error,
+    sendMessage,
+    approveToolConsent,
+    denyToolConsent,
+    clearMessages,
+    setMessages,
+  };
 }
