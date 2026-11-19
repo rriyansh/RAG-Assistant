@@ -8,11 +8,8 @@ import * as SettingsModalMod from "../components/SettingsModal";
 import { OnboardingModal } from "../components/OnboardingModal";
 import { useChat } from "../hooks/useChat";
 import { useProfile } from "../hooks/useProfile";
-import {
-  DEFAULT_RAG_ASSISTANT_LOGO,
-  triggerFileDownload,
-} from "../lib/utils";
-import { Code2, FileText, Plug, Sliders } from "lucide-react";
+import { DEFAULT_RAG_ASSISTANT_LOGO } from "../lib/utils";
+import { Code2, Plug } from "lucide-react";
 
 const Header: React.ComponentType<any> =
   (HeaderMod as any).default || (HeaderMod as any).Header;
@@ -92,6 +89,7 @@ export default function HomePage() {
   const showOnboarding = hydrated && !isOnboarded;
   const activeFontFamily =
     FONT_STACK_MAP[profile.font] || FONT_STACK_MAP["open-sans"];
+  const hasLogo = profile.assistantLogo !== "";
   const assistantLogoSrc =
     profile.assistantLogo || DEFAULT_RAG_ASSISTANT_LOGO;
 
@@ -106,7 +104,7 @@ export default function HomePage() {
   return (
     <div
       style={{ fontFamily: activeFontFamily }}
-      className="relative flex h-screen flex-col bg-[#0c0c0e] text-[#f4f3f8]"
+      className="relative flex min-h-screen h-screen flex-col bg-[#0c0c0e] text-[#f4f3f8] antialiased"
     >
       <div
         className={`flex h-full flex-col transition-all duration-300 ${
@@ -119,6 +117,7 @@ export default function HomePage() {
           <Header
             assistantName={assistantName}
             profile={profile}
+            canClear={messages.length > 0}
             onOpenSettings={() => setSettingsOpen(true)}
             onSettingsClick={() => setSettingsOpen(true)}
             onClearChat={clearMessages}
@@ -126,33 +125,45 @@ export default function HomePage() {
           />
         )}
 
-        <main className="flex-1 overflow-y-auto px-4 py-6">
-          <div className="mx-auto max-w-3xl space-y-4">
+        <main className="flex-1 overflow-y-auto px-3 py-6 sm:px-6">
+          <div className="mx-auto w-full max-w-3xl space-y-4">
             {messages.length === 0 ? (
-              <div className="mt-10 space-y-6">
-                <div className="rounded-3xl border border-[#e6e4f0]/15 bg-[#141417] p-6 sm:p-8">
+              <div className="mt-6 space-y-6 sm:mt-10">
+                <div className="text-center space-y-1.5 py-2">
+                  <h2 className="text-2xl font-semibold tracking-tight text-[#f4f3f8] sm:text-3xl">
+                    Welcome to Reso, How can I help you?
+                  </h2>
+                </div>
+
+                <div className="rounded-3xl border border-[#e6e4f0]/15 bg-[#141417] p-5 sm:p-8">
                   <div className="flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-center">
-                    <div className="flex items-center gap-4">
-                      <img
-                        src={assistantLogoSrc}
-                        alt={assistantName}
-                        className="h-14 w-14 rounded-2xl border border-[#e6e4f0]/20 object-cover"
-                      />
-                      <div>
-                        <h1 className="text-xl font-bold tracking-tight text-[#f4f3f8]">
-                          {profile.headline || assistantName}
+                    <div className="flex items-center gap-4 min-w-0">
+                      {hasLogo && (
+                        <img
+                          src={assistantLogoSrc}
+                          alt={assistantName}
+                          className="h-14 w-14 shrink-0 rounded-2xl border border-[#e6e4f0]/20 object-cover"
+                        />
+                      )}
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold uppercase tracking-wider text-[#e6e4f0]/60">
+                          {assistantName || "RAG Assistant"}
+                        </div>
+                        <h1 className="truncate text-lg font-bold tracking-tight text-[#f4f3f8] sm:text-xl">
+                          {profile.headline || "Grounded Knowledge & Code Synthesis"}
                         </h1>
-                        <p className="mt-1 text-xs text-[#e6e4f0]/70">
-                          {profile.bodyText}
+                        <p className="mt-1 text-xs leading-relaxed text-[#e6e4f0]/70">
+                          {profile.bodyText ||
+                            "Search documents, connect workspace tools, and generate code or documents."}
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex shrink-0 items-center gap-2">
+                    <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">
                       <button
                         type="button"
                         onClick={reopenOnboarding}
-                        className="rounded-xl border border-[#e6e4f0]/15 bg-[#0c0c0e] px-3 py-2 text-xs font-medium text-[#e6e4f0] hover:border-[#f4f3f8]"
+                        className="rounded-xl border border-[#e6e4f0]/15 bg-[#0c0c0e] px-3.5 py-2 text-xs font-medium text-[#e6e4f0] transition hover:border-[#f4f3f8]"
                       >
                         Onboarding
                       </button>
@@ -175,8 +186,8 @@ export default function HomePage() {
                         onClick={() => handleSend(item.prompt)}
                         className="flex items-center justify-between rounded-2xl border border-[#e6e4f0]/12 bg-[#0c0c0e] px-4 py-3 text-left text-xs font-medium text-[#f4f3f8] transition hover:border-[#f4f3f8]"
                       >
-                        <span>{item.label}</span>
-                        <Code2 className="h-4 w-4 text-[#e6e4f0]/60" />
+                        <span className="truncate pr-2">{item.label}</span>
+                        <Code2 className="h-4 w-4 shrink-0 text-[#e6e4f0]/60" />
                       </button>
                     ))}
                   </div>
@@ -199,8 +210,8 @@ export default function HomePage() {
           </div>
         </main>
 
-        <div className="border-t border-[#e6e4f0]/10 bg-[#0c0c0e] px-4 py-3">
-          <div className="mx-auto max-w-3xl">
+        <div className="border-t border-[#e6e4f0]/10 bg-[#0c0c0e] px-3 py-3 sm:px-4">
+          <div className="mx-auto w-full max-w-3xl">
             {ChatComposer && (
               <ChatComposer
                 input={input}
