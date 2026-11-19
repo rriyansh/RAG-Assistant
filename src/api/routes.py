@@ -1,9 +1,7 @@
-# src/api/routes.py
 from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -27,7 +25,6 @@ from src.api.schemas import (
     KeySetRequest,
     KeyTestRequest,
     PluginEnableRequest,
-    PluginEnableResponse,
     PluginInfoSchema,
     PluginsListResponse,
     PromptEnhanceRequest,
@@ -35,24 +32,20 @@ from src.api.schemas import (
     ToolCallSchema,
 )
 from src.generation.generator import generate_answer
-from src.llm.factory import create_llm
+from src.llm.factory import (
+    PROVIDER_BASE_URLS,
+    PROVIDER_DEFAULT_MODELS,
+    create_llm,
+    get_builtin_nvidia_key,
+)
 from src.retrieval.hybrid_retriever import hybrid_retrieve
 
-logger = logging.getLogger(__name__)
 router = APIRouter()
-
 KEYS_PATH = Path("data/keys.json")
 CONFIG_PATH = Path("data/config.json")
 
-DEFAULT_THINKING_MESSAGES = [
-    "Scanning knowledge base and connected services...",
-    "Cross-referencing passages for accuracy...",
-    "Synthesizing relevant context...",
-    "Formulating a grounded response...",
-]
 
-
-def _read_json_file(path: Path) -> dict[str, Any]:
+def _read_json(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     try:
@@ -61,7 +54,7 @@ def _read_json_file(path: Path) -> dict[str, Any]:
         return {}
 
 
-def _write_json_file(path: Path, payload: dict[str, Any]) -> None:
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -70,317 +63,238 @@ def _write_json_file(path: Path, payload: dict[str, Any]) -> None:
     os.chmod(path, 0o600)
 
 
-def _detect_provider_from_key(api_key: str) -> str:
-    key = api_key.strip()
-    if key.startswith("gsk_"):
+def _detect_provider(api_key: str) -> str:
+    k = api_key.strip()
+    if k.startswith("nvapi-"):
+        return "nvidia"
+    if k.startswith("xai-"):
+        return "grok"
+    if k.startswith("gsk_"):
         return "groq"
-    if key.startswith("AIza"):
+    if k.startswith("AIza"):
         return "gemini"
-    if key.startswith("sk-or-"):
+    if k.startswith("sk-or-"):
         return "openrouter"
-    if key.startswith("sk-"):
+    if k.startswith("sk-ant-"):
+        return "anthropic"
+    if k.startswith("sk-ds-") or k.startswith("ds-"):
+        return "deepseek"
+    if k.startswith("sk-qwen-") or k.startswith("qwen-"):
+        return "qwen"
+    if k.startswith("sk-"):
         return "openai"
     return "custom"
 
 
-def _mask_key(key: str) -> str:
-    if len(key) <= 8:
-        return "****"
-    return f"{key[:4]}...{key[-4:]}"
-
-
-def _run_legacy_pipeline(question: str, assistant_name: str) -> AskResponse:
-    retrieval_out = hybrid_retrieve(question)
-    if isinstance(retrieval_out, dict):
-        chunks = retrieval_out.get("results", retrieval_out.get("chunks", []))
-        source_type = str(retrieval_out.get("source_type", "hybrid"))
-    elif isinstance(retrieval_out, tuple) and len(retrieval_out) == 2:
-        chunks, source_type = retrieval_out[0], str(retrieval_out[1])
-    else:
-        chunks = list(retrieval_out) if isinstance(retrieval_out, list) else []
-        source_type = "hybrid"
-
-    gen_out = generate_answer(question, chunks, assistant_name=assistant_name)
-    if isinstance(gen_out, dict):
-        answer = str(gen_out.get("answer", ""))
-        sources = list(gen_out.get("sources", chunks))
-    else:
-        answer = str(gen_out)
-        sources = [
-            c if isinstance(c, dict) else {"doc_name": getattr(c, "doc_name", "doc"), "text": getattr(c, "text", str(c))}
-            for c in chunks
-        ]
-
+def _run_legacy(question: str, assistant_name: str) -> AskResponse:
+    ret = hybrid_retrieve(question)
+    chunks = (
+        ret.get("results", ret.get("chunks", []))
+        if isinstance(ret, dict)
+        else (list(ret) if isinstance(ret, list) else [])
+    )
+    gen = generate_answer(question, chunks, assistant_name=assistant_name)
+    ans = gen.get("answer", "") if isinstance(gen, dict) else str(gen)
     return AskResponse(
-        answer=answer,
-        sources=sources,
-        source_type=source_type,
-        tool_calls=[],
-        pending_consent=[],
+        answer=ans,
+        sources=chunks if isinstance(chunks, list) else [],
+        source_type="hybrid",
     )
 
 
 @router.get("/health")
-async def health_check() -> dict[str, Any]:
+async def health() -> dict[str, Any]:
     return {
         "status": "ok",
-        "agent_enabled": os.getenv("AGENT_ENABLED", "true").lower() != "false",
-        "registered_tools": len(registry.list_public()),
-        "connectors": len(connector_manager.list_connectors()),
+        "tools": len(registry.list_public()),
+        "free_nvidia_ready": bool(get_builtin_nvidia_key()),
     }
 
 
 @router.post("/ask", response_model=AskResponse)
-async def ask_endpoint(req: AskRequest) -> AskResponse:
-    agent_enabled = os.getenv("AGENT_ENABLED", "true").strip().lower() not in (
-        "false",
-        "0",
-        "no",
-        "off",
-    )
-    active_tools = registry.list_for_llm()
-
-    if not agent_enabled or len(active_tools) == 0:
-        return await asyncio.to_thread(
-            _run_legacy_pipeline, req.question, req.assistant_name
-        )
-
+async def ask(req: AskRequest) -> AskResponse:
+    if (
+        os.getenv("AGENT_ENABLED", "true").lower() == "false"
+        or not registry.list_for_llm()
+    ):
+        return await asyncio.to_thread(_run_legacy, req.question, req.assistant_name)
     try:
-        result = await run_agent(
-            question=req.question,
-            assistant_name=req.assistant_name,
-            registry=registry,
-            max_turns=12,
-            consent=req.consent,
+        res = await run_agent(
+            req.question, req.assistant_name, registry, consent=req.consent
         )
     except ToolNotSupportedError:
-        logger.warning("Falling back to legacy direct RAG pipeline for /ask.")
-        return await asyncio.to_thread(
-            _run_legacy_pipeline, req.question, req.assistant_name
-        )
-
-    tool_calls = [ToolCallSchema(**tc) for tc in result.get("tool_calls", [])]
-    sources = result.get("sources", [])
-    source_types = {s.get("source_type") for s in sources if isinstance(s, dict)}
-    if source_types == {"pdf"}:
-        source_type = "pdf"
-    elif source_types == {"web"}:
-        source_type = "web"
-    elif source_types:
-        source_type = "hybrid"
-    else:
-        source_type = "agent"
-
+        return await asyncio.to_thread(_run_legacy, req.question, req.assistant_name)
     return AskResponse(
-        answer=result.get("answer", ""),
-        sources=sources,
-        source_type=source_type,
-        tool_calls=tool_calls,
-        pending_consent=result.get("pending_consent", []),
+        answer=res.get("answer", ""),
+        sources=res.get("sources", []),
+        source_type="agent",
+        tool_calls=[ToolCallSchema(**tc) for tc in res.get("tool_calls", [])],
+        pending_consent=res.get("pending_consent", []),
     )
 
 
-# --- Connector Endpoints ---
-
 @router.get("/connectors", response_model=ConnectorsListResponse)
-async def list_connectors() -> ConnectorsListResponse:
-    items = [ConnectorInfoSchema(**c) for c in connector_manager.list_connectors()]
-    return ConnectorsListResponse(connectors=items)
+async def get_connectors() -> ConnectorsListResponse:
+    return ConnectorsListResponse(
+        connectors=[
+            ConnectorInfoSchema(**c) for c in connector_manager.list_connectors()
+        ]
+    )
 
 
 @router.post("/connectors/connect", response_model=ConnectorInfoSchema)
-async def connect_service(req: ConnectorConnectRequest) -> ConnectorInfoSchema:
+async def post_connect(req: ConnectorConnectRequest) -> ConnectorInfoSchema:
     try:
-        info = await asyncio.to_thread(
-            connector_manager.connect, req.id, req.credentials
+        return ConnectorInfoSchema(
+            **await asyncio.to_thread(
+                connector_manager.connect, req.id, req.credentials
+            )
         )
-        return ConnectorInfoSchema(**info)
-    except ConnectorError as err:
-        raise HTTPException(status_code=400, detail=str(err)) from err
-    except Exception as exc:
-        raise HTTPException(
-            status_code=502, detail=f"Failed to connect '{req.id}': {exc}"
-        ) from exc
+    except ConnectorError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/connectors/custom", response_model=ConnectorInfoSchema)
-async def create_custom_connector(
-    req: CustomConnectorCreateRequest,
-) -> ConnectorInfoSchema:
+async def post_custom(req: CustomConnectorCreateRequest) -> ConnectorInfoSchema:
     try:
-        info = await asyncio.to_thread(
-            connector_manager.add_custom_connector,
-            connector_id=req.id,
-            name=req.name,
-            description=req.description,
-            endpoint_url=req.endpoint_url,
-            method=req.method,
-            api_key=req.api_key,
+        return ConnectorInfoSchema(
+            **await asyncio.to_thread(
+                connector_manager.add_custom_connector,
+                req.id,
+                req.name,
+                req.description,
+                req.endpoint_url,
+                req.method,
+                req.api_key,
+            )
         )
-        return ConnectorInfoSchema(**info)
-    except ConnectorError as err:
-        raise HTTPException(status_code=400, detail=str(err)) from err
+    except ConnectorError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/connectors/toggle", response_model=ConnectorInfoSchema)
-async def toggle_connector(req: ConnectorToggleRequest) -> ConnectorInfoSchema:
+async def post_toggle(req: ConnectorToggleRequest) -> ConnectorInfoSchema:
     try:
-        info = connector_manager.set_enabled(req.id, req.enabled)
-        return ConnectorInfoSchema(**info)
-    except ConnectorError as err:
-        raise HTTPException(status_code=404, detail=str(err)) from err
+        return ConnectorInfoSchema(
+            **connector_manager.set_enabled(req.id, req.enabled)
+        )
+    except ConnectorError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.delete("/connectors/{connector_id}")
-async def disconnect_service(connector_id: str) -> dict[str, Any]:
-    try:
-        removed = connector_manager.disconnect(connector_id)
-        if not removed:
-            raise HTTPException(
-                status_code=404, detail=f"Connector '{connector_id}' is not connected."
-            )
-        return {"id": connector_id, "status": "disconnected"}
-    except ConnectorError as err:
-        raise HTTPException(status_code=400, detail=str(err)) from err
+async def del_connector(connector_id: str) -> dict[str, str]:
+    connector_manager.disconnect(connector_id)
+    return {"id": connector_id, "status": "disconnected"}
 
-
-# --- Tool / Plugin Endpoints ---
 
 @router.get("/plugins", response_model=PluginsListResponse)
-async def list_plugins() -> PluginsListResponse:
-    items = [PluginInfoSchema(**item) for item in registry.list_public()]
-    return PluginsListResponse(plugins=items)
+async def get_plugins() -> PluginsListResponse:
+    return PluginsListResponse(
+        plugins=[PluginInfoSchema(**p) for p in registry.list_public()]
+    )
 
 
-@router.post("/plugins/enable", response_model=PluginEnableResponse)
-async def enable_plugin(req: PluginEnableRequest) -> PluginEnableResponse:
-    updated = registry.set_enabled(req.name, req.enabled)
-    if not updated:
-        raise HTTPException(status_code=404, detail=f"Tool '{req.name}' not found.")
-    return PluginEnableResponse(name=req.name, enabled=req.enabled, status="ok")
+@router.post("/plugins/enable")
+async def enable_plugin(req: PluginEnableRequest) -> dict[str, Any]:
+    registry.set_enabled(req.name, req.enabled)
+    return {"name": req.name, "enabled": req.enabled}
 
-
-# --- Existing Keys, Config, Thinking & Prompt Endpoints ---
 
 @router.get("/keys")
 async def get_keys() -> dict[str, Any]:
-    raw = _read_json_file(KEYS_PATH)
-    cfg = _read_json_file(CONFIG_PATH)
-    masked: dict[str, Any] = {}
-    for provider, info in raw.items():
-        if isinstance(info, dict) and info.get("api_key"):
-            masked[provider] = {
-                "configured": True,
-                "masked_key": _mask_key(str(info["api_key"])),
-                "model": info.get("model"),
-                "base_url": info.get("base_url"),
-            }
-        elif isinstance(info, str) and info:
-            masked[provider] = {"configured": True, "masked_key": _mask_key(info)}
-    return {
-        "keys": masked,
-        "active_provider": cfg.get("provider", os.getenv("LLM_PROVIDER", "")),
+    raw = _read_json(KEYS_PATH)
+    cfg = _read_json(CONFIG_PATH)
+    masked = {
+        p: {
+            "configured": True,
+            "masked_key": f"{str(v.get('api_key', ''))[:4]}...{str(v.get('api_key', ''))[-3:]}",
+        }
+        for p, v in raw.items()
+        if isinstance(v, dict) and v.get("api_key")
     }
+    if "nvidia" not in masked and get_builtin_nvidia_key():
+        masked["nvidia"] = {"configured": True, "masked_key": "Free Built-in Tier"}
+    return {"keys": masked, "active_provider": cfg.get("provider", "nvidia")}
 
 
 @router.post("/keys/detect")
 async def detect_key(req: KeyDetectRequest) -> dict[str, str]:
-    return {"provider": _detect_provider_from_key(req.api_key)}
+    return {"provider": _detect_provider(req.api_key)}
 
 
 @router.post("/keys/test")
 async def test_key(req: KeyTestRequest) -> dict[str, Any]:
-    default_urls = {
-        "groq": "https://api.groq.com/openai/v1",
-        "gemini": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "openrouter": "https://openrouter.ai/api/v1",
-        "openai": "https://api.openai.com/v1",
-        "ollama": "http://localhost:11434/v1",
-    }
-    default_models = {
-        "groq": "llama-3.3-70b-versatile",
-        "gemini": "gemini-2.0-flash",
-        "openrouter": "openrouter/free",
-        "openai": "gpt-4o-mini",
-        "ollama": "llama3.2",
-    }
-    base_url = req.base_url or default_urls.get(req.provider, "https://api.openai.com/v1")
-    model = req.model or default_models.get(req.provider, "gpt-4o-mini")
+    provider_id = req.provider.lower()
+    base_url = req.base_url or PROVIDER_BASE_URLS.get(
+        provider_id, "https://api.openai.com/v1"
+    )
+    model = req.model or PROVIDER_DEFAULT_MODELS.get(provider_id, "gpt-4o-mini")
     try:
         from src.llm.provider import LLMProvider
 
-        provider = LLMProvider(
-            api_key=req.api_key, base_url=base_url, model=model, max_tokens=8, timeout=15.0
+        p = LLMProvider(
+            api_key=req.api_key,
+            base_url=base_url,
+            model=model,
+            max_tokens=8,
+            timeout=15.0,
         )
-        await asyncio.to_thread(provider.generate, "Reply with OK")
-        return {"valid": True, "provider": req.provider, "model": model}
+        await asyncio.to_thread(p.generate, "OK")
+        return {"valid": True, "provider": provider_id, "model": model}
     except Exception as exc:
-        return {"valid": False, "provider": req.provider, "error": str(exc)}
+        return {"valid": False, "error": str(exc)}
 
 
 @router.post("/keys/set")
 async def set_key(req: KeySetRequest) -> dict[str, Any]:
-    data = _read_json_file(KEYS_PATH)
-    data[req.provider] = {
+    data = _read_json(KEYS_PATH)
+    data[req.provider.lower()] = {
         "api_key": req.api_key,
         "base_url": req.base_url,
         "model": req.model,
     }
-    _write_json_file(KEYS_PATH, data)
+    _write_json(KEYS_PATH, data)
     os.environ[f"{req.provider.upper()}_API_KEY"] = req.api_key
-    return {"status": "ok", "provider": req.provider, "masked_key": _mask_key(req.api_key)}
+    return {"status": "ok"}
 
 
 @router.delete("/keys/{provider}")
-async def delete_key(provider: str) -> dict[str, Any]:
-    data = _read_json_file(KEYS_PATH)
-    data.pop(provider, None)
-    _write_json_file(KEYS_PATH, data)
-    os.environ.pop(f"{provider.upper()}_API_KEY", None)
-    return {"status": "deleted", "provider": provider}
+async def del_key(provider: str) -> dict[str, str]:
+    data = _read_json(KEYS_PATH)
+    data.pop(provider.lower(), None)
+    _write_json(KEYS_PATH, data)
+    return {"status": "deleted"}
 
 
 @router.get("/thinking/messages")
-async def get_thinking_messages() -> dict[str, list[str]]:
-    return {"messages": DEFAULT_THINKING_MESSAGES}
+async def thinking_msgs() -> dict[str, list[str]]:
+    return {"messages": ["Searching knowledge base...", "Synthesizing context..."]}
 
 
 @router.post("/thinking/generate")
-async def generate_thinking_messages(req: ThinkingGenerateRequest) -> dict[str, list[str]]:
-    try:
-        llm = create_llm()
-        prompt = (
-            f"Generate 4 short status messages (under 8 words each, one per line) "
-            f"that {req.assistant_name} can show while researching: {req.question}"
-        )
-        raw = await asyncio.to_thread(llm.generate, prompt)
-        lines = [line.strip("- *1234567890.") for line in raw.splitlines() if line.strip()]
-        return {"messages": lines[:4] if lines else DEFAULT_THINKING_MESSAGES}
-    except Exception:
-        return {"messages": DEFAULT_THINKING_MESSAGES}
+async def gen_thinking(req: ThinkingGenerateRequest) -> dict[str, list[str]]:
+    return {"messages": ["Analyzing query...", "Gathering grounded sources..."]}
 
 
 @router.post("/prompt/enhance")
-async def enhance_prompt(req: PromptEnhanceRequest) -> dict[str, str]:
+async def enhance(req: PromptEnhanceRequest) -> dict[str, str]:
     try:
         llm = create_llm()
-        instruction = (
-            "Rewrite the following user question to be clear, specific, and well-structured "
-            "for a RAG assistant. Return ONLY the improved prompt text without quotes:\n\n"
-            f"{req.prompt}"
+        out = await asyncio.to_thread(
+            llm.generate, f"Improve this prompt concisely:\n{req.prompt}"
         )
-        enhanced = await asyncio.to_thread(llm.generate, instruction)
-        return {"enhanced_prompt": enhanced.strip() or req.prompt}
+        return {"enhanced_prompt": out or req.prompt}
     except Exception:
         return {"enhanced_prompt": req.prompt}
 
 
 @router.get("/config")
-async def get_config() -> dict[str, Any]:
-    cfg = _read_json_file(CONFIG_PATH)
+async def get_cfg() -> dict[str, Any]:
+    cfg = _read_json(CONFIG_PATH)
     return {
-        "provider": cfg.get("provider", os.getenv("LLM_PROVIDER", "groq")),
-        "model": cfg.get("model", os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")),
+        "provider": cfg.get("provider", "nvidia"),
+        "model": cfg.get("model", "meta/llama-3.1-70b-instruct"),
         "base_url": cfg.get("base_url", ""),
         "temperature": float(cfg.get("temperature", 0.3)),
         "max_tokens": int(cfg.get("max_tokens", 1024)),
@@ -389,18 +303,16 @@ async def get_config() -> dict[str, Any]:
 
 
 @router.post("/config")
-async def update_config(req: ConfigUpdateRequest) -> dict[str, Any]:
-    cfg = _read_json_file(CONFIG_PATH)
-    for k, v in req.model_dump(exclude_none=True).items():
-        cfg[k] = v
-    _write_json_file(CONFIG_PATH, cfg)
+async def set_cfg(req: ConfigUpdateRequest) -> dict[str, Any]:
+    cfg = _read_json(CONFIG_PATH)
+    cfg.update(req.model_dump(exclude_none=True))
+    _write_json(CONFIG_PATH, cfg)
     return {"status": "ok", "config": cfg}
 
 
 @router.post("/config/params")
-async def update_config_params(req: ConfigParamsUpdateRequest) -> dict[str, Any]:
-    cfg = _read_json_file(CONFIG_PATH)
-    for k, v in req.model_dump(exclude_none=True).items():
-        cfg[k] = v
-    _write_json_file(CONFIG_PATH, cfg)
-    return {"status": "ok", "params": cfg}
+async def set_params(req: ConfigParamsUpdateRequest) -> dict[str, Any]:
+    cfg = _read_json(CONFIG_PATH)
+    cfg.update(req.model_dump(exclude_none=True))
+    _write_json(CONFIG_PATH, cfg)
+    return {"status": "ok"}
