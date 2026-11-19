@@ -2,15 +2,29 @@
 "use client";
 
 import React, { useState } from "react";
-import Header from "../components/Header";
-import ChatMessage from "../components/ChatMessage";
-import ChatComposer from "../components/ChatComposer";
-import SettingsModal from "../components/SettingsModal";
+import * as HeaderMod from "../components/Header";
+import * as ChatMessageMod from "../components/ChatMessage";
+import * as ChatComposerMod from "../components/ChatComposer";
+import * as SettingsModalMod from "../components/SettingsModal";
 import { useChat } from "../hooks/useChat";
-import { useProfile } from "../hooks/useProfile";
+import * as ProfileMod from "../hooks/useProfile";
+
+const Header: React.ComponentType<any> =
+  (HeaderMod as any).default || (HeaderMod as any).Header;
+const ChatMessage: React.ComponentType<any> =
+  (ChatMessageMod as any).default || (ChatMessageMod as any).ChatMessage;
+const ChatComposer: React.ComponentType<any> =
+  (ChatComposerMod as any).default || (ChatComposerMod as any).ChatComposer;
+const SettingsModal: React.ComponentType<any> =
+  (SettingsModalMod as any).default || (SettingsModalMod as any).SettingsModal;
+const useProfileHook =
+  (ProfileMod as any).useProfile || (ProfileMod as any).default;
 
 export default function HomePage() {
-  const { assistantName } = useProfile();
+  const profile = typeof useProfileHook === "function" ? useProfileHook() : {};
+  const assistantName: string =
+    profile?.assistantName || profile?.profile?.assistantName || "Assistant";
+
   const {
     messages,
     isLoading,
@@ -19,15 +33,29 @@ export default function HomePage() {
     denyToolConsent,
     clearMessages,
   } = useChat(assistantName);
+
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
+  const [input, setInput] = useState<string>("");
+
+  const handleSend = (text?: string) => {
+    const query = (typeof text === "string" ? text : input).trim();
+    if (!query) return;
+    setInput("");
+    sendMessage(query);
+  };
 
   return (
     <div className="flex h-screen flex-col bg-slate-950 text-slate-100">
-      <Header
-        assistantName={assistantName}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onClearChat={clearMessages}
-      />
+      {Header && (
+        <Header
+          assistantName={assistantName}
+          profile={profile?.profile}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onSettingsClick={() => setSettingsOpen(true)}
+          onClearChat={clearMessages}
+          onClear={clearMessages}
+        />
+      )}
 
       <main className="flex-1 overflow-y-auto px-4 py-6">
         <div className="mx-auto max-w-3xl space-y-2">
@@ -57,17 +85,28 @@ export default function HomePage() {
 
       <div className="border-t border-slate-800/80 bg-slate-950/90 px-4 py-3">
         <div className="mx-auto max-w-3xl">
-          <ChatComposer
-            onSend={(text) => sendMessage(text)}
-            isLoading={isLoading}
-          />
+          {ChatComposer && (
+            <ChatComposer
+              input={input}
+              setInput={setInput}
+              value={input}
+              onChange={setInput}
+              onSend={handleSend}
+              onSubmit={handleSend}
+              isLoading={isLoading}
+              disabled={isLoading}
+            />
+          )}
         </div>
       </div>
 
-      <SettingsModal
-        isOpen={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-      />
+      {SettingsModal && (
+        <SettingsModal
+          isOpen={settingsOpen}
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
     </div>
   );
 }
