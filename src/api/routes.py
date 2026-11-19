@@ -10,20 +10,22 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+from src.agent.connectors import ConnectorError, connector_manager
 from src.agent.loop import ToolNotSupportedError, run_agent
-from src.agent.mcp import MCPValidationError, mcp_manager
 from src.agent.registry import registry
 from src.api.schemas import (
     AskRequest,
     AskResponse,
     ConfigParamsUpdateRequest,
     ConfigUpdateRequest,
+    ConnectorConnectRequest,
+    ConnectorInfoSchema,
+    ConnectorsListResponse,
+    ConnectorToggleRequest,
+    CustomConnectorCreateRequest,
     KeyDetectRequest,
     KeySetRequest,
     KeyTestRequest,
-    MCPServerCreateRequest,
-    MCPServerSchema,
-    MCPServersListResponse,
     PluginEnableRequest,
     PluginEnableResponse,
     PluginInfoSchema,
@@ -33,7 +35,7 @@ from src.api.schemas import (
     ToolCallSchema,
 )
 from src.generation.generator import generate_answer
-from src.llm.factory import create_llm, get_llm_config
+from src.llm.factory import create_llm
 from src.retrieval.hybrid_retriever import hybrid_retrieve
 
 logger = logging.getLogger(__name__)
@@ -43,7 +45,7 @@ KEYS_PATH = Path("data/keys.json")
 CONFIG_PATH = Path("data/config.json")
 
 DEFAULT_THINKING_MESSAGES = [
-    "Scanning knowledge base and local documents...",
+    "Scanning knowledge base and connected services...",
     "Cross-referencing passages for accuracy...",
     "Synthesizing relevant context...",
     "Formulating a grounded response...",
@@ -105,12 +107,7 @@ def _run_legacy_pipeline(question: str, assistant_name: str) -> AskResponse:
     else:
         answer = str(gen_out)
         sources = [
-            c
-            if isinstance(c, dict)
-            else {
-                "doc_name": getattr(c, "doc_name", "doc"),
-                "text": getattr(c, "text", str(c)),
-            }
+            c if isinstance(c, dict) else {"doc_name": getattr(c, "doc_name", "doc"), "text": getattr(c, "text", str(c))}
             for c in chunks
         ]
 
@@ -129,6 +126,7 @@ async def health_check() -> dict[str, Any]:
         "status": "ok",
         "agent_enabled": os.getenv("AGENT_ENABLED", "true").lower() != "false",
         "registered_tools": len(registry.list_public()),
+        "connectors": len(connector_manager.list_connectors()),
     }
 
 
@@ -160,8 +158,6 @@ async def ask_endpoint(req: AskRequest) -> AskResponse:
         return await asyncio.to_thread(
             _run_legacy_pipeline, req.question, req.assistant_name
         )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     tool_calls = [ToolCallSchema(**tc) for tc in result.get("tool_calls", [])]
     sources = result.get("sources", [])
@@ -184,6 +180,72 @@ async def ask_endpoint(req: AskRequest) -> AskResponse:
     )
 
 
+# --- Connector Endpoints ---
+
+@router.get("/connectors", response_model=ConnectorsListResponse)
+async def list_connectors() -> ConnectorsListResponse:
+    items = [ConnectorInfoSchema(**c) for c in connector_manager.list_connectors()]
+    return ConnectorsListResponse(connectors=items)
+
+
+@router.post("/connectors/connect", response_model=ConnectorInfoSchema)
+async def connect_service(req: ConnectorConnectRequest) -> ConnectorInfoSchema:
+    try:
+        info = await asyncio.to_thread(
+            connector_manager.connect, req.id, req.credentials
+        )
+        return ConnectorInfoSchema(**info)
+    except ConnectorError as err:
+        raise HTTPException(status_code=400, detail=str(err)) from err
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502, detail=f"Failed to connect '{req.id}': {exc}"
+        ) from exc
+
+
+@router.post("/connectors/custom", response_model=ConnectorInfoSchema)
+async def create_custom_connector(
+    req: CustomConnectorCreateRequest,
+) -> ConnectorInfoSchema:
+    try:
+        info = await asyncio.to_thread(
+            connector_manager.add_custom_connector,
+            connector_id=req.id,
+            name=req.name,
+            description=req.description,
+            endpoint_url=req.endpoint_url,
+            method=req.method,
+            api_key=req.api_key,
+        )
+        return ConnectorInfoSchema(**info)
+    except ConnectorError as err:
+        raise HTTPException(status_code=400, detail=str(err)) from err
+
+
+@router.post("/connectors/toggle", response_model=ConnectorInfoSchema)
+async def toggle_connector(req: ConnectorToggleRequest) -> ConnectorInfoSchema:
+    try:
+        info = connector_manager.set_enabled(req.id, req.enabled)
+        return ConnectorInfoSchema(**info)
+    except ConnectorError as err:
+        raise HTTPException(status_code=404, detail=str(err)) from err
+
+
+@router.delete("/connectors/{connector_id}")
+async def disconnect_service(connector_id: str) -> dict[str, Any]:
+    try:
+        removed = connector_manager.disconnect(connector_id)
+        if not removed:
+            raise HTTPException(
+                status_code=404, detail=f"Connector '{connector_id}' is not connected."
+            )
+        return {"id": connector_id, "status": "disconnected"}
+    except ConnectorError as err:
+        raise HTTPException(status_code=400, detail=str(err)) from err
+
+
+# --- Tool / Plugin Endpoints ---
+
 @router.get("/plugins", response_model=PluginsListResponse)
 async def list_plugins() -> PluginsListResponse:
     items = [PluginInfoSchema(**item) for item in registry.list_public()]
@@ -194,57 +256,16 @@ async def list_plugins() -> PluginsListResponse:
 async def enable_plugin(req: PluginEnableRequest) -> PluginEnableResponse:
     updated = registry.set_enabled(req.name, req.enabled)
     if not updated:
-        raise HTTPException(status_code=404, detail=f"Plugin '{req.name}' not found.")
+        raise HTTPException(status_code=404, detail=f"Tool '{req.name}' not found.")
     return PluginEnableResponse(name=req.name, enabled=req.enabled, status="ok")
 
 
-@router.get("/mcp/servers", response_model=MCPServersListResponse)
-async def list_mcp_servers() -> MCPServersListResponse:
-    servers = [MCPServerSchema(**srv) for srv in mcp_manager.get_servers()]
-    return MCPServersListResponse(servers=servers)
-
-
-@router.post("/mcp/servers", response_model=MCPServerSchema)
-async def add_mcp_server(req: MCPServerCreateRequest) -> MCPServerSchema:
-    prefix = (req.prefix or f"mcp_{req.id}_").strip()
-    try:
-        if req.transport == "stdio":
-            if not req.command:
-                raise MCPValidationError("Field 'command' is required for stdio transport.")
-            info = await mcp_manager.add_stdio_server(
-                server_id=req.id,
-                command=req.command,
-                args=req.args or [],
-                prefix=prefix,
-            )
-        else:
-            if not req.url:
-                raise MCPValidationError("Field 'url' is required for http transport.")
-            info = await mcp_manager.add_http_server(
-                server_id=req.id,
-                url=req.url,
-                prefix=prefix,
-            )
-        return MCPServerSchema(**info)
-    except MCPValidationError as val_err:
-        raise HTTPException(status_code=400, detail=str(val_err)) from val_err
-    except ValueError as collision_err:
-        raise HTTPException(status_code=400, detail=str(collision_err)) from collision_err
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Failed to connect MCP server: {exc}") from exc
-
-
-@router.delete("/mcp/servers/{server_id}")
-async def delete_mcp_server(server_id: str) -> dict[str, Any]:
-    removed = await mcp_manager.remove_server(server_id)
-    if not removed:
-        raise HTTPException(status_code=404, detail=f"MCP server '{server_id}' not found.")
-    return {"id": server_id, "status": "removed"}
-
+# --- Existing Keys, Config, Thinking & Prompt Endpoints ---
 
 @router.get("/keys")
 async def get_keys() -> dict[str, Any]:
     raw = _read_json_file(KEYS_PATH)
+    cfg = _read_json_file(CONFIG_PATH)
     masked: dict[str, Any] = {}
     for provider, info in raw.items():
         if isinstance(info, dict) and info.get("api_key"):
@@ -256,13 +277,15 @@ async def get_keys() -> dict[str, Any]:
             }
         elif isinstance(info, str) and info:
             masked[provider] = {"configured": True, "masked_key": _mask_key(info)}
-    return {"keys": masked, "active_provider": get_llm_config()["provider"]}
+    return {
+        "keys": masked,
+        "active_provider": cfg.get("provider", os.getenv("LLM_PROVIDER", "")),
+    }
 
 
 @router.post("/keys/detect")
 async def detect_key(req: KeyDetectRequest) -> dict[str, str]:
-    provider = _detect_provider_from_key(req.api_key)
-    return {"provider": provider}
+    return {"provider": _detect_provider_from_key(req.api_key)}
 
 
 @router.post("/keys/test")
@@ -279,7 +302,7 @@ async def test_key(req: KeyTestRequest) -> dict[str, Any]:
         "gemini": "gemini-2.0-flash",
         "openrouter": "openrouter/free",
         "openai": "gpt-4o-mini",
-        "ollama": "llama3",
+        "ollama": "llama3.2",
     }
     base_url = req.base_url or default_urls.get(req.provider, "https://api.openai.com/v1")
     model = req.model or default_models.get(req.provider, "gpt-4o-mini")
@@ -297,28 +320,15 @@ async def test_key(req: KeyTestRequest) -> dict[str, Any]:
 
 @router.post("/keys/set")
 async def set_key(req: KeySetRequest) -> dict[str, Any]:
-    provider = req.provider.lower().strip()
-    if provider not in {"openai", "groq", "gemini", "openrouter", "ollama", "custom"}:
-        raise HTTPException(status_code=400, detail=f"Unknown provider '{req.provider}'.")
-
     data = _read_json_file(KEYS_PATH)
-    data[provider] = {
-        "api_key": req.api_key.strip(),
-        "base_url": (req.base_url or "").strip(),
-        "model": (req.model or "").strip(),
+    data[req.provider] = {
+        "api_key": req.api_key,
+        "base_url": req.base_url,
+        "model": req.model,
     }
     _write_json_file(KEYS_PATH, data)
-
-    config = _read_json_file(CONFIG_PATH)
-    config["provider"] = provider
-    config["model"] = (req.model or "").strip()
-    config["base_url"] = (req.base_url or "").strip()
-    _write_json_file(CONFIG_PATH, config)
-    return {
-        "status": "ok",
-        "provider": provider,
-        "masked_key": _mask_key(req.api_key.strip()),
-    }
+    os.environ[f"{req.provider.upper()}_API_KEY"] = req.api_key
+    return {"status": "ok", "provider": req.provider, "masked_key": _mask_key(req.api_key)}
 
 
 @router.delete("/keys/{provider}")
@@ -367,16 +377,14 @@ async def enhance_prompt(req: PromptEnhanceRequest) -> dict[str, str]:
 
 @router.get("/config")
 async def get_config() -> dict[str, Any]:
-    return get_llm_config()
-
-
-@router.get("/config/params")
-async def get_config_params() -> dict[str, float | int]:
-    config = get_llm_config()
+    cfg = _read_json_file(CONFIG_PATH)
     return {
-        "temperature": config["temperature"],
-        "max_tokens": config["max_tokens"],
-        "top_p": config["top_p"],
+        "provider": cfg.get("provider", os.getenv("LLM_PROVIDER", "groq")),
+        "model": cfg.get("model", os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")),
+        "base_url": cfg.get("base_url", ""),
+        "temperature": float(cfg.get("temperature", 0.3)),
+        "max_tokens": int(cfg.get("max_tokens", 1024)),
+        "top_p": float(cfg.get("top_p", 0.9)),
     }
 
 
