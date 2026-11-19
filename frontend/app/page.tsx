@@ -1,61 +1,73 @@
+// app/page.tsx
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useChat } from "@/hooks/useChat";
-import { Header } from "@/components/Header";
-import { ChatMessage } from "@/components/ChatMessage";
-import ChatComposer from "@/components/ChatComposer";
-import { EmptyState } from "@/components/EmptyState";
-import { SettingsModal } from "@/components/SettingsModal";
-import { Footer } from "@/components/Footer";
+import React, { useState } from "react";
+import Header from "../components/Header";
+import ChatMessage from "../components/ChatMessage";
+import ChatComposer from "../components/ChatComposer";
+import SettingsModal from "../components/SettingsModal";
+import { useChat } from "../hooks/useChat";
+import { useProfile } from "../hooks/useProfile";
 
-export default function HomePage(): JSX.Element {
-  const { messages, isLoading, sendMessage, clearChat } = useChat();
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [messages, isLoading]);
-
-  const handleSubmit = useCallback(
-    async (question: string): Promise<void> => {
-      await sendMessage(question);
-    },
-    [sendMessage]
-  );
+export default function HomePage() {
+  const { assistantName } = useProfile();
+  const {
+    messages,
+    isLoading,
+    sendMessage,
+    approveToolConsent,
+    denyToolConsent,
+    clearMessages,
+  } = useChat(assistantName);
+  const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
 
   return (
-    <div className="flex h-screen flex-col bg-[#0b0f14]">
+    <div className="flex h-screen flex-col bg-slate-950 text-slate-100">
       <Header
-        onClear={clearChat}
+        assistantName={assistantName}
         onOpenSettings={() => setSettingsOpen(true)}
-        canClear={messages.length > 0}
+        onClearChat={clearMessages}
       />
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col px-4 py-6">
+      <main className="flex-1 overflow-y-auto px-4 py-6">
+        <div className="mx-auto max-w-3xl space-y-2">
           {messages.length === 0 ? (
-            <EmptyState />
-          ) : (
-            <div className="flex flex-col gap-4">
-              {messages.map((m) => (
-                <ChatMessage key={m.id} message={m} />
-              ))}
+            <div className="mt-20 text-center space-y-2">
+              <h1 className="text-2xl font-semibold text-slate-100">
+                Ask {assistantName} Anything
+              </h1>
+              <p className="text-sm text-slate-400">
+                Powered by hybrid PDF vector retrieval, live web search, and MCP tool calling.
+              </p>
             </div>
+          ) : (
+            messages.map((msg) => (
+              <ChatMessage
+                key={msg.id}
+                message={msg}
+                assistantName={assistantName}
+                isLoading={isLoading}
+                onApproveConsent={approveToolConsent}
+                onDenyConsent={denyToolConsent}
+              />
+            ))
           )}
+        </div>
+      </main>
+
+      <div className="border-t border-slate-800/80 bg-slate-950/90 px-4 py-3">
+        <div className="mx-auto max-w-3xl">
+          <ChatComposer
+            onSend={(text) => sendMessage(text)}
+            isLoading={isLoading}
+          />
         </div>
       </div>
 
-      <div className="w-full px-4 pb-2 pt-2">
-        <ChatComposer onSubmit={handleSubmit} disabled={isLoading} />
-      </div>
-
-      <Footer />
-
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsModal
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
     </div>
   );
 }
