@@ -1,10 +1,9 @@
 // lib/api.ts
-import type {
+import {
   AskApiResponse,
+  ConnectorInfo,
   KeyListResponse,
-  KeyTestResponse,
   LLMConfig,
-  MCPServer,
   PluginInfo,
 } from "./types";
 
@@ -39,6 +38,62 @@ export async function askQuestion(
   return handleJson<AskApiResponse>(res);
 }
 
+export async function fetchConnectors(): Promise<ConnectorInfo[]> {
+  const res = await fetch("/api/connectors", {
+    method: "GET",
+    cache: "no-store",
+  });
+  const data = await handleJson<{ connectors: ConnectorInfo[] }>(res);
+  return data.connectors || [];
+}
+
+export async function connectService(
+  id: string,
+  credentials: Record<string, string>
+): Promise<ConnectorInfo> {
+  const res = await fetch("/api/connectors/connect", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, credentials }),
+  });
+  return handleJson<ConnectorInfo>(res);
+}
+
+export async function createCustomConnector(payload: {
+  id: string;
+  name: string;
+  description: string;
+  endpoint_url: string;
+  method: "GET" | "POST";
+  api_key?: string;
+}): Promise<ConnectorInfo> {
+  const res = await fetch("/api/connectors/custom", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return handleJson<ConnectorInfo>(res);
+}
+
+export async function toggleConnector(
+  id: string,
+  enabled: boolean
+): Promise<ConnectorInfo> {
+  const res = await fetch("/api/connectors/toggle", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, enabled }),
+  });
+  return handleJson<ConnectorInfo>(res);
+}
+
+export async function disconnectService(id: string): Promise<void> {
+  const res = await fetch(`/api/connectors/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  await handleJson<{ id: string; status: string }>(res);
+}
+
 export async function fetchPlugins(): Promise<PluginInfo[]> {
   const res = await fetch("/api/plugins", { method: "GET", cache: "no-store" });
   const data = await handleJson<{ plugins: PluginInfo[] }>(res);
@@ -57,51 +112,12 @@ export async function togglePlugin(
   return handleJson<{ name: string; enabled: boolean }>(res);
 }
 
-export async function fetchThinking(
-  count = 20
-): Promise<{ messages: string[] }> {
-  const res = await fetch(`/api/thinking?count=${count}`, { cache: "no-store" });
-  return handleJson<{ messages: string[] }>(res);
-}
-
-export async function fetchMcpServers(): Promise<MCPServer[]> {
-  const res = await fetch("/api/mcp/servers", {
-    method: "GET",
-    cache: "no-store",
-  });
-  const data = await handleJson<{ servers: MCPServer[] }>(res);
-  return data.servers || [];
-}
-
-export async function addMcpServer(payload: {
-  id: string;
-  transport: "stdio" | "http";
-  command?: string;
-  args?: string[];
-  url?: string;
-  prefix?: string;
-}): Promise<MCPServer> {
-  const res = await fetch("/api/mcp/servers", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  return handleJson<MCPServer>(res);
-}
-
-export async function removeMcpServer(id: string): Promise<void> {
-  const res = await fetch(`/api/mcp/servers/${encodeURIComponent(id)}`, {
-    method: "DELETE",
-  });
-  await handleJson<{ id: string; status: string }>(res);
-}
-
 export async function fetchThinkingMessages(
   question?: string,
   assistantName: string = "Assistant"
 ): Promise<string[]> {
   if (question) {
-    const res = await fetch("/api/thinking", {
+    const res = await fetch("/api/thinking/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question, assistant_name: assistantName }),
@@ -109,7 +125,8 @@ export async function fetchThinkingMessages(
     const data = await handleJson<{ messages: string[] }>(res);
     return data.messages;
   }
-  const data = await fetchThinking();
+  const res = await fetch("/api/thinking/messages");
+  const data = await handleJson<{ messages: string[] }>(res);
   return data.messages;
 }
 
@@ -125,7 +142,11 @@ export async function enhancePrompt(prompt: string): Promise<string> {
 
 export async function fetchKeys(): Promise<KeyListResponse> {
   const res = await fetch("/api/keys", { cache: "no-store" });
-  return handleJson<KeyListResponse>(res);
+  const data = await handleJson<KeyListResponse>(res);
+  return {
+    keys: data.keys || {},
+    active_provider: data.active_provider || "",
+  };
 }
 
 export async function detectKeyProvider(apiKey: string): Promise<string> {
@@ -143,13 +164,13 @@ export async function testProviderKey(payload: {
   api_key: string;
   base_url?: string;
   model?: string;
-}): Promise<KeyTestResponse> {
+}): Promise<{ valid: boolean; model?: string; error?: string }> {
   const res = await fetch("/api/keys/test", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  return handleJson<{ valid: boolean; error?: string }>(res);
+  return handleJson<{ valid: boolean; model?: string; error?: string }>(res);
 }
 
 export async function saveProviderKey(payload: {
