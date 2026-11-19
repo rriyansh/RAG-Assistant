@@ -1,3 +1,4 @@
+# src/agent/connectors/manager.py
 from __future__ import annotations
 
 import imaplib
