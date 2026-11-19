@@ -155,3 +155,5 @@ export function useChat(assistantName: string = "Assistant") {
     setMessages,
   };
 }
+
+export default useChat;
