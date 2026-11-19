@@ -105,7 +105,12 @@ def _run_legacy_pipeline(question: str, assistant_name: str) -> AskResponse:
     else:
         answer = str(gen_out)
         sources = [
-            c if isinstance(c, dict) else {"doc_name": getattr(c, "doc_name", "doc"), "text": getattr(c, "text", str(c))}
+            c
+            if isinstance(c, dict)
+            else {
+                "doc_name": getattr(c, "doc_name", "doc"),
+                "text": getattr(c, "text", str(c)),
+            }
             for c in chunks
         ]
 
@@ -234,8 +239,6 @@ async def delete_mcp_server(server_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"MCP server '{server_id}' not found.")
     return {"id": server_id, "status": "removed"}
 
-
-# --- Existing endpoints preserved intact ---
 
 @router.get("/keys")
 async def get_keys() -> dict[str, Any]:
