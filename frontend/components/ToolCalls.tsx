@@ -16,7 +16,7 @@ interface ToolCallsProps {
   toolCalls: ToolCall[];
 }
 
-export default function ToolCalls({ toolCalls }: ToolCallsProps) {
+export function ToolCalls({ toolCalls }: ToolCallsProps) {
   const [isOpen, setIsOpen] = useState<boolean>(false);
 
   if (!toolCalls || toolCalls.length === 0) {
@@ -32,9 +32,7 @@ export default function ToolCalls({ toolCalls }: ToolCallsProps) {
       >
         <div className="flex items-center gap-2">
           <Terminal className="h-3.5 w-3.5 text-indigo-400" />
-          <span>
-            Tool Calls ({toolCalls.length})
-          </span>
+          <span>Tool Calls ({toolCalls.length})</span>
         </div>
         <div className="flex items-center gap-2">
           {isOpen ? (
@@ -91,3 +89,5 @@ export default function ToolCalls({ toolCalls }: ToolCallsProps) {
     </div>
   );
 }
+
+export default ToolCalls;
