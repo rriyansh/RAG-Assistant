@@ -4,14 +4,18 @@
 import React, { useEffect, useState } from "react";
 import {
   Check,
+  ImagePlus,
   Key,
   Loader2,
   Plug,
+  Palette,
   Plus,
+  RotateCcw,
   Server,
   Shield,
   Sliders,
   Trash2,
+  UserRound,
   X,
 } from "lucide-react";
 import {
@@ -27,7 +31,16 @@ import {
   togglePlugin,
   updateConfig,
 } from "../lib/api";
-import { KeyStatusMap, LLMConfig, MCPServer, PluginInfo } from "../lib/types";
+import type {
+  FontId,
+  KeyListResponse,
+  KeyStatusMap,
+  LLMConfig,
+  MCPServer,
+  PluginInfo,
+} from "../lib/types";
+import { Avatar } from "./Avatar";
+import { useProfile } from "@/hooks/useProfile";
 
 export interface SettingsModalProps {
   isOpen?: boolean;
@@ -35,19 +48,55 @@ export interface SettingsModalProps {
   onClose: () => void;
 }
 
-type TabKey = "plugins" | "keys" | "model" | "security";
+type TabKey = "profile" | "plugins" | "keys" | "model" | "security";
 
-const PROVIDERS = ["groq", "gemini", "openrouter", "openai", "ollama", "custom"];
+const PROVIDERS = [
+  { id: "groq", label: "Groq" },
+  { id: "gemini", label: "Google Gemini" },
+  { id: "openrouter", label: "OpenRouter · free models" },
+  { id: "openai", label: "OpenAI" },
+  { id: "ollama", label: "Ollama · local" },
+  { id: "custom", label: "Custom endpoint" },
+];
+
+const DEFAULT_MODELS: Record<string, string> = {
+  groq: "llama-3.3-70b-versatile",
+  gemini: "gemini-2.0-flash",
+  openrouter: "openrouter/free",
+  openai: "gpt-4o-mini",
+  ollama: "llama3.2",
+};
+
+const FONT_OPTIONS: Array<{ id: FontId; label: string }> = [
+  { id: "system", label: "System default" },
+  { id: "dm-sans", label: "DM Sans" },
+  { id: "josefin-sans", label: "Josefin Sans" },
+  { id: "fredoka", label: "Fredoka" },
+  { id: "open-sans", label: "Open Sans" },
+  { id: "outfit", label: "Outfit" },
+  { id: "plus-jakarta-sans", label: "Plus Jakarta Sans" },
+];
 
 export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
   const modalVisible = Boolean(isOpen ?? open);
-  const [activeTab, setActiveTab] = useState<TabKey>("plugins");
+  const [activeTab, setActiveTab] = useState<TabKey>("profile");
+  const {
+    profile,
+    update: updateProfile,
+    reset: resetProfile,
+    setAvatarFromFile,
+    clearAvatar,
+    setAssistantLogoFromFile,
+    clearAssistantLogo,
+  } = useProfile();
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   // Keys state
   const [keys, setKeys] = useState<KeyStatusMap>({});
-  const [selectedProvider, setSelectedProvider] = useState<string>("groq");
+  const [selectedProvider, setSelectedProvider] = useState<string>("openrouter");
   const [apiKeyInput, setApiKeyInput] = useState<string>("");
   const [keyStatusMsg, setKeyStatusMsg] = useState<string | null>(null);
+  const [keyBusy, setKeyBusy] = useState<boolean>(false);
 
   // Model config state
   const [config, setConfig] = useState<LLMConfig>({
@@ -78,7 +127,9 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
   async function loadAllData() {
     try {
       const [kData, cData, pData, sData] = await Promise.all([
-        fetchKeys().catch(() => ({})),
+        fetchKeys().catch(
+          (): KeyListResponse => ({ keys: {}, active_provider: "" })
+        ),
         fetchConfig().catch(() => ({
           provider: "groq",
           model: "llama-3.3-70b-versatile",
@@ -90,8 +141,14 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
         fetchPlugins().catch(() => []),
         fetchMcpServers().catch(() => []),
       ]);
-      setKeys(kData);
-      setConfig(cData);
+      setKeys(kData.keys);
+      const activeProvider =
+        cData.provider ||
+        kData.active_provider ||
+        Object.keys(kData.keys)[0] ||
+        "groq";
+      setSelectedProvider(activeProvider);
+      setConfig({ ...cData, provider: activeProvider });
       setPlugins(pData);
       setMcpServers(sData);
     } catch {
@@ -169,64 +226,157 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
 
   async function handleSaveKey() {
     if (!apiKeyInput.trim()) return;
+    setKeyBusy(true);
     setKeyStatusMsg("Testing & saving key...");
     try {
       const testRes = await testProviderKey({
         provider: selectedProvider,
         api_key: apiKeyInput.trim(),
+        model: config.provider === selectedProvider ? config.model : undefined,
+        base_url: config.provider === selectedProvider ? config.base_url : undefined,
       });
+      if (!testRes.valid) {
+        setKeyStatusMsg(
+          `Key check failed: ${testRes.error || "provider rejected the key."}`
+        );
+        return;
+      }
+
+      const activeModel =
+        testRes.model ||
+        (config.provider === selectedProvider ? config.model : "");
       await saveProviderKey({
         provider: selectedProvider,
         api_key: apiKeyInput.trim(),
+        model: activeModel,
+        base_url: config.provider === selectedProvider ? config.base_url : "",
       });
+      const nextConfig = {
+        ...config,
+        provider: selectedProvider,
+        model: activeModel,
+        base_url: config.provider === selectedProvider ? config.base_url : "",
+      };
+      await updateConfig(nextConfig);
+      setConfig(nextConfig);
       const updated = await fetchKeys();
-      setKeys(updated);
+      setKeys(updated.keys);
       setApiKeyInput("");
-      setKeyStatusMsg(
-        testRes.valid
-          ? `Saved and verified ${selectedProvider} key.`
-          : `Saved key (verification notice: ${testRes.error || "check model"}).`
-      );
+      setKeyStatusMsg(`Verified ${selectedProvider}; it is now active for chat.`);
     } catch (err) {
       setKeyStatusMsg(
         err instanceof Error ? err.message : "Failed to save key."
       );
+    } finally {
+      setKeyBusy(false);
     }
   }
 
   async function handleDeleteKey(provider: string) {
-    await deleteProviderKey(provider);
-    setKeys(await fetchKeys());
+    try {
+      await deleteProviderKey(provider);
+      const updated = await fetchKeys();
+      setKeys(updated.keys);
+      setKeyStatusMsg(`Removed ${provider} key.`);
+    } catch (err) {
+      setKeyStatusMsg(
+        err instanceof Error ? err.message : "Failed to remove API key."
+      );
+    }
   }
 
   async function handleSaveModelConfig() {
-    await updateConfig(config);
-    setKeyStatusMsg("Model parameters saved.");
+    setKeyBusy(true);
+    try {
+      await updateConfig(config);
+      setSelectedProvider(config.provider);
+      setKeyStatusMsg("Model configuration saved.");
+    } catch (err) {
+      setKeyStatusMsg(
+        err instanceof Error ? err.message : "Failed to save model configuration."
+      );
+    } finally {
+      setKeyBusy(false);
+    }
+  }
+
+  async function handleProfileImage(
+    file: File | undefined,
+    kind: "avatar" | "assistant"
+  ): Promise<void> {
+    if (!file) return;
+    setProfileError(null);
+    try {
+      if (kind === "avatar") await setAvatarFromFile(file);
+      else await setAssistantLogoFromFile(file);
+    } catch (err) {
+      setProfileError(
+        err instanceof Error ? err.message : "Could not update the image."
+      );
+    }
   }
 
   if (!modalVisible) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="flex h-[82vh] w-full max-w-3xl flex-col rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-2xl overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3 backdrop-blur-md sm:p-5"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
+        className="flex h-[min(88vh,780px)] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-950 text-slate-100 shadow-2xl shadow-black/60"
+      >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
-          <h2 className="text-lg font-semibold">Assistant Settings</h2>
+        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 sm:px-7">
+          <div>
+            <h2 id="settings-title" className="text-lg font-semibold tracking-tight">
+              Assistant Settings
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-400">
+              Personalize your assistant and manage its connections.
+            </p>
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
+            aria-label="Close settings"
+            className="rounded-xl border border-white/10 p-2 text-slate-400 transition hover:bg-white/10 hover:text-white"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex border-b border-slate-800 bg-slate-950/40 px-6">
+        <div
+          role="tablist"
+          aria-label="Settings sections"
+          className="flex gap-1 overflow-x-auto border-b border-white/10 bg-white/[0.025] px-3 sm:px-5"
+        >
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === "profile"}
+            onClick={() => setActiveTab("profile")}
+            className={`flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-xs font-medium transition-colors sm:px-4 ${
+              activeTab === "profile"
+                ? "border-indigo-400 text-indigo-300"
+                : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <UserRound className="h-4 w-4" />
+            Profile
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "plugins"}
             onClick={() => setActiveTab("plugins")}
-            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+            className={`flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-xs font-medium transition-colors sm:px-4 ${
               activeTab === "plugins"
                 ? "border-indigo-500 text-indigo-400"
                 : "border-transparent text-slate-400 hover:text-slate-200"
@@ -237,8 +387,10 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === "keys"}
             onClick={() => setActiveTab("keys")}
-            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+            className={`flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-xs font-medium transition-colors sm:px-4 ${
               activeTab === "keys"
                 ? "border-indigo-500 text-indigo-400"
                 : "border-transparent text-slate-400 hover:text-slate-200"
@@ -249,8 +401,10 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === "model"}
             onClick={() => setActiveTab("model")}
-            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+            className={`flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-xs font-medium transition-colors sm:px-4 ${
               activeTab === "model"
                 ? "border-indigo-500 text-indigo-400"
                 : "border-transparent text-slate-400 hover:text-slate-200"
@@ -261,8 +415,10 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === "security"}
             onClick={() => setActiveTab("security")}
-            className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+            className={`flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-xs font-medium transition-colors sm:px-4 ${
               activeTab === "security"
                 ? "border-indigo-500 text-indigo-400"
                 : "border-transparent text-slate-400 hover:text-slate-200"
@@ -274,7 +430,172 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-7">
+          {activeTab === "profile" && (
+            <div className="mx-auto max-w-3xl space-y-5">
+              <div className="flex items-center gap-4 rounded-2xl border border-indigo-400/20 bg-gradient-to-br from-indigo-500/10 to-slate-900 p-4 sm:p-5">
+                <Avatar profile={profile} size={52} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-slate-100">
+                    {profile.name}
+                  </p>
+                  <p className="truncate text-xs text-slate-400">
+                    Chat preview · {profile.assistantName}
+                  </p>
+                </div>
+                <Palette className="h-5 w-5 shrink-0 text-indigo-300" />
+              </div>
+
+              {profileError && (
+                <p role="alert" className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-2.5 text-xs text-rose-200">
+                  {profileError}
+                </p>
+              )}
+
+              <section className="rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:p-5">
+                <h3 className="mb-4 text-sm font-semibold">Your profile</h3>
+                <div className="grid gap-4 sm:grid-cols-[1fr_1.2fr]">
+                  <label className="text-xs text-slate-400">
+                    Your name
+                    <input
+                      value={profile.name}
+                      maxLength={60}
+                      onChange={(event) => updateProfile({ name: event.target.value })}
+                      className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none transition focus:border-indigo-400/70"
+                    />
+                  </label>
+                  <div className="flex items-end gap-2">
+                    <label className="flex-1 text-xs text-slate-400">
+                      Profile avatar
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        className="sr-only"
+                        onChange={async (event) => {
+                          const input = event.currentTarget;
+                          await handleProfileImage(input.files?.[0], "avatar");
+                          input.value = "";
+                        }}
+                      />
+                      <span className="mt-1.5 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 transition hover:border-indigo-400/50 hover:bg-white/5">
+                        <ImagePlus className="h-4 w-4" /> Upload image
+                      </span>
+                    </label>
+                    {profile.avatarDataUrl && (
+                      <button
+                        type="button"
+                        onClick={clearAvatar}
+                        className="mb-px rounded-xl border border-white/10 p-2.5 text-slate-400 hover:bg-white/5 hover:text-white"
+                        aria-label="Remove profile avatar"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:p-5">
+                <h3 className="mb-4 text-sm font-semibold">Assistant identity</h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="text-xs text-slate-400">
+                    Assistant name
+                    <input
+                      value={profile.assistantName}
+                      maxLength={60}
+                      onChange={(event) => updateProfile({ assistantName: event.target.value })}
+                      className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none transition focus:border-indigo-400/70"
+                    />
+                  </label>
+                  <label className="text-xs text-slate-400">
+                    Welcome headline
+                    <input
+                      value={profile.headline}
+                      maxLength={100}
+                      onChange={(event) => updateProfile({ headline: event.target.value })}
+                      className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none transition focus:border-indigo-400/70"
+                    />
+                  </label>
+                  <label className="text-xs text-slate-400 sm:col-span-2">
+                    Welcome message
+                    <textarea
+                      value={profile.bodyText}
+                      maxLength={240}
+                      rows={2}
+                      onChange={(event) => updateProfile({ bodyText: event.target.value })}
+                      className="mt-1.5 w-full resize-y rounded-xl border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none transition focus:border-indigo-400/70"
+                    />
+                  </label>
+                  <div className="flex items-end gap-2 sm:col-span-2">
+                    {profile.assistantLogo ? (
+                      <img
+                        src={profile.assistantLogo}
+                        alt="Assistant logo preview"
+                        className="h-10 w-10 rounded-xl border border-white/10 object-cover"
+                      />
+                    ) : (
+                      <div className="h-10 w-10 rounded-xl border border-white/10 bg-slate-900" />
+                    )}
+                    <label className="flex-1 text-xs text-slate-400">
+                      Assistant logo
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        className="sr-only"
+                        onChange={async (event) => {
+                          const input = event.currentTarget;
+                          await handleProfileImage(input.files?.[0], "assistant");
+                          input.value = "";
+                        }}
+                      />
+                      <span className="mt-1.5 flex cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 transition hover:border-indigo-400/50 hover:bg-white/5">
+                        <ImagePlus className="h-4 w-4" /> Choose logo
+                      </span>
+                    </label>
+                    {profile.assistantLogo && (
+                      <button
+                        type="button"
+                        onClick={clearAssistantLogo}
+                        className="mb-px rounded-xl border border-white/10 p-2.5 text-slate-400 hover:bg-white/5 hover:text-white"
+                        aria-label="Remove assistant logo"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </section>
+
+              <section className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:flex-row sm:items-end sm:justify-between sm:p-5">
+                <label className="text-xs text-slate-400">
+                  Interface font
+                  <select
+                    value={profile.font}
+                    onChange={(event) => {
+                      const font = FONT_OPTIONS.find((option) => option.id === event.target.value)?.id;
+                      if (font) updateProfile({ font });
+                    }}
+                    className="mt-1.5 block w-full min-w-56 rounded-xl border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-indigo-400/70"
+                  >
+                    {FONT_OPTIONS.map((font) => (
+                      <option key={font.id} value={font.id}>{font.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetProfile();
+                    setProfileError(null);
+                  }}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 px-3 py-2.5 text-xs text-slate-300 transition hover:bg-white/5 hover:text-white"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" /> Reset profile
+                </button>
+              </section>
+            </div>
+          )}
+
           {activeTab === "plugins" && (
             <div className="space-y-6">
               {pluginError && (
@@ -505,6 +826,11 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
 
           {activeTab === "keys" && (
             <div className="space-y-4">
+              <div className="rounded-2xl border border-indigo-400/20 bg-indigo-500/[0.07] p-4 text-xs leading-relaxed text-slate-300">
+                Add and verify a provider key. A verified key is automatically
+                selected for chat; OpenRouter&apos;s free-model route is available
+                without a paid web-search API.
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <select
                   value={selectedProvider}
@@ -512,8 +838,8 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
                   className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
                 >
                   {PROVIDERS.map((p) => (
-                    <option key={p} value={p}>
-                      {p.toUpperCase()}
+                    <option key={p.id} value={p.id}>
+                      {p.label}
                     </option>
                   ))}
                 </select>
@@ -528,13 +854,20 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
               <button
                 type="button"
                 onClick={handleSaveKey}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-500"
+                disabled={keyBusy || !apiKeyInput.trim()}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-500 px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-indigo-950/30 transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <Check className="h-3.5 w-3.5" />
-                Verify & Save Key
+                {keyBusy ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Check className="h-3.5 w-3.5" />
+                )}
+                Verify, save & activate
               </button>
               {keyStatusMsg && (
-                <p className="text-xs text-indigo-300">{keyStatusMsg}</p>
+                <p role="status" aria-live="polite" className="text-xs text-indigo-200">
+                  {keyStatusMsg}
+                </p>
               )}
 
               <div className="divide-y divide-slate-800 rounded-xl border border-slate-800 bg-slate-950/50 mt-4">
@@ -545,6 +878,11 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
                   >
                     <div>
                       <span className="font-semibold uppercase">{prov}</span>
+                      {config.provider === prov && (
+                        <span className="ml-2 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
+                          active
+                        </span>
+                      )}
                       <span className="ml-3 font-mono text-slate-400">
                         {info.masked_key}
                       </span>
@@ -552,6 +890,7 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
                     <button
                       type="button"
                       onClick={() => handleDeleteKey(prov)}
+                      aria-label={`Remove ${prov} API key`}
                       className="text-rose-400 hover:text-rose-300"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -569,14 +908,23 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
                   <label className="block text-slate-400 mb-1">Provider</label>
                   <select
                     value={config.provider}
-                    onChange={(e) =>
-                      setConfig({ ...config, provider: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const provider = e.target.value;
+                      setConfig({
+                        ...config,
+                        provider,
+                        model:
+                          config.provider === provider
+                            ? config.model
+                            : DEFAULT_MODELS[provider] || "",
+                      });
+                      setSelectedProvider(provider);
+                    }}
                     className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"
                   >
                     {PROVIDERS.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
+                      <option key={p.id} value={p.id}>
+                        {p.label}
                       </option>
                     ))}
                   </select>
@@ -648,9 +996,10 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
               <button
                 type="button"
                 onClick={handleSaveModelConfig}
-                className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-500"
+                disabled={keyBusy}
+                className="rounded-xl bg-indigo-500 px-4 py-2.5 font-medium text-white transition hover:bg-indigo-400 disabled:opacity-50"
               >
-                Save Configuration
+                {keyBusy ? "Saving..." : "Save configuration"}
               </button>
             </div>
           )}

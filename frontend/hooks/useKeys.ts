@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyListResponse, KeySetPayload, KeyTestResponse } from "@/lib/types";
-import { fetchKeys, testKey, saveKey, deleteKey } from "@/lib/api";
+import {
+  deleteProviderKey,
+  fetchKeys,
+  saveProviderKey,
+  testProviderKey,
+} from "@/lib/api";
 
 const KEYS_EVENT = "rag:keys";
 
@@ -85,13 +90,14 @@ export function useKeys(): UseKeysResult {
   }, [refresh]);
 
   const test = useCallback(
-    (p: KeySetPayload): Promise<KeyTestResponse> => testKey(normalizePayload(p)),
+    (p: KeySetPayload): Promise<KeyTestResponse> =>
+      testProviderKey(normalizePayload(p)),
     []
   );
 
   const save = useCallback(
     async (p: KeySetPayload): Promise<void> => {
-      await saveKey(normalizePayload(p));
+      await saveProviderKey(normalizePayload(p));
       await refresh();
       notifyKeysChanged();
     },
@@ -102,7 +108,7 @@ export function useKeys(): UseKeysResult {
     async (provider: string): Promise<void> => {
       const trimmed = provider.trim();
       if (!trimmed) return;
-      await deleteKey(trimmed);
+      await deleteProviderKey(trimmed);
       await refresh();
       notifyKeysChanged();
     },

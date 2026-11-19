@@ -1,12 +1,9 @@
-"""
-Two free web-search providers:
-
-  DuckDuckGo  — completely free, unlimited, no API key.
-  Tavily      — 1,000 free searches per month, higher quality.
-
-You pick one in .env with WEB_SEARCH_PROVIDER=duckduckgo or tavily.
-"""
+"""Free live web search with a Wikipedia fallback."""
 from dataclasses import dataclass
+
+import requests
+from bs4 import BeautifulSoup
+
 from src.utils.config import get_settings
 from src.utils.logger import setup_logger
 
@@ -20,76 +17,79 @@ class WebResult:
     snippet: str
 
 
-# ------------------------------------------------------------
-# DuckDuckGo — free, no key
-# ------------------------------------------------------------
-def _search_duckduckgo(query: str, max_results: int) -> list[WebResult]:
+def _format_results(raw: list[dict], url_key: str) -> list[WebResult]:
+    results: list[WebResult] = []
+    for item in raw:
+        url = str(item.get(url_key) or "")
+        if not url or "grokipedia.com" in url:
+            continue
+        results.append(
+            WebResult(
+                title=item.get("title", ""),
+                url=url,
+                snippet=item.get("body", item.get("snippet", "")),
+            )
+        )
+    return results
+
+
+def _search_metasearch(query: str, max_results: int) -> list[WebResult]:
     try:
-        from duckduckgo_search import DDGS
+        from ddgs import DDGS
     except ImportError:
-        logger.error("duckduckgo-search is not installed. Run pip install duckduckgo-search")
+        logger.error("ddgs is not installed. Run uv pip install -r requirements.txt")
         return []
 
     try:
-        with DDGS() as ddgs:
-            raw = list(ddgs.text(query, max_results=max_results))
+        raw = list(DDGS().text(query, max_results=max_results, backend="auto"))
     except Exception as exc:
-        logger.warning("DuckDuckGo failed: %s", exc)
+        logger.warning("Free web metasearch failed: %s", exc)
+        return []
+    return _format_results(raw, "href")
+
+
+def _search_wikipedia(query: str, max_results: int) -> list[WebResult]:
+    try:
+        response = requests.get(
+            "https://en.wikipedia.org/w/api.php",
+            params={
+                "action": "query",
+                "list": "search",
+                "srsearch": query,
+                "srlimit": max_results,
+                "format": "json",
+            },
+            headers={
+                "User-Agent": "RAG-Assistant/1.0 (https://github.com/rriyansh/RAG-Assistant)"
+            },
+            timeout=10,
+        )
+        response.raise_for_status()
+        items = response.json().get("query", {}).get("search", [])
+    except (requests.RequestException, ValueError) as exc:
+        logger.warning("Free Wikipedia search fallback failed: %s", exc)
         return []
 
     return [
         WebResult(
             title=item.get("title", ""),
-            url=item.get("href", ""),
-            snippet=item.get("body", ""),
+            url=f"https://en.wikipedia.org/?curid={item['pageid']}",
+            snippet=BeautifulSoup(item.get("snippet", ""), "html.parser").get_text(" ", strip=True),
         )
-        for item in raw
+        for item in items
+        if item.get("pageid")
     ]
 
 
-# ------------------------------------------------------------
-# Tavily — free tier (1000/month)
-# ------------------------------------------------------------
-def _search_tavily(query: str, max_results: int) -> list[WebResult]:
-    settings = get_settings()
-    if not settings.tavily_api_key:
-        logger.warning("TAVILY_API_KEY is empty; falling back to DuckDuckGo")
-        return _search_duckduckgo(query, max_results)
-
-    try:
-        from tavily import TavilyClient
-    except ImportError:
-        logger.error("tavily-python is not installed. Run pip install tavily-python")
-        return []
-
-    try:
-        client = TavilyClient(api_key=settings.tavily_api_key)
-        response = client.search(query=query, max_results=max_results)
-    except Exception as exc:
-        logger.warning("Tavily failed: %s", exc)
-        return []
-
-    return [
-        WebResult(
-            title=item.get("title", ""),
-            url=item.get("url", ""),
-            snippet=item.get("content", ""),
-        )
-        for item in response.get("results", [])
-    ]
-
-
-# ------------------------------------------------------------
-# Public entry point — picks the right provider
-# ------------------------------------------------------------
 def web_search(query: str, max_results: int | None = None) -> list[WebResult]:
     settings = get_settings()
     if not settings.web_search_enabled:
         return []
 
     limit = max_results or settings.web_search_max_results
-    provider = settings.web_search_provider.lower()
+    results = _search_metasearch(query, limit)
+    if results:
+        return results
 
-    if provider == "tavily":
-        return _search_tavily(query, limit)
-    return _search_duckduckgo(query, limit)
+    logger.info("Free metasearch returned no results; using Wikipedia search.")
+    return _search_wikipedia(query, limit)

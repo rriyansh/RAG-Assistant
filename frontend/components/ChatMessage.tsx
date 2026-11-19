@@ -3,13 +3,15 @@
 
 import React from "react";
 import { Bot, ExternalLink, FileText, Globe, User } from "lucide-react";
-import { ChatMessageItem } from "../lib/types";
+import type { ChatMessageItem, Profile } from "../lib/types";
 import { ToolCalls } from "./ToolCalls";
 import { ConsentPrompt } from "./ConsentPrompt";
+import { Avatar } from "./Avatar";
 
 interface ChatMessageProps {
   message: ChatMessageItem;
   assistantName?: string;
+  profile?: Profile;
   onApproveConsent?: (messageId: string, toolName: string) => void;
   onDenyConsent?: (messageId: string, toolName: string) => void;
   isLoading?: boolean;
@@ -18,6 +20,7 @@ interface ChatMessageProps {
 export function ChatMessage({
   message,
   assistantName = "Assistant",
+  profile,
   onApproveConsent,
   onDenyConsent,
   isLoading = false,
@@ -31,9 +34,17 @@ export function ChatMessage({
       }`}
     >
       {!isUser && (
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-600/20 border border-indigo-500/40 text-indigo-400">
-          <Bot className="h-4 w-4" />
-        </div>
+        profile?.assistantLogo ? (
+          <img
+            src={profile.assistantLogo}
+            alt={`${assistantName} logo`}
+            className="h-8 w-8 shrink-0 rounded-full border border-indigo-500/40 object-cover"
+          />
+        ) : (
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-indigo-500/40 bg-indigo-600/20 text-indigo-400">
+            <Bot className="h-4 w-4" />
+          </div>
+        )
       )}
 
       <div
@@ -41,6 +52,9 @@ export function ChatMessage({
           isUser ? "items-end" : "items-start"
         }`}
       >
+        <p className={`px-1 text-[10px] font-medium text-slate-400 ${isUser ? "text-right" : "text-left"}`}>
+          {isUser ? profile?.name || "You" : assistantName}
+        </p>
         <div
           className={`rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
             isUser
@@ -121,9 +135,13 @@ export function ChatMessage({
       </div>
 
       {isUser && (
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-700 text-slate-200">
-          <User className="h-4 w-4" />
-        </div>
+        profile ? (
+          <Avatar profile={profile} size={32} className="shrink-0" />
+        ) : (
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-700 text-slate-200">
+            <User className="h-4 w-4" />
+          </div>
+        )
       )}
     </div>
   );

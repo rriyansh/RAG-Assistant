@@ -2,6 +2,7 @@
 
 import { Trash2, Settings } from "lucide-react";
 import { Logo } from "./Logo";
+import { Avatar } from "./Avatar";
 import { useProfile } from "@/hooks/useProfile";
 
 interface HeaderProps {
@@ -27,6 +28,12 @@ export function Header({ onClear, onOpenSettings, canClear }: HeaderProps): JSX.
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 pr-1">
+            <Avatar profile={profile} size={30} />
+            <span className="hidden max-w-24 truncate text-xs text-gray-300 sm:block">
+              {profile.name}
+            </span>
+          </div>
           <button
             type="button"
             onClick={onOpenSettings}

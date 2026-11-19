@@ -29,7 +29,7 @@ function read(): CannedResponse[] {
           typeof (x as CannedResponse).trigger === "string" &&
           typeof (x as CannedResponse).response === "string"
       )
-      .map((x) => ({
+      .map((x): CannedResponse => ({
         id: x.id,
         trigger: x.trigger.trim(),
         response: x.response.trim(),

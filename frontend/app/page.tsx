@@ -1,30 +1,16 @@
-// app/page.tsx
 "use client";
 
-import React, { useState } from "react";
-import * as HeaderMod from "../components/Header";
-import * as ChatMessageMod from "../components/ChatMessage";
-import * as ChatComposerMod from "../components/ChatComposer";
-import * as SettingsModalMod from "../components/SettingsModal";
-import { useChat } from "../hooks/useChat";
-import * as ProfileMod from "../hooks/useProfile";
+import { useCallback, useEffect, useRef, useState } from "react";
+import ChatComposer from "@/components/ChatComposer";
+import { ChatMessage } from "@/components/ChatMessage";
+import { EmptyState } from "@/components/EmptyState";
+import { Header } from "@/components/Header";
+import { SettingsModal } from "@/components/SettingsModal";
+import { useProfile } from "@/hooks/useProfile";
+import { useChat } from "@/hooks/useChat";
 
-const Header: React.ComponentType<any> =
-  (HeaderMod as any).default || (HeaderMod as any).Header;
-const ChatMessage: React.ComponentType<any> =
-  (ChatMessageMod as any).default || (ChatMessageMod as any).ChatMessage;
-const ChatComposer: React.ComponentType<any> =
-  (ChatComposerMod as any).default || (ChatComposerMod as any).ChatComposer;
-const SettingsModal: React.ComponentType<any> =
-  (SettingsModalMod as any).default || (SettingsModalMod as any).SettingsModal;
-const useProfileHook =
-  (ProfileMod as any).useProfile || (ProfileMod as any).default;
-
-export default function HomePage() {
-  const profile = typeof useProfileHook === "function" ? useProfileHook() : {};
-  const assistantName: string =
-    profile?.assistantName || profile?.profile?.assistantName || "Assistant";
-
+export default function HomePage(): JSX.Element {
+  const { profile } = useProfile();
   const {
     messages,
     isLoading,
@@ -32,81 +18,63 @@ export default function HomePage() {
     approveToolConsent,
     denyToolConsent,
     clearMessages,
-  } = useChat(assistantName);
+  } = useChat(profile.assistantName);
 
-  const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
-  const [input, setInput] = useState<string>("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  const handleSend = (text?: string) => {
-    const query = (typeof text === "string" ? text : input).trim();
-    if (!query) return;
-    setInput("");
-    sendMessage(query);
-  };
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (element) element.scrollTop = element.scrollHeight;
+  }, [messages, isLoading]);
+
+  const handleSubmit = useCallback(
+    async (question: string): Promise<void> => {
+      await sendMessage(question);
+    },
+    [sendMessage]
+  );
 
   return (
     <div className="flex h-screen flex-col bg-slate-950 text-slate-100">
-      {Header && (
-        <Header
-          assistantName={assistantName}
-          profile={profile?.profile}
-          onOpenSettings={() => setSettingsOpen(true)}
-          onSettingsClick={() => setSettingsOpen(true)}
-          onClearChat={clearMessages}
-          onClear={clearMessages}
-        />
-      )}
+      <Header
+        onClear={clearMessages}
+        onOpenSettings={() => setSettingsOpen(true)}
+        canClear={messages.length > 0}
+      />
 
-      <main className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="mx-auto max-w-3xl space-y-2">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+        <main className="mx-auto flex min-h-full w-full max-w-3xl flex-col px-4 py-6">
           {messages.length === 0 ? (
-            <div className="mt-20 text-center space-y-2">
-              <h1 className="text-2xl font-semibold text-slate-100">
-                Ask {assistantName} Anything
-              </h1>
-              <p className="text-sm text-slate-400">
-                Powered by hybrid PDF vector retrieval, live web search, and MCP tool calling.
-              </p>
-            </div>
+            <EmptyState />
           ) : (
-            messages.map((msg) => (
-              <ChatMessage
-                key={msg.id}
-                message={msg}
-                assistantName={assistantName}
-                isLoading={isLoading}
-                onApproveConsent={approveToolConsent}
-                onDenyConsent={denyToolConsent}
-              />
-            ))
+            <div className="flex flex-col gap-2">
+              {messages.map((message) => (
+                <ChatMessage
+                  key={message.id}
+                  message={message}
+                  assistantName={profile.assistantName}
+                  profile={profile}
+                  isLoading={isLoading}
+                  onApproveConsent={approveToolConsent}
+                  onDenyConsent={denyToolConsent}
+                />
+              ))}
+            </div>
           )}
-        </div>
-      </main>
+        </main>
+      </div>
 
-      <div className="border-t border-slate-800/80 bg-slate-950/90 px-4 py-3">
+      <div className="w-full border-t border-slate-800/80 bg-slate-950/90 px-4 pb-5 pt-3">
         <div className="mx-auto max-w-3xl">
-          {ChatComposer && (
-            <ChatComposer
-              input={input}
-              setInput={setInput}
-              value={input}
-              onChange={setInput}
-              onSend={handleSend}
-              onSubmit={handleSend}
-              isLoading={isLoading}
-              disabled={isLoading}
-            />
-          )}
+          <ChatComposer onSubmit={handleSubmit} disabled={isLoading} />
         </div>
       </div>
 
-      {SettingsModal && (
-        <SettingsModal
-          isOpen={settingsOpen}
-          open={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
-        />
-      )}
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
     </div>
   );
 }

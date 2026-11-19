@@ -1,7 +1,8 @@
 // lib/api.ts
-import {
+import type {
   AskApiResponse,
-  KeyStatusMap,
+  KeyListResponse,
+  KeyTestResponse,
   LLMConfig,
   MCPServer,
   PluginInfo,
@@ -56,6 +57,13 @@ export async function togglePlugin(
   return handleJson<{ name: string; enabled: boolean }>(res);
 }
 
+export async function fetchThinking(
+  count = 20
+): Promise<{ messages: string[] }> {
+  const res = await fetch(`/api/thinking?count=${count}`, { cache: "no-store" });
+  return handleJson<{ messages: string[] }>(res);
+}
+
 export async function fetchMcpServers(): Promise<MCPServer[]> {
   const res = await fetch("/api/mcp/servers", {
     method: "GET",
@@ -93,7 +101,7 @@ export async function fetchThinkingMessages(
   assistantName: string = "Assistant"
 ): Promise<string[]> {
   if (question) {
-    const res = await fetch("/api/thinking/generate", {
+    const res = await fetch("/api/thinking", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question, assistant_name: assistantName }),
@@ -101,8 +109,7 @@ export async function fetchThinkingMessages(
     const data = await handleJson<{ messages: string[] }>(res);
     return data.messages;
   }
-  const res = await fetch("/api/thinking/messages");
-  const data = await handleJson<{ messages: string[] }>(res);
+  const data = await fetchThinking();
   return data.messages;
 }
 
@@ -116,10 +123,9 @@ export async function enhancePrompt(prompt: string): Promise<string> {
   return data.enhanced_prompt;
 }
 
-export async function fetchKeys(): Promise<KeyStatusMap> {
+export async function fetchKeys(): Promise<KeyListResponse> {
   const res = await fetch("/api/keys", { cache: "no-store" });
-  const data = await handleJson<{ keys: KeyStatusMap }>(res);
-  return data.keys || {};
+  return handleJson<KeyListResponse>(res);
 }
 
 export async function detectKeyProvider(apiKey: string): Promise<string> {
@@ -137,7 +143,7 @@ export async function testProviderKey(payload: {
   api_key: string;
   base_url?: string;
   model?: string;
-}): Promise<{ valid: boolean; error?: string }> {
+}): Promise<KeyTestResponse> {
   const res = await fetch("/api/keys/test", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

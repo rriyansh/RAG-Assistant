@@ -33,7 +33,7 @@ from src.api.schemas import (
     ToolCallSchema,
 )
 from src.generation.generator import generate_answer
-from src.llm.factory import create_llm
+from src.llm.factory import create_llm, get_llm_config
 from src.retrieval.hybrid_retriever import hybrid_retrieve
 
 logger = logging.getLogger(__name__)
@@ -160,6 +160,8 @@ async def ask_endpoint(req: AskRequest) -> AskResponse:
         return await asyncio.to_thread(
             _run_legacy_pipeline, req.question, req.assistant_name
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     tool_calls = [ToolCallSchema(**tc) for tc in result.get("tool_calls", [])]
     sources = result.get("sources", [])
@@ -254,7 +256,7 @@ async def get_keys() -> dict[str, Any]:
             }
         elif isinstance(info, str) and info:
             masked[provider] = {"configured": True, "masked_key": _mask_key(info)}
-    return {"keys": masked}
+    return {"keys": masked, "active_provider": get_llm_config()["provider"]}
 
 
 @router.post("/keys/detect")
@@ -275,7 +277,7 @@ async def test_key(req: KeyTestRequest) -> dict[str, Any]:
     default_models = {
         "groq": "llama-3.3-70b-versatile",
         "gemini": "gemini-2.0-flash",
-        "openrouter": "meta-llama/llama-3.1-8b-instruct",
+        "openrouter": "openrouter/free",
         "openai": "gpt-4o-mini",
         "ollama": "llama3",
     }
@@ -295,15 +297,28 @@ async def test_key(req: KeyTestRequest) -> dict[str, Any]:
 
 @router.post("/keys/set")
 async def set_key(req: KeySetRequest) -> dict[str, Any]:
+    provider = req.provider.lower().strip()
+    if provider not in {"openai", "groq", "gemini", "openrouter", "ollama", "custom"}:
+        raise HTTPException(status_code=400, detail=f"Unknown provider '{req.provider}'.")
+
     data = _read_json_file(KEYS_PATH)
-    data[req.provider] = {
-        "api_key": req.api_key,
-        "base_url": req.base_url,
-        "model": req.model,
+    data[provider] = {
+        "api_key": req.api_key.strip(),
+        "base_url": (req.base_url or "").strip(),
+        "model": (req.model or "").strip(),
     }
     _write_json_file(KEYS_PATH, data)
-    os.environ[f"{req.provider.upper()}_API_KEY"] = req.api_key
-    return {"status": "ok", "provider": req.provider, "masked_key": _mask_key(req.api_key)}
+
+    config = _read_json_file(CONFIG_PATH)
+    config["provider"] = provider
+    config["model"] = (req.model or "").strip()
+    config["base_url"] = (req.base_url or "").strip()
+    _write_json_file(CONFIG_PATH, config)
+    return {
+        "status": "ok",
+        "provider": provider,
+        "masked_key": _mask_key(req.api_key.strip()),
+    }
 
 
 @router.delete("/keys/{provider}")
@@ -352,14 +367,16 @@ async def enhance_prompt(req: PromptEnhanceRequest) -> dict[str, str]:
 
 @router.get("/config")
 async def get_config() -> dict[str, Any]:
-    cfg = _read_json_file(CONFIG_PATH)
+    return get_llm_config()
+
+
+@router.get("/config/params")
+async def get_config_params() -> dict[str, float | int]:
+    config = get_llm_config()
     return {
-        "provider": cfg.get("provider", os.getenv("LLM_PROVIDER", "groq")),
-        "model": cfg.get("model", os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")),
-        "base_url": cfg.get("base_url", ""),
-        "temperature": float(cfg.get("temperature", 0.3)),
-        "max_tokens": int(cfg.get("max_tokens", 1024)),
-        "top_p": float(cfg.get("top_p", 0.9)),
+        "temperature": config["temperature"],
+        "max_tokens": config["max_tokens"],
+        "top_p": config["top_p"],
     }
 
 

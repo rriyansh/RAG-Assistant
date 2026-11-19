@@ -114,6 +114,19 @@ curl -X POST http://localhost:8000/ask \
 streamlit run ui/app.py
 ```
 
+### Run the full local preview (macOS)
+
+Install the backend and frontend dependencies once, then start both servers and open the browser:
+
+```bash
+uv venv .venv --python 3.11
+uv pip install --python .venv/bin/python -r requirements.txt
+npm --prefix frontend install
+bash scripts/dev.sh
+```
+
+The preview opens at `http://127.0.0.1:3000`; the API health check is at `http://127.0.0.1:8000/health`. Press `Ctrl+C` to stop both servers. Web search uses free public metasearch with a Wikipedia fallback and needs no search API key.
+
 ## Project Structure
 
 ```text

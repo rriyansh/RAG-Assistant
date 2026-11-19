@@ -38,7 +38,7 @@ const ICONS: Record<string, string> = {
 };
 
 function PixelIcon({ name }: { name: string }): JSX.Element {
-  const rows = (ICONS[name] ?? ICONS.bolt).split("/");
+  const rows = (ICONS[name] ?? "....##./...##../..##.../.######/...##../..##.../.##....").split("/");
   const cells: Array<[number, number]> = [];
   rows.forEach((r, y) => {
     for (let x = 0; x < r.length; x += 1) if (r[x] === "#") cells.push([x, y]);
@@ -124,7 +124,7 @@ export default function ChatComposer({
     setEnhancing(true);
     try {
       const res = await enhancePrompt(text);
-      setValue(res.enhanced);
+      setValue(res);
       inputRef.current?.focus();
     } catch {
       // silent
@@ -137,7 +137,7 @@ export default function ChatComposer({
   React.useEffect(() => {
     if (!prompts.length) return;
     if (reduced) {
-      setTyped(prompts[0]);
+      setTyped(prompts[0] ?? "");
       return;
     }
     let i = 0;
@@ -145,7 +145,7 @@ export default function ChatComposer({
     let back = false;
     let id = 0;
     const tick = (): void => {
-      const full = prompts[i % prompts.length];
+      const full = prompts[i % prompts.length] ?? "";
       if (!back) {
         n += 1;
         setTyped(full.slice(0, n));

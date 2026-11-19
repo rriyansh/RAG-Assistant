@@ -44,7 +44,7 @@ def register(reg: ToolRegistry) -> None:
     reg.register(
         ToolSpec(
             name="web_search",
-            description="Search the live web using DuckDuckGo/Tavily for up-to-date facts, news, or external references.",
+            description="Search the live web using free public metasearch and Wikipedia fallback for current facts and external references.",
             input_schema={
                 "type": "object",
                 "properties": {

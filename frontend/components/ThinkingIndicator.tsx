@@ -23,10 +23,10 @@ function loadThinkingPool(count: number): Promise<string[]> {
     return inflightFetch;
   }
 
-  inflightFetch = fetchThinking(count)
+  const request = fetchThinking(count)
     .then((res) => {
       const valid = Array.isArray(res.messages)
-        ? res.messages.map((m) => m.trim()).filter(Boolean)
+        ? res.messages.map((message) => message.trim()).filter(Boolean).slice(0, count)
         : [];
       if (valid.length > 0) {
         cachedMessages = valid;
@@ -36,10 +36,11 @@ function loadThinkingPool(count: number): Promise<string[]> {
     })
     .catch(() => DEFAULT_MESSAGES)
     .finally(() => {
-      inflightFetch = null;
+      if (inflightFetch === request) inflightFetch = null;
     });
 
-  return inflightFetch;
+  inflightFetch = request;
+  return request;
 }
 
 export function ThinkingIndicator({

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const BACKEND = process.env.RAG_BACKEND_URL ?? "http://localhost:8000";
+const BACKEND = process.env.RAG_BACKEND_URL ?? "http://127.0.0.1:8000";
 const DEFAULT_COUNT = 20;
 const MIN_COUNT = 1;
 const MAX_COUNT = 100;
@@ -15,22 +15,21 @@ function parseCount(raw: string | null): number {
   return Math.min(Math.max(parsed, MIN_COUNT), MAX_COUNT);
 }
 
-export async function GET(req: NextRequest): Promise<NextResponse> {
-  const count = parseCount(req.nextUrl.searchParams.get("count"));
-
-  const upstreamUrl = new URL("/thinking/messages", BACKEND);
-  upstreamUrl.searchParams.set("count", String(count));
-
+async function forward(
+  path: string,
+  method: "GET" | "POST",
+  body?: string
+): Promise<NextResponse> {
   try {
-    const res = await fetch(upstreamUrl.toString(), {
+    const res = await fetch(`${BACKEND}${path}`, {
+      method,
       cache: "no-store",
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body,
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
-
     const rawBody = await res.text();
     let data: unknown = null;
-
     if (rawBody) {
       try {
         data = JSON.parse(rawBody);
@@ -41,21 +40,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         );
       }
     }
-
-    if (!res.ok) {
-      return NextResponse.json(
-        typeof data === "object" && data !== null
-          ? data
-          : { error: `Backend returned status ${res.status}`, messages: [] },
-        { status: res.status }
-      );
-    }
-
-    return NextResponse.json(data ?? { messages: [] }, { status: 200 });
+    return NextResponse.json(data ?? { messages: [] }, { status: res.status });
   } catch (err) {
     const isTimeout =
-      err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
-
+      err instanceof Error &&
+      (err.name === "TimeoutError" || err.name === "AbortError");
     return NextResponse.json(
       {
         error: isTimeout
@@ -66,4 +55,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       { status: isTimeout ? 504 : 502 }
     );
   }
+}
+
+export async function GET(req: NextRequest): Promise<NextResponse> {
+  const count = parseCount(req.nextUrl.searchParams.get("count"));
+  return forward(`/thinking/messages?count=${count}`, "GET");
+}
+
+export async function POST(req: NextRequest): Promise<NextResponse> {
+  return forward("/thinking/generate", "POST", await req.text());
 }

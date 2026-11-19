@@ -42,8 +42,6 @@ class Settings(BaseSettings):
     top_k: int = 8
 
     # --- Web search ---
-    web_search_provider: str = "duckduckgo"     # "duckduckgo" or "tavily"
-    tavily_api_key: str = ""
     web_search_enabled: bool = True
     web_search_max_results: int = 4
     web_fallback_threshold: float = 0.40

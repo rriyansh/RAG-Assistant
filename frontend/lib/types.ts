@@ -11,6 +11,38 @@ export interface SourceItem {
   score?: number;
 }
 
+export interface Source extends SourceItem {
+  doc_name: string;
+  page_number: number;
+  score: number;
+}
+
+export type FontId =
+  | "system"
+  | "dm-sans"
+  | "josefin-sans"
+  | "fredoka"
+  | "open-sans"
+  | "outfit"
+  | "plus-jakarta-sans";
+
+export interface Profile {
+  name: string;
+  avatarDataUrl: string;
+  assistantName: string;
+  assistantLogo: string;
+  headline: string;
+  bodyText: string;
+  font: FontId;
+}
+
+export interface CannedResponse {
+  id: string;
+  trigger: string;
+  response: string;
+  matchMode: "contains" | "exact";
+}
+
 export interface ToolCall {
   id: string;
   name: string;
@@ -80,4 +112,24 @@ export interface KeyStatusMap {
     model?: string;
     base_url?: string;
   };
+}
+
+export interface KeyListResponse {
+  keys: KeyStatusMap;
+  active_provider?: string;
+}
+
+export interface KeySetPayload {
+  provider: string;
+  api_key: string;
+  model?: string;
+  base_url?: string;
+}
+
+export interface KeyTestResponse {
+  valid: boolean;
+  provider?: string;
+  model?: string;
+  reply?: string;
+  error?: string;
 }
