@@ -1,141 +1,116 @@
+# src/api/schemas.py
+from __future__ import annotations
+
 from typing import Any, Literal
-from urllib.parse import urlparse
+from pydantic import BaseModel, Field
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-PROVIDER_SLUG_RE = r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+class ToolCallSchema(BaseModel):
+    id: str = ""
+    name: str
+    args: dict[str, Any] = Field(default_factory=dict)
+    result_summary: str = ""
+    status: Literal["pending", "ok", "error"] = "ok"
+    duration_ms: int = 0
+    error: str | None = None
 
 
 class AskRequest(BaseModel):
-    question: str = Field(..., min_length=1, max_length=16_000)
-    assistant_name: str = Field(default="RAG Assistant", max_length=120)
-
-    @field_validator("question")
-    @classmethod
-    def validate_question(cls, value: str) -> str:
-        trimmed = value.strip()
-        if not trimmed:
-            raise ValueError("question cannot be empty or whitespace")
-        return trimmed
-
-    @field_validator("assistant_name")
-    @classmethod
-    def normalize_assistant_name(cls, value: str) -> str:
-        trimmed = value.strip()
-        return trimmed or "RAG Assistant"
-
-
-class SourceItem(BaseModel):
-    doc_name: str
-    page_number: int = Field(default=1, ge=0)
-    source_type: str
-    score: float
+    question: str = Field(..., min_length=1)
+    assistant_name: str = Field(default="Assistant")
+    consent: list[str] = Field(default_factory=list)
 
 
 class AskResponse(BaseModel):
     answer: str
-    sources: list[SourceItem] = Field(default_factory=list)
-    used_web_search: bool = False
-    llm_provider: str
+    sources: list[dict[str, Any]] = Field(default_factory=list)
+    source_type: str = "hybrid"
+    tool_calls: list[ToolCallSchema] = Field(default_factory=list)
+    pending_consent: list[str] = Field(default_factory=list)
 
 
-class HealthResponse(BaseModel):
+class PluginInfoSchema(BaseModel):
+    name: str
+    description: str
+    requires_consent: bool
+    source: Literal["internal", "mcp"]
+    enabled: bool = True
+    server_id: str | None = None
+
+
+class PluginsListResponse(BaseModel):
+    plugins: list[PluginInfoSchema]
+
+
+class PluginEnableRequest(BaseModel):
+    name: str
+    enabled: bool
+
+
+class PluginEnableResponse(BaseModel):
+    name: str
+    enabled: bool
     status: str = "ok"
 
 
-class _KeyCredentialBase(BaseModel):
-    provider: str = Field(..., min_length=1, max_length=64, pattern=PROVIDER_SLUG_RE)
-    api_key: str = Field(default="", max_length=512)
-    model: str = Field(default="", max_length=256)
-    base_url: str = Field(default="", max_length=512)
-
-    @field_validator("provider", "api_key", "model", "base_url", mode="before")
-    @classmethod
-    def strip_strings(cls, value: Any) -> Any:
-        return value.strip() if isinstance(value, str) else value
-
-    @field_validator("base_url")
-    @classmethod
-    def validate_base_url(cls, value: str) -> str:
-        if not value:
-            return ""
-        parsed = urlparse(value)
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            raise ValueError("base_url must be a valid http:// or https:// URL")
-        return value
+class MCPServerSchema(BaseModel):
+    id: str
+    transport: Literal["stdio", "http"]
+    status: str
+    tool_count: int
+    url_or_command: str
 
 
-class KeySetRequest(_KeyCredentialBase):
-    pass
+class MCPServersListResponse(BaseModel):
+    servers: list[MCPServerSchema]
 
 
-class KeyTestRequest(_KeyCredentialBase):
-    pass
-
-
-class KeyTestResponse(BaseModel):
-    ok: bool
-    reply: str = ""
-    error: str = ""
-
-
-class KeyInfo(BaseModel):
-    model_config = ConfigDict(extra="allow")
-
-    configured: bool = False
-    masked_key: str = ""
-    model: str = ""
-    base_url: str = ""
-
-
-class KeyListResponse(BaseModel):
-    keys: dict[str, KeyInfo] = Field(default_factory=dict)
-    active_provider: str = ""
+class MCPServerCreateRequest(BaseModel):
+    id: str = Field(..., min_length=1, pattern=r"^[a-zA-Z0-9_-]+$")
+    transport: Literal["stdio", "http"]
+    command: str | None = None
+    args: list[str] | None = None
+    url: str | None = None
+    prefix: str | None = None
 
 
 class KeyDetectRequest(BaseModel):
-    api_key: str = Field(default="", max_length=512)
-
-    @field_validator("api_key", mode="before")
-    @classmethod
-    def strip_api_key(cls, value: Any) -> Any:
-        return value.strip() if isinstance(value, str) else value
+    api_key: str
 
 
-class KeyDetectResponse(BaseModel):
+class KeyTestRequest(BaseModel):
     provider: str
-    hint: str = ""
+    api_key: str
+    base_url: str | None = None
+    model: str | None = None
 
 
-class ThinkingResponse(BaseModel):
-    messages: list[str]
-    generated_by: Literal["template", "llm"] | str
+class KeySetRequest(BaseModel):
+    provider: str
+    api_key: str
+    base_url: str | None = None
+    model: str | None = None
 
 
-class EnhanceRequest(BaseModel):
-    prompt: str = Field(..., min_length=1, max_length=16_000)
-
-    @field_validator("prompt")
-    @classmethod
-    def validate_prompt(cls, value: str) -> str:
-        trimmed = value.strip()
-        if not trimmed:
-            raise ValueError("prompt cannot be empty or whitespace")
-        return trimmed
+class ThinkingGenerateRequest(BaseModel):
+    question: str
+    assistant_name: str = "Assistant"
 
 
-class EnhanceResponse(BaseModel):
-    original: str
-    enhanced: str
+class PromptEnhanceRequest(BaseModel):
+    prompt: str
 
 
-class ParamsResponse(BaseModel):
-    llm_provider: str
-    embedding_provider: str
-    embedding_model: str
-    chunk_size: int = Field(..., ge=1)
-    chunk_overlap: int = Field(..., ge=0)
-    top_k: int = Field(..., ge=1)
-    web_search_provider: str
-    web_search_enabled: bool
-    web_fallback_threshold: float
+class ConfigUpdateRequest(BaseModel):
+    provider: str | None = None
+    model: str | None = None
+    base_url: str | None = None
+    temperature: float | None = None
+    max_tokens: int | None = None
+    top_p: float | None = None
+
+
+class ConfigParamsUpdateRequest(BaseModel):
+    temperature: float | None = None
+    max_tokens: int | None = None
+    top_p: float | None = None
