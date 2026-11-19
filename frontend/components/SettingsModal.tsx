@@ -35,19 +35,21 @@ export interface SettingsModalProps {
   onClose: () => void;
 }
 
-type TabKey = "keys" | "model" | "plugins" | "security";
+type TabKey = "plugins" | "keys" | "model" | "security";
 
 const PROVIDERS = ["groq", "gemini", "openrouter", "openai", "ollama", "custom"];
 
 export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
-  const modalOpen = Boolean(isOpen ?? open);
+  const modalVisible = Boolean(isOpen ?? open);
   const [activeTab, setActiveTab] = useState<TabKey>("plugins");
 
+  // Keys state
   const [keys, setKeys] = useState<KeyStatusMap>({});
   const [selectedProvider, setSelectedProvider] = useState<string>("groq");
   const [apiKeyInput, setApiKeyInput] = useState<string>("");
   const [keyStatusMsg, setKeyStatusMsg] = useState<string | null>(null);
 
+  // Model config state
   const [config, setConfig] = useState<LLMConfig>({
     provider: "groq",
     model: "llama-3.3-70b-versatile",
@@ -57,6 +59,7 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
     top_p: 0.9,
   });
 
+  // Plugins & MCP state
   const [plugins, setPlugins] = useState<PluginInfo[]>([]);
   const [mcpServers, setMcpServers] = useState<MCPServer[]>([]);
   const [mcpId, setMcpId] = useState<string>("");
@@ -68,15 +71,22 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
   const [pluginError, setPluginError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!modalOpen) return;
+    if (!modalVisible) return;
     loadAllData();
-  }, [modalOpen]);
+  }, [modalVisible]);
 
   async function loadAllData() {
     try {
       const [kData, cData, pData, sData] = await Promise.all([
         fetchKeys().catch(() => ({})),
-        fetchConfig().catch(() => config),
+        fetchConfig().catch(() => ({
+          provider: "groq",
+          model: "llama-3.3-70b-versatile",
+          base_url: "",
+          temperature: 0.3,
+          max_tokens: 1024,
+          top_p: 0.9,
+        })),
         fetchPlugins().catch(() => []),
         fetchMcpServers().catch(() => []),
       ]);
@@ -85,7 +95,7 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
       setPlugins(pData);
       setMcpServers(sData);
     } catch {
-      // handled per promise
+      // Errors handled per-fetch above
     }
   }
 
@@ -175,7 +185,7 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
       setKeyStatusMsg(
         testRes.valid
           ? `Saved and verified ${selectedProvider} key.`
-          : `Saved key (verification warning: ${testRes.error || "check model"}).`
+          : `Saved key (verification notice: ${testRes.error || "check model"}).`
       );
     } catch (err) {
       setKeyStatusMsg(
@@ -194,11 +204,12 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
     setKeyStatusMsg("Model parameters saved.");
   }
 
-  if (!modalOpen) return null;
+  if (!modalVisible) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
       <div className="flex h-[82vh] w-full max-w-3xl flex-col rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-2xl overflow-hidden">
+        {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
           <h2 className="text-lg font-semibold">Assistant Settings</h2>
           <button
@@ -210,6 +221,7 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
           </button>
         </div>
 
+        {/* Navigation Tabs */}
         <div className="flex border-b border-slate-800 bg-slate-950/40 px-6">
           <button
             type="button"
@@ -261,6 +273,7 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
           </button>
         </div>
 
+        {/* Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {activeTab === "plugins" && (
             <div className="space-y-6">
@@ -270,6 +283,7 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
                 </div>
               )}
 
+              {/* Registered Tools List */}
               <div>
                 <h3 className="text-sm font-semibold text-slate-200 mb-1">
                   Registered Tools & Plugins
@@ -331,6 +345,7 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
                 </div>
               </div>
 
+              {/* MCP Servers Section */}
               <div className="space-y-3 pt-2 border-t border-slate-800">
                 <div className="flex items-center gap-2">
                   <Server className="h-4 w-4 text-indigo-400" />
@@ -339,6 +354,7 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
                   </h3>
                 </div>
 
+                {/* Existing MCP servers */}
                 <div className="space-y-2">
                   {mcpServers.length === 0 ? (
                     <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-xs text-slate-500">
@@ -385,6 +401,7 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
                   )}
                 </div>
 
+                {/* Add MCP Server Form */}
                 <form
                   onSubmit={handleAddMcpServer}
                   className="rounded-xl border border-slate-800 bg-slate-950/50 p-4 space-y-3"
@@ -535,4 +552,169 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
                     <button
                       type="button"
                       onClick={() => handleDeleteKey(prov)}
-                      className="text-rose-400 hover:text-rose
+                      className="text-rose-400 hover:text-rose-300"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === "model" && (
+            <div className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-400 mb-1">Provider</label>
+                  <select
+                    value={config.provider}
+                    onChange={(e) =>
+                      setConfig({ ...config, provider: e.target.value })
+                    }
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"
+                  >
+                    {PROVIDERS.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1">Model Name</label>
+                  <input
+                    type="text"
+                    value={config.model}
+                    onChange={(e) =>
+                      setConfig({ ...config, model: e.target.value })
+                    }
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-slate-400 mb-1">
+                    Temperature ({config.temperature})
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="2"
+                    value={config.temperature}
+                    onChange={(e) =>
+                      setConfig({
+                        ...config,
+                        temperature: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1">Max Tokens</label>
+                  <input
+                    type="number"
+                    value={config.max_tokens}
+                    onChange={(e) =>
+                      setConfig({
+                        ...config,
+                        max_tokens: parseInt(e.target.value, 10) || 1024,
+                      })
+                    }
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1">Top P</label>
+                  <input
+                    type="number"
+                    step="0.05"
+                    min="0"
+                    max="1"
+                    value={config.top_p}
+                    onChange={(e) =>
+                      setConfig({
+                        ...config,
+                        top_p: parseFloat(e.target.value) || 0.9,
+                      })
+                    }
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveModelConfig}
+                className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-500"
+              >
+                Save Configuration
+              </button>
+            </div>
+          )}
+
+          {activeTab === "security" && (
+            <div className="space-y-4 text-xs text-slate-300 leading-relaxed">
+              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 space-y-2">
+                <h4 className="font-semibold text-slate-100">
+                  Local File Permissions (chmod 0600)
+                </h4>
+                <p className="text-slate-400">
+                  API credentials (<code className="text-slate-200">data/keys.json</code>),
+                  plugin toggle states (<code className="text-slate-200">data/plugins.json</code>),
+                  and MCP server configurations (<code className="text-slate-200">data/mcp_servers.json</code>)
+                  are written atomically with owner-only read/write permissions (<code className="text-slate-200">0600</code>)
+                  and excluded from version control.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-indigo-500/30 bg-indigo-950/20 p-4 space-y-2">
+                <h4 className="font-semibold text-indigo-200">
+                  MCP Command Allow-List & Transport Security
+                </h4>
+                <ul className="list-disc pl-5 space-y-1 text-slate-300">
+                  <li>
+                    <strong>Stdio Allow-List:</strong> Only{" "}
+                    <code className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-indigo-300">
+                      npx
+                    </code>
+                    ,{" "}
+                    <code className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-indigo-300">
+                      uvx
+                    </code>
+                    ,{" "}
+                    <code className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-indigo-300">
+                      python
+                    </code>
+                    , and{" "}
+                    <code className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-indigo-300">
+                      node
+                    </code>{" "}
+                    executables are permitted when spawning local stdio MCP servers. Any other binary or path is rejected with HTTP 400.
+                  </li>
+                  <li>
+                    <strong>Mandatory User Consent:</strong> Every tool registered from an MCP server defaults to{" "}
+                    <code className="font-mono text-amber-300">requires_consent=True</code> and pauses the agent loop for explicit interactive approval before running.
+                  </li>
+                  <li>
+                    <strong>HTTPS Enforcement:</strong> Remote Streamable HTTP MCP endpoints must use{" "}
+                    <code className="font-mono text-emerald-300">https://</code> unless bound to{" "}
+                    <code className="font-mono">localhost</code> or{" "}
+                    <code className="font-mono">127.0.0.1</code>.
+                  </li>
+                  <li>
+                    <strong>Execution Guardrails:</strong> All tool call arguments are validated against their JSON Schema, capped at 10 KB input size, 4,000 characters output size, and 12 agent turns maximum.
+                  </li>
+                </ul>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default SettingsModal;
