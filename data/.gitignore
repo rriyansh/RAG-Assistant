@@ -1,0 +1,7 @@
+# data/.gitignore
+keys.json
+connectors.json
+mcp_servers.json
+plugins.json
+config.json
+*.tmp
