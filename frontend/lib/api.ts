@@ -1,87 +1,195 @@
-import type {
-  AskResponse, KeyListResponse, KeySetPayload, KeyTestResponse,
-  KeyDetectResponse, ThinkingResponse, EnhanceResponse, ParamsInfo,
+// lib/api.ts
+import {
+  AskApiResponse,
+  KeyStatusMap,
+  LLMConfig,
+  MCPServer,
+  PluginInfo,
 } from "./types";
 
-const jsonHeaders = { "Content-Type": "application/json" };
-
-async function asJson<T>(res: Response): Promise<T> {
+async function handleJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let detail = `HTTP ${res.status}`;
     try {
       const body = await res.json();
-      if (body?.error || body?.detail) detail = body.error ?? body.detail;
-    } catch {}
+      detail = body.detail || body.error || detail;
+    } catch {
+      // ignore json parse failure
+    }
     throw new Error(detail);
   }
-  return (await res.json()) as T;
+  return res.json() as Promise<T>;
 }
 
 export async function askQuestion(
   question: string,
-  assistantName = "RAG Assistant"
-): Promise<AskResponse> {
+  assistantName: string = "Assistant",
+  consent: string[] = []
+): Promise<AskApiResponse> {
   const res = await fetch("/api/ask", {
     method: "POST",
-    headers: jsonHeaders,
-    body: JSON.stringify({ question, assistant_name: assistantName }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      question,
+      assistant_name: assistantName,
+      consent,
+    }),
+  });
+  return handleJson<AskApiResponse>(res);
+}
+
+export async function fetchPlugins(): Promise<PluginInfo[]> {
+  const res = await fetch("/api/plugins", { method: "GET", cache: "no-store" });
+  const data = await handleJson<{ plugins: PluginInfo[] }>(res);
+  return data.plugins || [];
+}
+
+export async function togglePlugin(
+  name: string,
+  enabled: boolean
+): Promise<{ name: string; enabled: boolean }> {
+  const res = await fetch("/api/plugins/enable", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, enabled }),
+  });
+  return handleJson<{ name: string; enabled: boolean }>(res);
+}
+
+export async function fetchMcpServers(): Promise<MCPServer[]> {
+  const res = await fetch("/api/mcp/servers", {
+    method: "GET",
     cache: "no-store",
   });
-  return asJson<AskResponse>(res);
+  const data = await handleJson<{ servers: MCPServer[] }>(res);
+  return data.servers || [];
 }
 
-export async function fetchKeys(): Promise<KeyListResponse> {
-  const res = await fetch("/api/keys", { cache: "no-store" });
-  return asJson<KeyListResponse>(res);
-}
-
-export async function detectKey(apiKey: string): Promise<KeyDetectResponse> {
-  const res = await fetch("/api/keys/detect", {
+export async function addMcpServer(payload: {
+  id: string;
+  transport: "stdio" | "http";
+  command?: string;
+  args?: string[];
+  url?: string;
+  prefix?: string;
+}): Promise<MCPServer> {
+  const res = await fetch("/api/mcp/servers", {
     method: "POST",
-    headers: jsonHeaders,
-    body: JSON.stringify({ api_key: apiKey }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
-  return asJson<KeyDetectResponse>(res);
+  return handleJson<MCPServer>(res);
 }
 
-export async function testKey(p: KeySetPayload): Promise<KeyTestResponse> {
-  const res = await fetch("/api/keys/test", {
-    method: "POST",
-    headers: jsonHeaders,
-    body: JSON.stringify(p),
+export async function removeMcpServer(id: string): Promise<void> {
+  const res = await fetch(`/api/mcp/servers/${encodeURIComponent(id)}`, {
+    method: "DELETE",
   });
-  return asJson<KeyTestResponse>(res);
+  await handleJson<{ id: string; status: string }>(res);
 }
 
-export async function saveKey(p: KeySetPayload): Promise<{ ok: boolean }> {
-  const res = await fetch("/api/keys/set", {
-    method: "POST",
-    headers: jsonHeaders,
-    body: JSON.stringify(p),
-  });
-  return asJson<{ ok: boolean }>(res);
+export async function fetchThinkingMessages(
+  question?: string,
+  assistantName: string = "Assistant"
+): Promise<string[]> {
+  if (question) {
+    const res = await fetch("/api/thinking/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, assistant_name: assistantName }),
+    });
+    const data = await handleJson<{ messages: string[] }>(res);
+    return data.messages;
+  }
+  const res = await fetch("/api/thinking/messages");
+  const data = await handleJson<{ messages: string[] }>(res);
+  return data.messages;
 }
 
-export async function deleteKey(provider: string): Promise<{ ok: boolean }> {
-  const res = await fetch(`/api/keys/${provider}`, { method: "DELETE" });
-  return asJson<{ ok: boolean }>(res);
-}
-
-export async function fetchThinking(count = 20): Promise<ThinkingResponse> {
-  const res = await fetch(`/api/thinking/messages?count=${count}`, { cache: "no-store" });
-  return asJson<ThinkingResponse>(res);
-}
-
-export async function enhancePrompt(prompt: string): Promise<EnhanceResponse> {
+export async function enhancePrompt(prompt: string): Promise<string> {
   const res = await fetch("/api/prompt/enhance", {
     method: "POST",
-    headers: jsonHeaders,
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt }),
   });
-  return asJson<EnhanceResponse>(res);
+  const data = await handleJson<{ enhanced_prompt: string }>(res);
+  return data.enhanced_prompt;
 }
 
-export async function fetchParams(): Promise<ParamsInfo> {
-  const res = await fetch("/api/config/params", { cache: "no-store" });
-  return asJson<ParamsInfo>(res);
+export async function fetchKeys(): Promise<KeyStatusMap> {
+  const res = await fetch("/api/keys", { cache: "no-store" });
+  const data = await handleJson<{ keys: KeyStatusMap }>(res);
+  return data.keys || {};
+}
+
+export async function detectKeyProvider(apiKey: string): Promise<string> {
+  const res = await fetch("/api/keys/detect", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ api_key: apiKey }),
+  });
+  const data = await handleJson<{ provider: string }>(res);
+  return data.provider;
+}
+
+export async function testProviderKey(payload: {
+  provider: string;
+  api_key: string;
+  base_url?: string;
+  model?: string;
+}): Promise<{ valid: boolean; error?: string }> {
+  const res = await fetch("/api/keys/test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return handleJson<{ valid: boolean; error?: string }>(res);
+}
+
+export async function saveProviderKey(payload: {
+  provider: string;
+  api_key: string;
+  base_url?: string;
+  model?: string;
+}): Promise<void> {
+  const res = await fetch("/api/keys/set", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  await handleJson(res);
+}
+
+export async function deleteProviderKey(provider: string): Promise<void> {
+  const res = await fetch(`/api/keys/${encodeURIComponent(provider)}`, {
+    method: "DELETE",
+  });
+  await handleJson(res);
+}
+
+export async function fetchConfig(): Promise<LLMConfig> {
+  const res = await fetch("/api/config", { cache: "no-store" });
+  return handleJson<LLMConfig>(res);
+}
+
+export async function updateConfig(config: Partial<LLMConfig>): Promise<void> {
+  const res = await fetch("/api/config", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(config),
+  });
+  await handleJson(res);
+}
+
+export async function updateConfigParams(params: {
+  temperature?: number;
+  max_tokens?: number;
+  top_p?: number;
+}): Promise<void> {
+  const res = await fetch("/api/config/params", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  await handleJson(res);
 }
