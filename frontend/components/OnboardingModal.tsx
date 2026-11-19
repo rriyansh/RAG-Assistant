@@ -21,11 +21,12 @@ export interface OnboardingModalProps {
 }
 
 const FONT_OPTIONS: Array<{ id: FontId; label: string; family: string }> = [
-  { id: "open-sans", label: "Open Sans (Default)", family: "'Open Sans', sans-serif" },
-  { id: "plus-jakarta-sans", label: "Plus Jakarta Sans", family: "'Plus Jakarta Sans', sans-serif" },
+  { id: "plus-jakarta-sans", label: "Plus Jakarta Sans (Default)", family: "'Plus Jakarta Sans', sans-serif" },
+  { id: "open-sans", label: "Open Sans", family: "'Open Sans', sans-serif" },
   { id: "dm-sans", label: "DM Sans", family: "'DM Sans', sans-serif" },
   { id: "outfit", label: "Outfit", family: "'Outfit', sans-serif" },
   { id: "josefin-sans", label: "Josefin Sans", family: "'Josefin Sans', sans-serif" },
+  { id: "fredoka", label: "Fredoka", family: "'Fredoka', sans-serif" },
   { id: "system", label: "System Default", family: "system-ui, sans-serif" },
 ];
 

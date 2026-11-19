@@ -83,13 +83,13 @@ const DEFAULT_MODELS: Record<string, string> = {
 };
 
 const FONT_OPTIONS: Array<{ id: FontId; label: string }> = [
+  { id: "plus-jakarta-sans", label: "Plus Jakarta Sans (Default)" },
   { id: "open-sans", label: "Open Sans" },
   { id: "system", label: "System Default" },
   { id: "dm-sans", label: "DM Sans" },
   { id: "josefin-sans", label: "Josefin Sans" },
   { id: "fredoka", label: "Fredoka" },
   { id: "outfit", label: "Outfit" },
-  { id: "plus-jakarta-sans", label: "Plus Jakarta Sans" },
 ];
 
 const CONNECTOR_CATEGORIES: Array<{ id: string; title: string }> = [
@@ -309,7 +309,7 @@ function ConnectorBrandLogo({ id }: { id: string }) {
 function ProviderBrandLogo({ provider }: { provider: string }) {
   if (provider === "custom") return <Plug aria-hidden className="h-5 w-5 shrink-0" />;
   const icon = provider === "anthropic" ? "claude" : provider;
-  return <img src={`/providers/${icon}.svg`} alt="" className="h-5 w-5 shrink-0 object-contain invert" />;
+  return <img src={`/providers/${icon}.svg`} alt="" className="h-5 w-5 shrink-0 object-contain" />;
 }
 
 export function SettingsModal({ isOpen, open, onClose, profileState }: SettingsModalProps) {

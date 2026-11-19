@@ -19,7 +19,7 @@ export const DEFAULT_PROFILE: UserProfile = {
   assistantName: "Reso Agent",
   headline: "Grounded Knowledge & Code Synthesis",
   bodyText: "Search documents, connect workspace tools, and generate code or documents.",
-  font: "open-sans",
+  font: "plus-jakarta-sans",
   avatarDataUrl: INBUILT_USER_PFPS[0]!.url,
   assistantLogo: DEFAULT_RAG_ASSISTANT_LOGO,
 };
@@ -66,7 +66,7 @@ export function useProfile() {
           ...DEFAULT_PROFILE,
           ...parsed,
           assistantName: parsed.assistantName || "Reso Agent",
-          font: (parsed.font as FontId) || "open-sans",
+          font: (parsed.font as FontId) || "plus-jakarta-sans",
           avatarDataUrl: parsed.avatarDataUrl || savedAvatar || INBUILT_USER_PFPS[0]!.url,
           assistantLogo:
             parsed.assistantLogo !== undefined

@@ -79,7 +79,7 @@ export default function HomePage() {
 
   const showOnboarding = hydrated && !isOnboarded;
   const activeFontFamily =
-    FONT_STACK_MAP[profile.font] || FONT_STACK_MAP["open-sans"];
+    FONT_STACK_MAP[profile.font] || FONT_STACK_MAP["plus-jakarta-sans"];
   React.useEffect(() => {
     if (hydrated) document.documentElement.dataset.font = profile.font;
   }, [hydrated, profile.font]);

@@ -72,11 +72,13 @@ cp .env.example .env
 Set your API key and model preferences:
 
 ```env
-OPENAI_API_KEY=sk-...
+NVIDIA_API_KEY=
 EMBEDDING_MODEL=text-embedding-3-small
 LLM_MODEL=gpt-4o-mini
 CHROMA_PERSIST_DIR=./data/chroma
 ```
+
+Set `NVIDIA_API_KEY` on the backend to enable hosted NVIDIA chat for users without a personal key. Keep the value in the server environment or an uncommitted `.env` file; never expose it through frontend configuration. Users can also configure their own provider keys in Settings.
 
 ### 3. Add documents and build the index
 
