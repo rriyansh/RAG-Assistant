@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 const fontScript = `
 try {
-  var raw = localStorage.getItem("rag.profile");
+  var raw = localStorage.getItem("rag_assistant_user_profile_v4");
   if (raw) {
     var p = JSON.parse(raw);
     if (p && typeof p.font === "string") {

@@ -1,3 +1,4 @@
+import { backendFetch } from "@/lib/backend";
 // app/api/plugins/route.ts
 import { NextResponse } from "next/server";
 
@@ -8,7 +9,7 @@ const BACKEND_URL =
 
 export async function GET() {
   try {
-    const res = await fetch(`${BACKEND_URL}/plugins`, {
+    const res = await backendFetch(`${BACKEND_URL}/plugins`, {
       method: "GET",
       cache: "no-store",
     });

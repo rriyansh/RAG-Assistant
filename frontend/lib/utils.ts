@@ -143,7 +143,7 @@ export function detectProviderFromKeyString(rawKey: string): string | null {
   if (key.startsWith("sk-ant-")) return "anthropic";
   if (key.startsWith("sk-ds-") || key.startsWith("ds-")) return "deepseek";
   if (key.startsWith("sk-qwen-") || key.startsWith("qwen-")) return "qwen";
-  if (key.startsWith("sk-proj-") || key.startsWith("sk-")) return "openai";
+  if (key.startsWith("sk-proj-") || key.startsWith("sk-svcacct-")) return "openai";
   if (key.startsWith("http://localhost:11434") || key.toLowerCase() === "ollama") return "ollama";
   return null;
 }
@@ -211,7 +211,7 @@ export function triggerFileDownload(
 
   if (format === "pdf" || filename.endsWith(".pdf")) {
     const bytes = buildSimplePdfBytes(filename, content);
-    blob = new Blob([bytes], { type: "application/pdf" });
+    blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
     if (!finalName.endsWith(".pdf")) finalName += ".pdf";
   } else if (
     format === "doc" ||

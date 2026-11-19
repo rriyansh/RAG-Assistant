@@ -20,7 +20,7 @@ export const DEFAULT_PROFILE: UserProfile = {
   headline: "Grounded Knowledge & Code Synthesis",
   bodyText: "Search documents, connect workspace tools, and generate code or documents.",
   font: "open-sans",
-  avatarDataUrl: INBUILT_USER_PFPS[0].url,
+  avatarDataUrl: INBUILT_USER_PFPS[0]!.url,
   assistantLogo: DEFAULT_RAG_ASSISTANT_LOGO,
 };
 
@@ -67,7 +67,7 @@ export function useProfile() {
           ...parsed,
           assistantName: parsed.assistantName || "Reso Agent",
           font: (parsed.font as FontId) || "open-sans",
-          avatarDataUrl: parsed.avatarDataUrl || savedAvatar || INBUILT_USER_PFPS[0].url,
+          avatarDataUrl: parsed.avatarDataUrl || savedAvatar || INBUILT_USER_PFPS[0]!.url,
           assistantLogo:
             parsed.assistantLogo !== undefined
               ? parsed.assistantLogo
@@ -123,7 +123,7 @@ export function useProfile() {
   );
 
   const clearAvatar = useCallback(() => {
-    update({ avatarDataUrl: INBUILT_USER_PFPS[0].url });
+    update({ avatarDataUrl: INBUILT_USER_PFPS[0]!.url });
   }, [update]);
 
   const setAssistantLogoFromFile = useCallback(

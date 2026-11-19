@@ -89,12 +89,12 @@ class LLMProvider:
 
     def generate(
         self,
-        prompt: str,
+        prompt: str | list[dict[str, Any]],
         system_prompt: str = "You are a helpful AI assistant.",
         temperature: float | None = None,
         max_tokens: int | None = None,
     ) -> str:
-        messages = [
+        messages = prompt if isinstance(prompt, list) else [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt},
         ]

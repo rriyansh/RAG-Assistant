@@ -106,6 +106,7 @@ export interface AskApiResponse {
 }
 
 export interface LLMConfig {
+  hosted?: boolean;
   provider: string;
   model: string;
   base_url?: string;
@@ -124,6 +125,12 @@ export interface KeyStatusMap {
 }
 
 export interface KeyListResponse {
+  hosted_ready?: boolean;
   keys: KeyStatusMap;
   active_provider?: string;
 }
+
+export interface KeySetPayload { provider: string; api_key: string; model?: string; base_url?: string }
+export interface KeyTestResponse { valid: boolean; model?: string; error?: string }
+export interface Source { doc_name: string; page_number: number; score: number }
+export interface CannedResponse { id: string; trigger: string; response: string; matchMode: "exact" | "contains" }

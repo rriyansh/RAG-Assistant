@@ -10,7 +10,11 @@ from fastapi import APIRouter, HTTPException
 
 from src.agent.connectors import ConnectorError, connector_manager
 from src.agent.loop import ToolNotSupportedError, run_agent
-from src.agent.registry import registry
+from src.agent.registry import ToolRegistry
+from src.agent import register_internal_plugins
+from src.agent.connectors import ConnectorManager
+from src.utils.workspace import workspace_path, session_id
+from fastapi import Depends
 from src.api.schemas import (
     AskRequest,
     AskResponse,
@@ -45,7 +49,18 @@ KEYS_PATH = Path("data/keys.json")
 CONFIG_PATH = Path("data/config.json")
 
 
+async def active_connectors() -> ConnectorManager:
+    if not session_id.get():
+        return connector_manager
+    reg = ToolRegistry(workspace_path(Path("data/plugins.json")))
+    register_internal_plugins(reg)
+    manager = ConnectorManager(reg, workspace_path(Path("data/connectors.json")))
+    await manager.startup()
+    return manager
+
+
 def _read_json(path: Path) -> dict[str, Any]:
+    path = workspace_path(path)
     if not path.exists():
         return {}
     try:
@@ -55,6 +70,7 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    path = workspace_path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -81,47 +97,42 @@ def _detect_provider(api_key: str) -> str:
         return "deepseek"
     if k.startswith("sk-qwen-") or k.startswith("qwen-"):
         return "qwen"
-    if k.startswith("sk-"):
+    if k.startswith(("sk-proj-", "sk-svcacct-")):
         return "openai"
     return "custom"
 
 
 def _run_legacy(question: str, assistant_name: str) -> AskResponse:
-    ret = hybrid_retrieve(question)
-    chunks = (
-        ret.get("results", ret.get("chunks", []))
-        if isinstance(ret, dict)
-        else (list(ret) if isinstance(ret, list) else [])
-    )
-    gen = generate_answer(question, chunks, assistant_name=assistant_name)
-    ans = gen.get("answer", "") if isinstance(gen, dict) else str(gen)
+    chunks, used_web = hybrid_retrieve(question)
     return AskResponse(
-        answer=ans,
-        sources=chunks if isinstance(chunks, list) else [],
-        source_type="hybrid",
+        answer=generate_answer(question, chunks, assistant_name=assistant_name),
+        sources=[{**vars(chunk), "page": chunk.page_number} for chunk in chunks],
+        source_type="hybrid" if used_web else "pdf",
     )
 
 
 @router.get("/health")
-async def health() -> dict[str, Any]:
+async def health(manager: ConnectorManager = Depends(active_connectors)) -> dict[str, Any]:
     return {
         "status": "ok",
-        "tools": len(registry.list_public()),
+        "tools": len(manager.registry.list_public()),
         "free_nvidia_ready": bool(get_builtin_nvidia_key()),
     }
 
 
 @router.post("/ask", response_model=AskResponse)
-async def ask(req: AskRequest) -> AskResponse:
+async def ask(req: AskRequest, manager: ConnectorManager = Depends(active_connectors)) -> AskResponse:
     if (
         os.getenv("AGENT_ENABLED", "true").lower() == "false"
-        or not registry.list_for_llm()
+        or not manager.registry.list_for_llm()
     ):
         return await asyncio.to_thread(_run_legacy, req.question, req.assistant_name)
     try:
         res = await run_agent(
-            req.question, req.assistant_name, registry, consent=req.consent
+            req.question, req.assistant_name, manager.registry, consent=req.consent
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ToolNotSupportedError:
         return await asyncio.to_thread(_run_legacy, req.question, req.assistant_name)
     return AskResponse(
@@ -134,20 +145,20 @@ async def ask(req: AskRequest) -> AskResponse:
 
 
 @router.get("/connectors", response_model=ConnectorsListResponse)
-async def get_connectors() -> ConnectorsListResponse:
+async def get_connectors(manager: ConnectorManager = Depends(active_connectors)) -> ConnectorsListResponse:
     return ConnectorsListResponse(
         connectors=[
-            ConnectorInfoSchema(**c) for c in connector_manager.list_connectors()
+            ConnectorInfoSchema(**c) for c in manager.list_connectors()
         ]
     )
 
 
 @router.post("/connectors/connect", response_model=ConnectorInfoSchema)
-async def post_connect(req: ConnectorConnectRequest) -> ConnectorInfoSchema:
+async def post_connect(req: ConnectorConnectRequest, manager: ConnectorManager = Depends(active_connectors)) -> ConnectorInfoSchema:
     try:
         return ConnectorInfoSchema(
             **await asyncio.to_thread(
-                connector_manager.connect, req.id, req.credentials
+                manager.connect, req.id, req.credentials
             )
         )
     except ConnectorError as e:
@@ -155,11 +166,11 @@ async def post_connect(req: ConnectorConnectRequest) -> ConnectorInfoSchema:
 
 
 @router.post("/connectors/custom", response_model=ConnectorInfoSchema)
-async def post_custom(req: CustomConnectorCreateRequest) -> ConnectorInfoSchema:
+async def post_custom(req: CustomConnectorCreateRequest, manager: ConnectorManager = Depends(active_connectors)) -> ConnectorInfoSchema:
     try:
         return ConnectorInfoSchema(
             **await asyncio.to_thread(
-                connector_manager.add_custom_connector,
+                manager.add_custom_connector,
                 req.id,
                 req.name,
                 req.description,
@@ -173,31 +184,31 @@ async def post_custom(req: CustomConnectorCreateRequest) -> ConnectorInfoSchema:
 
 
 @router.post("/connectors/toggle", response_model=ConnectorInfoSchema)
-async def post_toggle(req: ConnectorToggleRequest) -> ConnectorInfoSchema:
+async def post_toggle(req: ConnectorToggleRequest, manager: ConnectorManager = Depends(active_connectors)) -> ConnectorInfoSchema:
     try:
         return ConnectorInfoSchema(
-            **connector_manager.set_enabled(req.id, req.enabled)
+            **manager.set_enabled(req.id, req.enabled)
         )
     except ConnectorError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.delete("/connectors/{connector_id}")
-async def del_connector(connector_id: str) -> dict[str, str]:
-    connector_manager.disconnect(connector_id)
+async def del_connector(connector_id: str, manager: ConnectorManager = Depends(active_connectors)) -> dict[str, str]:
+    manager.disconnect(connector_id)
     return {"id": connector_id, "status": "disconnected"}
 
 
 @router.get("/plugins", response_model=PluginsListResponse)
-async def get_plugins() -> PluginsListResponse:
+async def get_plugins(manager: ConnectorManager = Depends(active_connectors)) -> PluginsListResponse:
     return PluginsListResponse(
-        plugins=[PluginInfoSchema(**p) for p in registry.list_public()]
+        plugins=[PluginInfoSchema(**p) for p in manager.registry.list_public()]
     )
 
 
 @router.post("/plugins/enable")
-async def enable_plugin(req: PluginEnableRequest) -> dict[str, Any]:
-    registry.set_enabled(req.name, req.enabled)
+async def enable_plugin(req: PluginEnableRequest, manager: ConnectorManager = Depends(active_connectors)) -> dict[str, Any]:
+    manager.registry.set_enabled(req.name, req.enabled)
     return {"name": req.name, "enabled": req.enabled}
 
 
@@ -215,7 +226,7 @@ async def get_keys() -> dict[str, Any]:
     }
     if "nvidia" not in masked and get_builtin_nvidia_key():
         masked["nvidia"] = {"configured": True, "masked_key": "Free Built-in Tier"}
-    return {"keys": masked, "active_provider": cfg.get("provider", "nvidia")}
+    return {"hosted_ready": bool(get_builtin_nvidia_key()), "keys": masked, "active_provider": cfg.get("provider", "nvidia")}
 
 
 @router.post("/keys/detect")
@@ -226,9 +237,9 @@ async def detect_key(req: KeyDetectRequest) -> dict[str, str]:
 @router.post("/keys/test")
 async def test_key(req: KeyTestRequest) -> dict[str, Any]:
     provider_id = req.provider.lower()
-    base_url = req.base_url or PROVIDER_BASE_URLS.get(
-        provider_id, "https://api.openai.com/v1"
-    )
+    base_url = PROVIDER_BASE_URLS.get(provider_id) or req.base_url
+    if not base_url:
+        return {"valid": False, "error": "Set the custom endpoint URL in Model settings."}
     model = req.model or PROVIDER_DEFAULT_MODELS.get(provider_id, "gpt-4o-mini")
     try:
         from src.llm.provider import LLMProvider
@@ -255,7 +266,6 @@ async def set_key(req: KeySetRequest) -> dict[str, Any]:
         "model": req.model,
     }
     _write_json(KEYS_PATH, data)
-    os.environ[f"{req.provider.upper()}_API_KEY"] = req.api_key
     return {"status": "ok"}
 
 
@@ -293,8 +303,9 @@ async def enhance(req: PromptEnhanceRequest) -> dict[str, str]:
 async def get_cfg() -> dict[str, Any]:
     cfg = _read_json(CONFIG_PATH)
     return {
+        "hosted": cfg.get("hosted", False),
         "provider": cfg.get("provider", "nvidia"),
-        "model": cfg.get("model", "meta/llama-3.1-70b-instruct"),
+        "model": cfg.get("model", "meta/llama-3.3-70b-instruct"),
         "base_url": cfg.get("base_url", ""),
         "temperature": float(cfg.get("temperature", 0.3)),
         "max_tokens": int(cfg.get("max_tokens", 1024)),

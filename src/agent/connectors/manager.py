@@ -16,6 +16,7 @@ from typing import Any
 
 import requests
 
+from src.agent.connectors.catalog import SERVICES
 from src.agent.registry import ToolRegistry, ToolSpec, registry as global_registry
 
 logger = logging.getLogger(__name__)
@@ -181,6 +182,15 @@ CONNECTOR_CATALOG: list[ConnectorCatalogItem] = [
 ]
 
 
+for service_id, service in SERVICES.items():
+    CONNECTOR_CATALOG.append(ConnectorCatalogItem(
+        id=service_id, name=service.name, category=service.category,
+        description=f"Read {service.resource} from {service.name}.",
+        auth_type="api_key", fields=[ConnectorFieldSpec("token", "Access token", "password", "Paste your access token")],
+        tool_names=[f"{service_id}_read"],
+    ))
+
+
 def _write_secure_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
@@ -227,6 +237,10 @@ class ConnectorManager:
             "connected": {},  # connector_id -> {credentials: {...}, enabled: bool, account_label: str}
             "custom": {},     # custom_id -> {name, description, endpoint_url, method, api_key, enabled}
         }
+
+    @property
+    def registry(self) -> ToolRegistry:
+        return self._registry
 
     def _load_state(self) -> None:
         loaded = _read_secure_json(self._state_path)
@@ -460,6 +474,13 @@ class ConnectorManager:
         return removed
 
     def _verify_credentials(self, connector_id: str, creds: dict[str, str]) -> str:
+        if connector_id in SERVICES:
+            service = SERVICES[connector_id]
+            try:
+                service.read(creds["token"])
+            except (ValueError, requests.RequestException) as exc:
+                raise ConnectorError(f"Could not connect to {service.name}: {exc}") from exc
+            return service.name
         if connector_id == "gmail":
             email_addr = creds["email"]
             secret = creds["app_password"].replace(" ", "")
@@ -543,6 +564,15 @@ class ConnectorManager:
     def _register_connector_tools(
         self, connector_id: str, creds: dict[str, str], enabled: bool = True
     ) -> None:
+        if connector_id in SERVICES:
+            service = SERVICES[connector_id]
+            self._registry.register(ToolSpec(
+                name=f"{connector_id}_read", description=f"Read {service.resource} from {service.name}.",
+                input_schema={"type": "object", "properties": {}, "additionalProperties": False},
+                handler=lambda: service.read(creds["token"]), requires_consent=False,
+                source="connector", server_id=connector_id, enabled=enabled,
+            ))
+            return
         if connector_id == "gmail":
             self._register_gmail_tools(creds, enabled)
         elif connector_id == "google_drive":

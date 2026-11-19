@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import { Check, ImagePlus } from "lucide-react";
 import { FontId, UserProfile } from "../lib/types";
 import {
-  CODES_ICON_FALLBACK_DATA_URL,
   CODES_ICON_SVG_PATH,
   DEFAULT_RAG_ASSISTANT_LOGO,
   INBUILT_ASSISTANT_LOGOS,
@@ -49,13 +48,12 @@ export function OnboardingModal({
   if (!isOpen) return null;
 
   const currentLogo = profile.assistantLogo ?? "";
-  const currentAvatar = profile.avatarDataUrl || INBUILT_USER_PFPS[0].url;
+  const currentAvatar = profile.avatarDataUrl || INBUILT_USER_PFPS[0]!.url;
 
   return (
     <div
       role="dialog"
       aria-modal="true"
-      style={{ fontFamily: "'Open Sans', sans-serif" }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-[#0c0c0e]/75 p-3 sm:p-4 backdrop-blur-md"
     >
       <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-[#e6e4f0]/15 bg-[#141417] text-[#f4f3f8] shadow-2xl">
@@ -64,7 +62,7 @@ export function OnboardingModal({
             <img
               src={headerIconSrc}
               alt="codes icon"
-              onError={() => setHeaderIconSrc(CODES_ICON_FALLBACK_DATA_URL)}
+              onError={() => setHeaderIconSrc("/icon.svg")}
               className="h-9 w-9 shrink-0 rounded-xl border border-[#e6e4f0]/20 bg-[#0c0c0e] object-contain p-1"
             />
             <div>

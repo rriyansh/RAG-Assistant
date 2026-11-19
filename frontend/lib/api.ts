@@ -112,12 +112,16 @@ export async function togglePlugin(
   return handleJson<{ name: string; enabled: boolean }>(res);
 }
 
+export async function fetchThinking(count: number): Promise<{ messages: string[] }> {
+  return handleJson(await fetch(`/api/thinking?count=${count}`));
+}
+
 export async function fetchThinkingMessages(
   question?: string,
   assistantName: string = "Assistant"
 ): Promise<string[]> {
   if (question) {
-    const res = await fetch("/api/thinking/generate", {
+    const res = await fetch("/api/thinking", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question, assistant_name: assistantName }),
@@ -125,7 +129,7 @@ export async function fetchThinkingMessages(
     const data = await handleJson<{ messages: string[] }>(res);
     return data.messages;
   }
-  const res = await fetch("/api/thinking/messages");
+  const res = await fetch("/api/thinking");
   const data = await handleJson<{ messages: string[] }>(res);
   return data.messages;
 }
@@ -145,6 +149,7 @@ export async function fetchKeys(): Promise<KeyListResponse> {
   const data = await handleJson<KeyListResponse>(res);
   return {
     keys: data.keys || {},
+    hosted_ready: data.hosted_ready,
     active_provider: data.active_provider || "",
   };
 }

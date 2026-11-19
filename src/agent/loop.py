@@ -119,9 +119,9 @@ async def run_agent(
                     exc,
                 )
                 raise ToolNotSupportedError(str(exc)) from exc
-            logger.error("LLM provider error during agent turn: %s", exc)
+            logger.warning("Provider request failed (%s)", type(exc).__name__)
             return {
-                "answer": f"An error occurred while communicating with the language model: {exc}",
+                "answer": "The provider could not complete this request. Check the active key, model, and available quota.",
                 "tool_calls": recorded_tool_calls,
                 "sources": sources,
                 "pending_consent": [],

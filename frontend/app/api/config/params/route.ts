@@ -1,3 +1,4 @@
+import { backendFetch } from "@/lib/backend";
 import { NextRequest, NextResponse } from "next/server";
 
 const BACKEND = process.env.RAG_BACKEND_URL ?? "http://127.0.0.1:8000";
@@ -7,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 async function forward(method: "GET" | "POST", body?: string): Promise<NextResponse> {
   try {
-    const res = await fetch(`${BACKEND}/config/params`, {
+    const res = await backendFetch(`${BACKEND}/config/params`, {
       method,
       cache: "no-store",
       headers: { Accept: "application/json", "Content-Type": "application/json" },

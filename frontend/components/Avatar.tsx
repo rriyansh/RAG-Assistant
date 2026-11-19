@@ -2,10 +2,10 @@
 
 import { User } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Profile } from "@/lib/types";
+import type { UserProfile } from "@/lib/types";
 
 interface AvatarProps {
-  profile: Profile;
+  profile: UserProfile;
   size?: number;
   className?: string;
 }

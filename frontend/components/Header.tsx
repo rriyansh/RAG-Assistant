@@ -3,22 +3,23 @@
 import { Trash2, Settings } from "lucide-react";
 import { Logo } from "./Logo";
 import { Avatar } from "./Avatar";
-import { useProfile } from "@/hooks/useProfile";
+import type { UserProfile } from "@/lib/types";
 
 interface HeaderProps {
   onClear: () => void;
   onOpenSettings: () => void;
   canClear: boolean;
+  profile: UserProfile;
 }
 
-export function Header({ onClear, onOpenSettings, canClear }: HeaderProps): JSX.Element {
-  const { profile } = useProfile();
+export function Header({ onClear, onOpenSettings, canClear, profile }: HeaderProps): JSX.Element {
+
 
   return (
     <header className="sticky top-0 z-10 border-b border-border bg-panel/80 backdrop-blur">
       <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-3">
         <div className="flex items-center gap-3 min-w-0">
-          <Logo size={36} src={profile.assistantLogo || "/logo.svg"} />
+          {profile.assistantLogo && <Logo size={36} src={profile.assistantLogo} />}
           <div className="min-w-0">
             <h1 className="font-display truncate text-[15px] font-semibold tracking-tight text-gray-100">
               {profile.assistantName}

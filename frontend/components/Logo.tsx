@@ -19,8 +19,6 @@ export function Logo({
     width: size,
     height: size,
     objectFit: "contain",
-    filter: "invert(1)",
-    mixBlendMode: "screen",
     display: "block",
   };
 

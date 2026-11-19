@@ -24,3 +24,12 @@ services:
     command: streamlit run ui/app.py --server.port 8501 --server.address 0.0.0.0
     depends_on:
       - api
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      RAG_BACKEND_URL: http://api:8000
+    depends_on:
+      - api

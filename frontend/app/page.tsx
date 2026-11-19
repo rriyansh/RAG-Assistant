@@ -1,24 +1,15 @@
 "use client";
 
 import React, { useState } from "react";
-import * as HeaderMod from "../components/Header";
-import * as ChatMessageMod from "../components/ChatMessage";
-import * as ChatComposerMod from "../components/ChatComposer";
-import * as SettingsModalMod from "../components/SettingsModal";
+import { Header } from "../components/Header";
+import { ChatMessage } from "../components/ChatMessage";
+import ChatComposer from "../components/ChatComposer";
+import { SettingsModal } from "../components/SettingsModal";
 import { OnboardingModal } from "../components/OnboardingModal";
 import { useChat } from "../hooks/useChat";
 import { useProfile } from "../hooks/useProfile";
 import { DEFAULT_RAG_ASSISTANT_LOGO } from "../lib/utils";
 import { Code2, Plug } from "lucide-react";
-
-const Header: React.ComponentType<any> =
-  (HeaderMod as any).default || (HeaderMod as any).Header;
-const ChatMessage: React.ComponentType<any> =
-  (ChatMessageMod as any).default || (ChatMessageMod as any).ChatMessage;
-const ChatComposer: React.ComponentType<any> =
-  (ChatComposerMod as any).default || (ChatComposerMod as any).ChatComposer;
-const SettingsModal: React.ComponentType<any> =
-  (SettingsModalMod as any).default || (SettingsModalMod as any).SettingsModal;
 
 const FONT_STACK_MAP: Record<string, string> = {
   "open-sans": "'Open Sans', system-ui, sans-serif",
@@ -54,6 +45,7 @@ const QUICK_BUILDER_ACTIONS = [
 ];
 
 export default function HomePage() {
+  const profileState = useProfile();
   const {
     profile,
     assistantName,
@@ -65,7 +57,7 @@ export default function HomePage() {
     clearAssistantLogo,
     completeOnboarding,
     reopenOnboarding,
-  } = useProfile();
+  } = profileState;
 
   const {
     messages,
@@ -77,25 +69,27 @@ export default function HomePage() {
   } = useChat(assistantName);
 
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
-  const [input, setInput] = useState<string>("");
 
-  const handleSend = (text?: string) => {
-    const query = (typeof text === "string" ? text : input).trim();
+
+  const handleSend = (text: string) => {
+    const query = text.trim();
     if (!query) return;
-    setInput("");
     sendMessage(query);
   };
 
   const showOnboarding = hydrated && !isOnboarded;
   const activeFontFamily =
     FONT_STACK_MAP[profile.font] || FONT_STACK_MAP["open-sans"];
+  React.useEffect(() => {
+    if (hydrated) document.documentElement.dataset.font = profile.font;
+  }, [hydrated, profile.font]);
   const hasLogo = profile.assistantLogo !== "";
   const assistantLogoSrc =
     profile.assistantLogo || DEFAULT_RAG_ASSISTANT_LOGO;
 
   let lastAssistantIndex = -1;
   for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === "assistant") {
+    if (messages[i]?.role === "assistant") {
       lastAssistantIndex = i;
       break;
     }
@@ -104,7 +98,7 @@ export default function HomePage() {
   return (
     <div
       style={{ fontFamily: activeFontFamily }}
-      className="relative flex min-h-screen h-screen flex-col bg-[#0c0c0e] text-[#f4f3f8] antialiased"
+      className="relative flex h-[100dvh] flex-col bg-[#0c0c0e] text-[#f4f3f8] antialiased"
     >
       <div
         className={`flex h-full flex-col transition-all duration-300 ${
@@ -113,17 +107,12 @@ export default function HomePage() {
             : ""
         }`}
       >
-        {Header && (
-          <Header
-            assistantName={assistantName}
+        <Header
             profile={profile}
             canClear={messages.length > 0}
             onOpenSettings={() => setSettingsOpen(true)}
-            onSettingsClick={() => setSettingsOpen(true)}
-            onClearChat={clearMessages}
             onClear={clearMessages}
           />
-        )}
 
         <main className="flex-1 overflow-y-auto px-3 py-6 sm:px-6">
           <div className="mx-auto w-full max-w-3xl space-y-4">
@@ -147,9 +136,9 @@ export default function HomePage() {
                       )}
                       <div className="min-w-0">
                         <div className="text-xs font-semibold uppercase tracking-wider text-[#e6e4f0]/60">
-                          {assistantName || "RAG Assistant"}
+                          RAG Assistant
                         </div>
-                        <h1 className="truncate text-lg font-bold tracking-tight text-[#f4f3f8] sm:text-xl">
+                        <h1 className="break-words text-lg font-bold tracking-tight text-[#f4f3f8] sm:text-xl">
                           {profile.headline || "Grounded Knowledge & Code Synthesis"}
                         </h1>
                         <p className="mt-1 text-xs leading-relaxed text-[#e6e4f0]/70">
@@ -212,23 +201,12 @@ export default function HomePage() {
 
         <div className="border-t border-[#e6e4f0]/10 bg-[#0c0c0e] px-3 py-3 sm:px-4">
           <div className="mx-auto w-full max-w-3xl">
-            {ChatComposer && (
-              <ChatComposer
-                input={input}
-                setInput={setInput}
-                value={input}
-                onChange={setInput}
-                onSend={handleSend}
-                onSubmit={handleSend}
-                isLoading={isLoading}
-                disabled={isLoading}
-              />
-            )}
+            <ChatComposer onSubmit={handleSend} disabled={isLoading} />
           </div>
         </div>
       </div>
 
-      <OnboardingModal
+      {showOnboarding && <OnboardingModal
         isOpen={showOnboarding}
         profile={profile}
         onUpdateProfile={updateProfile}
@@ -236,15 +214,14 @@ export default function HomePage() {
         onUploadAssistantLogo={setAssistantLogoFromFile}
         onResetAssistantLogo={clearAssistantLogo}
         onComplete={completeOnboarding}
-      />
+      />}
 
-      {SettingsModal && (
-        <SettingsModal
+      <SettingsModal
+          profileState={profileState}
           isOpen={settingsOpen}
           open={settingsOpen}
           onClose={() => setSettingsOpen(false)}
         />
-      )}
     </div>
   );
 }

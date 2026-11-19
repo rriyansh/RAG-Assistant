@@ -1,5 +1,6 @@
 "use client";
 
+import { WorkspacePolicy } from "./WorkspacePolicy";
 import React, { useEffect, useState } from "react";
 import {
   Check,
@@ -46,12 +47,13 @@ export interface SettingsModalProps {
   isOpen?: boolean;
   open?: boolean;
   onClose: () => void;
+  profileState: ReturnType<typeof useProfile>;
 }
 
 type TabKey = "profile" | "connectors" | "keys" | "model" | "security";
 
 const PROVIDERS = [
-  { id: "nvidia", label: "NVIDIA NIM (Free Tier Ready)" },
+  { id: "nvidia", label: "NVIDIA NIM" },
   { id: "grok", label: "xAI Grok" },
   { id: "deepseek", label: "DeepSeek" },
   { id: "qwen", label: "Qwen (Alibaba)" },
@@ -66,7 +68,7 @@ const PROVIDERS = [
 ];
 
 const DEFAULT_MODELS: Record<string, string> = {
-  nvidia: "meta/llama-3.1-70b-instruct",
+  nvidia: "meta/llama-3.3-70b-instruct",
   grok: "grok-2-latest",
   deepseek: "deepseek-chat",
   qwen: "qwen-plus",
@@ -96,501 +98,6 @@ const CONNECTOR_CATEGORIES: Array<{ id: string; title: string }> = [
   { id: "operations", title: "Data, CRM & Operations" },
   { id: "built_in", title: "Built-in Knowledge Engines" },
   { id: "custom", title: "Custom Web Connectors" },
-];
-
-const INBUILT_CONNECTOR_PRESETS: ConnectorInfo[] = [
-  {
-    id: "github",
-    name: "GitHub",
-    category: "developer",
-    description: "Search repositories, read source files, and inspect or create GitHub issues.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 3,
-    tools: ["github_search_repos", "github_get_file", "github_create_issue"],
-    fields: [{ key: "token", label: "Personal Access Token", type: "password", placeholder: "ghp_...", required: true }],
-  },
-  {
-    id: "vercel",
-    name: "Vercel",
-    category: "developer",
-    description: "Inspect deployments, read build logs, and manage frontend project domains.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 2,
-    tools: ["vercel_list_deployments", "vercel_get_logs"],
-    fields: [{ key: "token", label: "Vercel Access Token", type: "password", placeholder: "vcel_...", required: true }],
-  },
-  {
-    id: "gitlab",
-    name: "GitLab",
-    category: "developer",
-    description: "Query GitLab repositories, merge requests, CI/CD pipelines, and issue boards.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 2,
-    tools: ["gitlab_search_projects", "gitlab_list_mrs"],
-    fields: [{ key: "token", label: "GitLab Personal Token", type: "password", placeholder: "glpat-...", required: true }],
-  },
-  {
-    id: "supabase",
-    name: "Supabase",
-    category: "developer",
-    description: "Query Postgres tables, inspect schema definitions, and manage Edge Functions.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 2,
-    tools: ["supabase_query", "supabase_list_tables"],
-    fields: [
-      { key: "url", label: "Project URL", type: "text", placeholder: "https://xyz.supabase.co", required: true },
-      { key: "api_key", label: "Service Role / Anon Key", type: "password", placeholder: "eyJhbG...", required: true },
-    ],
-  },
-  {
-    id: "cloudflare",
-    name: "Cloudflare",
-    category: "developer",
-    description: "Manage Workers scripts, KV namespaces, DNS records, and zone analytics.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 2,
-    tools: ["cloudflare_list_zones", "cloudflare_worker_status"],
-    fields: [{ key: "api_token", label: "Cloudflare API Token", type: "password", placeholder: "cf_...", required: true }],
-  },
-  {
-    id: "linear",
-    name: "Linear",
-    category: "developer",
-    description: "Search engineering issues, track sprint cycles, and create prioritized bug tickets.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 2,
-    tools: ["linear_search_issues", "linear_create_issue"],
-    fields: [{ key: "api_key", label: "Linear Personal API Key", type: "password", placeholder: "lin_api_...", required: true }],
-  },
-  {
-    id: "jira",
-    name: "Jira Software",
-    category: "developer",
-    description: "Search JQL sprint boards, inspect engineering tickets, and transition issue states.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 2,
-    tools: ["jira_search_issues", "jira_create_ticket"],
-    fields: [
-      { key: "domain", label: "Atlassian Domain", type: "text", placeholder: "team.atlassian.net", required: true },
-      { key: "api_token", label: "Atlassian API Token", type: "password", placeholder: "ATATT3x...", required: true },
-    ],
-  },
-  {
-    id: "sentry",
-    name: "Sentry",
-    category: "developer",
-    description: "Analyze production stack traces, unresolved crash events, and release regressions.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 2,
-    tools: ["sentry_list_issues", "sentry_get_trace"],
-    fields: [{ key: "auth_token", label: "Sentry Auth Token", type: "password", placeholder: "sntrys_...", required: true }],
-  },
-  {
-    id: "docker",
-    name: "Docker Hub",
-    category: "developer",
-    description: "Search container image repositories, inspect tags, and verify image digests.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 1,
-    tools: ["docker_search_images"],
-    fields: [{ key: "pat", label: "Docker Personal Access Token", type: "password", placeholder: "dckr_pat_...", required: true }],
-  },
-  {
-    id: "huggingface",
-    name: "Hugging Face",
-    category: "developer",
-    description: "Search open-weight models, datasets, Spaces endpoints, and model cards.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 2,
-    tools: ["hf_search_models", "hf_search_datasets"],
-    fields: [{ key: "token", label: "HF Access Token", type: "password", placeholder: "hf_...", required: true }],
-  },
-  {
-    id: "postman",
-    name: "Postman",
-    category: "developer",
-    description: "Inspect API collections, environment variables, and OpenAPI schema definitions.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 1,
-    tools: ["postman_list_collections"],
-    fields: [{ key: "api_key", label: "Postman API Key", type: "password", placeholder: "PMAK-...", required: true }],
-  },
-  {
-    id: "bitbucket",
-    name: "Bitbucket",
-    category: "developer",
-    description: "Browse Bitbucket repositories, pull requests, and Bitbucket Pipelines logs.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 2,
-    tools: ["bitbucket_list_repos", "bitbucket_get_file"],
-    fields: [{ key: "app_password", label: "Bitbucket App Password", type: "password", placeholder: "ATBB...", required: true }],
-  },
-  {
-    id: "gmail",
-    name: "Gmail",
-    category: "workspace",
-    description: "Search inbox messages, read threads, and send emails via Gmail API or App Password.",
-    auth_type: "app_password",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 2,
-    tools: ["gmail_search_emails", "gmail_send_email"],
-    fields: [
-      { key: "email", label: "Gmail Address", type: "text", placeholder: "you@gmail.com", required: true },
-      { key: "app_password", label: "App Password or OAuth Token", type: "password", placeholder: "16-char password or ya29...", required: true },
-    ],
-  },
-  {
-    id: "google_drive",
-    name: "Google Drive",
-    category: "workspace",
-    description: "Search Drive files, list recent documents, and read Google Docs or plain-text file contents.",
-    auth_type: "oauth_token",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 2,
-    tools: ["gdrive_search_files", "gdrive_read_file"],
-    fields: [{ key: "access_token", label: "OAuth2 Access Token", type: "password", placeholder: "ya29.a0AfB_by...", required: true }],
-  },
-  {
-    id: "google_calendar",
-    name: "Google Calendar",
-    category: "workspace",
-    description: "List upcoming schedule events, check availability, and create calendar invites.",
-    auth_type: "oauth_token",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 2,
-    tools: ["gcal_list_events", "gcal_create_event"],
-    fields: [{ key: "access_token", label: "OAuth2 Access Token", type: "password", placeholder: "ya29...", required: true }],
-  },
-  {
-    id: "notion",
-    name: "Notion",
-    category: "workspace",
-    description: "Search workspace pages and databases and read block content using a Notion Internal Integration.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 2,
-    tools: ["notion_search_pages", "notion_read_page"],
-    fields: [{ key: "api_key", label: "Internal Integration Secret", type: "password", placeholder: "secret_... or ntn_...", required: true }],
-  },
-  {
-    id: "slack",
-    name: "Slack",
-    category: "workspace",
-    description: "Post messages and alerts to Slack channels via Bot Token or Incoming Webhook.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 1,
-    tools: ["slack_post_message"],
-    fields: [{ key: "bot_token", label: "Bot OAuth Token or Webhook URL", type: "password", placeholder: "xoxb-...", required: true }],
-  },
-  {
-    id: "discord",
-    name: "Discord",
-    category: "workspace",
-    description: "Send automated notifications and rich embeds to Discord server channels.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 1,
-    tools: ["discord_send_webhook"],
-    fields: [{ key: "webhook_url", label: "Discord Webhook URL", type: "password", placeholder: "https://discord.com/api/webhooks/...", required: true }],
-  },
-  {
-    id: "ms_teams",
-    name: "Microsoft Teams",
-    category: "workspace",
-    description: "Deliver channel updates and meeting summaries via Microsoft Teams workflows.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 1,
-    tools: ["teams_post_message"],
-    fields: [{ key: "webhook_url", label: "Teams Incoming Webhook URL", type: "password", placeholder: "https://outlook.office.com/webhook/...", required: true }],
-  },
-  {
-    id: "dropbox",
-    name: "Dropbox",
-    category: "workspace",
-    description: "Search cloud folders and download text or markdown files from Dropbox.",
-    auth_type: "oauth_token",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 2,
-    tools: ["dropbox_search", "dropbox_read_file"],
-    fields: [{ key: "access_token", label: "Dropbox Access Token", type: "password", placeholder: "sl.B...", required: true }],
-  },
-  {
-    id: "confluence",
-    name: "Confluence",
-    category: "workspace",
-    description: "Search internal knowledge spaces and extract engineering documentation pages.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 2,
-    tools: ["confluence_search", "confluence_read_page"],
-    fields: [{ key: "api_token", label: "Confluence API Token", type: "password", placeholder: "ATATT...", required: true }],
-  },
-  {
-    id: "zoom",
-    name: "Zoom",
-    category: "workspace",
-    description: "Retrieve scheduled meeting links, cloud recording transcripts, and webinar details.",
-    auth_type: "oauth_token",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 1,
-    tools: ["zoom_list_meetings"],
-    fields: [{ key: "access_token", label: "Zoom OAuth Token", type: "password", placeholder: "eyJhbG...", required: true }],
-  },
-  {
-    id: "stripe",
-    name: "Stripe",
-    category: "operations",
-    description: "Query customer subscriptions, invoice statuses, payment intents, and revenue metrics.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 2,
-    tools: ["stripe_list_customers", "stripe_list_invoices"],
-    fields: [{ key: "secret_key", label: "Stripe Restricted / Secret Key", type: "password", placeholder: "rk_live_... or sk_test_...", required: true }],
-  },
-  {
-    id: "hubspot",
-    name: "HubSpot",
-    category: "operations",
-    description: "Search CRM contacts, company deal pipelines, and customer support tickets.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 2,
-    tools: ["hubspot_search_contacts", "hubspot_search_deals"],
-    fields: [{ key: "access_token", label: "Private App Access Token", type: "password", placeholder: "pat-na1-...", required: true }],
-  },
-  {
-    id: "salesforce",
-    name: "Salesforce",
-    category: "operations",
-    description: "Execute SOQL queries across leads, opportunities, accounts, and case records.",
-    auth_type: "oauth_token",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 2,
-    tools: ["salesforce_query", "salesforce_get_account"],
-    fields: [
-      { key: "instance_url", label: "Instance URL", type: "text", placeholder: "https://yourorg.my.salesforce.com", required: true },
-      { key: "access_token", label: "OAuth Access Token", type: "password", placeholder: "00D...", required: true },
-    ],
-  },
-  {
-    id: "airtable",
-    name: "Airtable",
-    category: "operations",
-    description: "List base records, filter structured tables, and append new entries via Personal Token.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 2,
-    tools: ["airtable_list_records", "airtable_create_record"],
-    fields: [{ key: "pat", label: "Airtable Personal Access Token", type: "password", placeholder: "pat...", required: true }],
-  },
-  {
-    id: "postgres",
-    name: "PostgreSQL",
-    category: "operations",
-    description: "Run read-only analytical SQL queries and inspect relational table schemas.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 2,
-    tools: ["pg_query_readonly", "pg_describe_tables"],
-    fields: [{ key: "connection_uri", label: "Postgres Connection URI", type: "password", placeholder: "postgresql://user:pass@host:5432/db", required: true }],
-  },
-  {
-    id: "mongodb",
-    name: "MongoDB Atlas",
-    category: "operations",
-    description: "Query document collections and aggregate analytics via MongoDB Data API.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 1,
-    tools: ["mongodb_find_documents"],
-    fields: [{ key: "api_key", label: "Atlas Data API Key", type: "password", placeholder: "ut8...", required: true }],
-  },
-  {
-    id: "snowflake",
-    name: "Snowflake",
-    category: "operations",
-    description: "Query enterprise data warehouse tables and analytical views over SQL REST API.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 1,
-    tools: ["snowflake_execute_sql"],
-    fields: [{ key: "token", label: "Snowflake OAuth / JWT Token", type: "password", placeholder: "eyJ...", required: true }],
-  },
-  {
-    id: "trello",
-    name: "Trello",
-    category: "operations",
-    description: "Browse project boards, list cards, and create workflow tasks.",
-    auth_type: "api_key",
-    built_in: false,
-    connected: false,
-    enabled: false,
-    status: "disconnected",
-    account_label: "",
-    tool_count: 2,
-    tools: ["trello_list_cards", "trello_create_card"],
-    fields: [{ key: "token", label: "Trello API Token", type: "password", placeholder: "ATTA...", required: true }],
-  },
-  {
-    id: "pdf_rag",
-    name: "Local PDF Knowledge Base",
-    category: "built_in",
-    description: "Semantic vector retrieval across local PDF documents indexed in ChromaDB.",
-    auth_type: "none",
-    built_in: true,
-    connected: true,
-    enabled: true,
-    status: "connected",
-    account_label: "Built-in Engine",
-    tool_count: 1,
-    tools: ["search_pdfs"],
-    fields: [],
-  },
-  {
-    id: "web_research",
-    name: "Live Web Search",
-    category: "built_in",
-    description: "Search live web results and extract clean article text from external URLs.",
-    auth_type: "none",
-    built_in: true,
-    connected: true,
-    enabled: true,
-    status: "connected",
-    account_label: "Built-in Engine",
-    tool_count: 2,
-    tools: ["web_search", "fetch_url"],
-    fields: [],
-  },
 ];
 
 function ConnectorBrandLogo({ id }: { id: string }) {
@@ -800,101 +307,12 @@ function ConnectorBrandLogo({ id }: { id: string }) {
 }
 
 function ProviderBrandLogo({ provider }: { provider: string }) {
-  switch (provider) {
-    case "nvidia":
-      return (
-        <svg viewBox="0 0 40 40" className="h-5 w-5 shrink-0">
-          <rect width="40" height="40" rx="10" fill="#76B900" />
-          <path
-            d="M11 20c3-5 9-7 16-4-4-1-9 1-11 4 2 3 7 4 11 2-5 4-13 3-16-2z"
-            fill="#ffffff"
-          />
-        </svg>
-      );
-    case "grok":
-      return (
-        <svg viewBox="0 0 40 40" className="h-5 w-5 shrink-0">
-          <rect width="40" height="40" rx="10" fill="#0c0c0e" stroke="#f4f3f8" strokeWidth="2" />
-          <path d="M12 28L28 12M15 12h13v13" stroke="#f4f3f8" strokeWidth="3" fill="none" strokeLinecap="round" />
-        </svg>
-      );
-    case "deepseek":
-      return (
-        <svg viewBox="0 0 40 40" className="h-5 w-5 shrink-0">
-          <rect width="40" height="40" rx="10" fill="#4D6BFE" />
-          <path d="M10 22c3-6 11-8 18-3 2 2 3 5 1 7-4 4-14 3-19-4z" fill="#ffffff" />
-          <circle cx="25" cy="19" r="1.8" fill="#4D6BFE" />
-        </svg>
-      );
-    case "qwen":
-      return (
-        <svg viewBox="0 0 40 40" className="h-5 w-5 shrink-0">
-          <rect width="40" height="40" rx="10" fill="#615CED" />
-          <circle cx="20" cy="20" r="9" stroke="#ffffff" strokeWidth="3" fill="none" />
-          <path d="M24 24l5 5" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" />
-        </svg>
-      );
-    case "groq":
-      return (
-        <svg viewBox="0 0 40 40" className="h-5 w-5 shrink-0">
-          <rect width="40" height="40" rx="10" fill="#f55036" />
-          <path d="M20 11a9 9 0 109 9h-6v4h2.5a5 5 0 11-5.5-7.9V11z" fill="#ffffff" />
-        </svg>
-      );
-    case "gemini":
-      return (
-        <svg viewBox="0 0 40 40" className="h-5 w-5 shrink-0">
-          <path d="M20 4C21.5 14 26 18.5 36 20C26 21.5 21.5 26 20 36C18.5 26 14 21.5 4 20C14 18.5 18.5 14 20 4Z" fill="#4285F4" />
-        </svg>
-      );
-    case "openai":
-      return (
-        <svg viewBox="0 0 40 40" className="h-5 w-5 shrink-0">
-          <circle cx="20" cy="20" r="16" stroke="#f4f3f8" strokeWidth="2.5" fill="none" />
-          <polygon points="20,9 29,15 29,25 20,31 11,25 11,15" stroke="#f4f3f8" strokeWidth="2" fill="none" />
-        </svg>
-      );
-    case "anthropic":
-      return (
-        <svg viewBox="0 0 40 40" className="h-5 w-5 shrink-0">
-          <rect width="40" height="40" rx="10" fill="#D97757" />
-          <path d="M20 11l8 18h-3.5l-1.8-4h-5.4l-1.8 4H12l8-18zm0 6l-1.8 4.5h3.6L20 17z" fill="#ffffff" />
-        </svg>
-      );
-    case "mistral":
-      return (
-        <svg viewBox="0 0 40 40" className="h-5 w-5 shrink-0">
-          <rect width="40" height="40" rx="10" fill="#FF7000" />
-          <path d="M11 28V12h4l5 7 5-7h4v16h-4V18l-5 6-5-6v10h-4z" fill="#ffffff" />
-        </svg>
-      );
-    case "openrouter":
-      return (
-        <svg viewBox="0 0 40 40" className="h-5 w-5 shrink-0">
-          <rect width="40" height="40" rx="10" fill="#1c1c21" />
-          <path d="M10 20h12l-4-5m4 5l-4 5M24 14h6v12h-6" stroke="#f4f3f8" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-        </svg>
-      );
-    case "ollama":
-      return (
-        <svg viewBox="0 0 40 40" className="h-5 w-5 shrink-0">
-          <rect width="40" height="40" rx="10" fill="#f4f3f8" />
-          <circle cx="15" cy="18" r="2.5" fill="#0c0c0e" />
-          <circle cx="25" cy="18" r="2.5" fill="#0c0c0e" />
-          <path d="M15 26c2 2 8 2 10 0" stroke="#0c0c0e" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-        </svg>
-      );
-    default:
-      return (
-        <svg viewBox="0 0 40 40" className="h-5 w-5 shrink-0">
-          <rect width="40" height="40" rx="10" fill="#1c1c21" />
-          <circle cx="20" cy="20" r="7" stroke="#f4f3f8" strokeWidth="2.5" fill="none" />
-        </svg>
-      );
-  }
+  if (provider === "custom") return <Plug aria-hidden className="h-5 w-5 shrink-0" />;
+  const icon = provider === "anthropic" ? "claude" : provider;
+  return <img src={`/providers/${icon}.svg`} alt="" className="h-5 w-5 shrink-0 object-contain invert" />;
 }
 
-export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
+export function SettingsModal({ isOpen, open, onClose, profileState }: SettingsModalProps) {
   const modalVisible = Boolean(isOpen ?? open);
   const [activeTab, setActiveTab] = useState<TabKey>("profile");
   const {
@@ -903,9 +321,10 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
     reset: resetProfile,
     setAvatarFromFile,
     setAssistantLogoFromFile,
-  } = useProfile();
+  } = profileState;
   const [profileError, setProfileError] = useState<string | null>(null);
 
+  const [hostedReady, setHostedReady] = useState(false);
   const [keys, setKeys] = useState<KeyStatusMap>({});
   const [selectedProvider, setSelectedProvider] = useState<string>("nvidia");
   const [detectedProvider, setDetectedProvider] = useState<string | null>(null);
@@ -915,14 +334,14 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
 
   const [config, setConfig] = useState<LLMConfig>({
     provider: "nvidia",
-    model: "meta/llama-3.1-70b-instruct",
+    model: "meta/llama-3.3-70b-instruct",
     base_url: "",
     temperature: 0.3,
     max_tokens: 1024,
     top_p: 0.9,
   });
 
-  const [connectors, setConnectors] = useState<ConnectorInfo[]>(INBUILT_CONNECTOR_PRESETS);
+  const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
   const [activeConnectorFormId, setActiveConnectorFormId] = useState<string | null>(null);
   const [connectorCredentials, setConnectorCredentials] = useState<Record<string, string>>({});
   const [connectorBusyId, setConnectorBusyId] = useState<string | null>(null);
@@ -949,7 +368,7 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
         fetchKeys().catch((): KeyListResponse => ({ keys: {}, active_provider: "" })),
         fetchConfig().catch(() => ({
           provider: "nvidia",
-          model: "meta/llama-3.1-70b-instruct",
+          model: "meta/llama-3.3-70b-instruct",
           base_url: "",
           temperature: 0.3,
           max_tokens: 1024,
@@ -958,19 +377,12 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
         fetchConnectors().catch(() => []),
       ]);
       setKeys(kData.keys);
+      setHostedReady(Boolean(kData.hosted_ready));
       const activeProvider =
         cData.provider || kData.active_provider || Object.keys(kData.keys)[0] || "nvidia";
       setSelectedProvider(activeProvider);
       setConfig({ ...cData, provider: activeProvider });
-      if (connData.length > 0) {
-        const merged = [...INBUILT_CONNECTOR_PRESETS];
-        for (const item of connData) {
-          const idx = merged.findIndex((m) => m.id === item.id);
-          if (idx >= 0) merged[idx] = { ...merged[idx], ...item };
-          else merged.push(item);
-        }
-        setConnectors(merged);
-      }
+      setConnectors(connData);
     } catch {}
   }
 
@@ -1062,7 +474,7 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
       const testRes = await testProviderKey({
         provider: targetProvider,
         api_key: apiKeyInput.trim(),
-        model: DEFAULT_MODELS[targetProvider] || config.model,
+        model: config.provider === targetProvider ? config.model : DEFAULT_MODELS[targetProvider],
         base_url: config.provider === targetProvider ? config.base_url : undefined,
       });
       if (!testRes.valid) {
@@ -1081,6 +493,8 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
       const nextConfig = {
         ...config,
         provider: targetProvider,
+        hosted: false,
+        base_url: config.provider === targetProvider ? config.base_url : "",
         model: activeModel,
       };
       await updateConfig(nextConfig);
@@ -1104,7 +518,9 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
       const nextConfig = {
         ...config,
         provider: "nvidia",
-        model: DEFAULT_MODELS.nvidia,
+        hosted: true,
+        base_url: "",
+        model: DEFAULT_MODELS.nvidia!,
       };
       await updateConfig(nextConfig);
       setConfig(nextConfig);
@@ -1140,7 +556,7 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
 
   if (!modalVisible) return null;
 
-  const currentAvatar = profile.avatarDataUrl || INBUILT_USER_PFPS[0].url;
+  const currentAvatar = profile.avatarDataUrl || INBUILT_USER_PFPS[0]!.url;
   const currentLogo = profile.assistantLogo ?? "";
 
   return (
@@ -1389,7 +805,7 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
                       const f = FONT_OPTIONS.find((o) => o.id === e.target.value)?.id;
                       if (f) updateProfile({ font: f });
                     }}
-                    className="mt-1.5 block w-full min-w-56 rounded-xl border border-[#e6e4f0]/15 bg-[#141417] px-3.5 py-2 text-sm text-[#f4f3f8] outline-none"
+                    className="mt-1.5 block w-full min-w-0 sm:min-w-56 rounded-xl border border-[#e6e4f0]/15 bg-[#141417] px-3.5 py-2 text-sm text-[#f4f3f8] outline-none"
                   >
                     {FONT_OPTIONS.map((f) => (
                       <option key={f.id} value={f.id}>
@@ -1434,6 +850,24 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
                   {connectorError}
                 </div>
               )}
+
+              <details className="text-sm">
+                <summary className="cursor-pointer font-medium">Connect a service through your own REST gateway</summary>
+                <p className="my-2 text-xs text-gray-400">Choose a service, then enter the URL and credentials for its configured gateway.</p>
+                <div className="flex flex-wrap gap-2">
+                  {["Linear", "Jira", "Docker", "Discord", "Dropbox", "Confluence", "Salesforce", "Postgres", "MongoDB", "Snowflake", "Trello"].map((service) => (
+                    <button key={service} type="button" className="rounded-lg border border-white/15 px-3 py-1"
+                      onClick={() => {
+                        setCustomId(service.toLowerCase());
+                        setCustomName(service);
+                        setCustomUrl("");
+                        setCustomApiKey("");
+                        setCustomDesc(`Query the configured ${service} gateway.`);
+                        setShowCustomForm(true);
+                      }}>{service}</button>
+                  ))}
+                </div>
+              </details>
 
               {showCustomForm && (
                 <form
@@ -1651,7 +1085,7 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
                   <ProviderBrandLogo provider="nvidia" />
                   <div>
                     <h4 className="text-xs font-semibold text-[#f4f3f8]">
-                      Free NVIDIA NIM Tier Enabled
+                      {hostedReady ? "Hosted NVIDIA chat" : "Hosted NVIDIA chat is unavailable"}
                     </h4>
                     <p className="text-[11px] text-[#e6e4f0]/70">
                       Chat for free using the built-in NVIDIA NIM key, or enter your own custom API key below.
@@ -1661,7 +1095,7 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
                 <button
                   type="button"
                   onClick={handleActivateFreeNvidia}
-                  disabled={keyBusy}
+                  disabled={keyBusy || !hostedReady}
                   className="shrink-0 rounded-xl bg-[#f4f3f8] px-4 py-1.5 text-xs font-semibold text-[#0c0c0e] shadow-[0_3px_0_0_#bdb9ce]"
                 >
                   Use Free NVIDIA Key
@@ -1724,7 +1158,7 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
                   const isSelected =
                     (detectedProvider || selectedProvider) === p.id;
                   const isConfigured =
-                    Boolean(keys[p.id]?.configured) || p.id === "nvidia";
+                    Boolean(keys[p.id]?.configured) || (p.id === "nvidia" && hostedReady);
                   return (
                     <button
                       key={p.id}
@@ -1804,6 +1238,8 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
                       setConfig({
                         ...config,
                         provider,
+                        base_url: "",
+                        hosted: false,
                         model: DEFAULT_MODELS[provider] || config.model,
                       });
                       setSelectedProvider(provider);
@@ -1829,6 +1265,12 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
                   />
                 </div>
               </div>
+              {config.provider === "custom" && <label className="block">
+                OpenAI-compatible API base URL
+                <input type="url" value={config.base_url || ""} placeholder="https://your-provider.example/v1"
+                  onChange={(e) => setConfig({ ...config, base_url: e.target.value })}
+                  className="mt-1 w-full rounded-xl border border-white/15 bg-[#0c0c0e] px-3 py-2" />
+              </label>}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
                   <label className="mb-1 block text-[#e6e4f0]/75">
@@ -1917,125 +1359,7 @@ export function SettingsModal({ isOpen, open, onClose }: SettingsModalProps) {
                 ))}
               </div>
 
-              {securitySection === "overview" && (
-                <article className="space-y-6">
-                  <header className="space-y-2">
-                    <h3 className="text-2xl font-bold tracking-tight text-[#f4f3f8]">
-                      Security & Execution Architecture
-                    </h3>
-                    <p className="text-sm text-[#e6e4f0]/70">
-                      How Reso Agent isolates credentials, validates tool execution, and protects your connected workspace.
-                    </p>
-                  </header>
-
-                  <div className="space-y-2">
-                    <h4 className="text-base font-semibold text-[#f4f3f8]">
-                      Owner-Only Local Credential Storage (chmod 0600)
-                    </h4>
-                    <p className="text-xs sm:text-sm text-[#e6e4f0]/80 leading-relaxed">
-                      Every custom API key, OAuth access token, and service credential is written exclusively to your local filesystem inside <code>data/keys.json</code> and <code>data/connectors.json</code>. Writes are performed atomically via temporary files locked to POSIX <code>0600</code> permissions so only your user account can read or modify them. All credential files are strictly ignored by version control.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <h4 className="text-base font-semibold text-[#f4f3f8]">
-                      Mandatory User Consent for External Actions
-                    </h4>
-                    <p className="text-xs sm:text-sm text-[#e6e4f0]/80 leading-relaxed">
-                      Read-only retrieval tools (such as searching local ChromaDB PDFs or querying public documentation) run seamlessly inside the reasoning loop. Any state-changing or outbound action—including dispatching emails through Gmail, creating GitHub or Linear issues, posting messages to Slack or Discord, and invoking custom REST webhooks—is enforced with <code>requires_consent=True</code>. The agent pauses execution and displays the exact tool name and JSON arguments in the chat stream for your explicit approval.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <h4 className="text-base font-semibold text-[#f4f3f8]">
-                      Strict Schema Validation & Runtime Guardrails
-                    </h4>
-                    <p className="text-xs sm:text-sm text-[#e6e4f0]/80 leading-relaxed">
-                      Before any tool handler is invoked, all model-generated arguments are validated against the tool&apos;s JSON Schema specification. Argument payloads are capped at 10 KB, tool outputs are truncated to 4,000 characters to prevent context-window flooding, and the agent loop is bounded to a maximum of 12 turns per request.
-                    </p>
-                  </div>
-                </article>
-              )}
-
-              {securitySection === "privacy" && (
-                <article className="space-y-6">
-                  <header className="space-y-2">
-                    <h3 className="text-2xl font-bold tracking-tight text-[#f4f3f8]">
-                      Privacy Policy
-                    </h3>
-                    <p className="text-sm text-[#e6e4f0]/70">
-                      Transparent data residency, zero telemetry, and full user ownership over indexed documents and conversations.
-                    </p>
-                  </header>
-
-                  <div className="space-y-2">
-                    <h4 className="text-base font-semibold text-[#f4f3f8]">
-                      Local-First Data Residency
-                    </h4>
-                    <p className="text-xs sm:text-sm text-[#e6e4f0]/80 leading-relaxed">
-                      Your uploaded PDF libraries, ChromaDB vector embeddings, profile customization, and conversation history reside directly on your device and browser storage. Reso Agent embeds no background analytics beacons, third-party ad trackers, or silent telemetry collectors.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <h4 className="text-base font-semibold text-[#f4f3f8]">
-                      Third-Party Model & Connector Transmissions
-                    </h4>
-                    <p className="text-xs sm:text-sm text-[#e6e4f0]/80 leading-relaxed">
-                      When you submit a query, only the necessary prompt context and retrieved passages are sent to the active inference provider you selected (such as the built-in NVIDIA NIM endpoint, xAI Grok, DeepSeek, Qwen, Groq, Google Gemini, OpenAI, OpenRouter, or your local Ollama server). Similarly, workspace connectors only communicate with their official API endpoints when invoked during a turn.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <h4 className="text-base font-semibold text-[#f4f3f8]">
-                      Instant Credential Revocation
-                    </h4>
-                    <p className="text-xs sm:text-sm text-[#e6e4f0]/80 leading-relaxed">
-                      Removing an API key or disconnecting a workspace connector immediately deletes the stored secret from disk and unregisters all associated tools from the live FastAPI session.
-                    </p>
-                  </div>
-                </article>
-              )}
-
-              {securitySection === "terms" && (
-                <article className="space-y-6">
-                  <header className="space-y-2">
-                    <h3 className="text-2xl font-bold tracking-tight text-[#f4f3f8]">
-                      Terms of Service
-                    </h3>
-                    <p className="text-sm text-[#e6e4f0]/70">
-                      Guidelines governing authorized usage, generated code and document artifacts, and connected third-party services.
-                    </p>
-                  </header>
-
-                  <div className="space-y-2">
-                    <h4 className="text-base font-semibold text-[#f4f3f8]">
-                      Authorized API & Connector Usage
-                    </h4>
-                    <p className="text-xs sm:text-sm text-[#e6e4f0]/80 leading-relaxed">
-                      You are responsible for ensuring that any custom API keys, OAuth tokens, and webhook URLs configured in Reso Agent are used in accordance with the terms of service and rate limits of their respective providers. The built-in free NVIDIA NIM tier is provided for interactive assistant queries and development workflows.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <h4 className="text-base font-semibold text-[#f4f3f8]">
-                      Review of Generated Code & Document Artifacts
-                    </h4>
-                    <p className="text-xs sm:text-sm text-[#e6e4f0]/80 leading-relaxed">
-                      Reso Agent can synthesize executable source files (including Python, C, C++, TypeScript, SQL, and Shell scripts) as well as downloadable PDF, DOC, and TXT reports. All generated code and citations are provided &quot;as-is&quot; and should be reviewed and tested prior to production deployment.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <h4 className="text-base font-semibold text-[#f4f3f8]">
-                      User Responsibility for Approved Tool Calls
-                    </h4>
-                    <p className="text-xs sm:text-sm text-[#e6e4f0]/80 leading-relaxed">
-                      When you click &quot;Approve&quot; on an interactive tool consent card, you authorize Reso Agent to execute that specific operation with the displayed parameters on your connected account.
-                    </p>
-                  </div>
-                </article>
-              )}
+              <WorkspacePolicy section={securitySection} />
             </div>
           )}
         </div>

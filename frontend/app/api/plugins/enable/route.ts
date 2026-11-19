@@ -1,3 +1,4 @@
+import { backendFetch } from "@/lib/backend";
 // app/api/plugins/enable/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
@@ -9,7 +10,7 @@ const BACKEND_URL =
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const res = await fetch(`${BACKEND_URL}/plugins/enable`, {
+    const res = await backendFetch(`${BACKEND_URL}/plugins/enable`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),

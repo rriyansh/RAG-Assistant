@@ -15,3 +15,6 @@ mcp_servers.json
 plugins.json
 config.json
 *.tmp
+
+data/sessions/
+data/connectors.json

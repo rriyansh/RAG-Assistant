@@ -1,7 +1,13 @@
 # src/api/main.py
 from __future__ import annotations
 
+from dotenv import load_dotenv
+
 import logging
+import re
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from src.utils.workspace import session_id
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
@@ -11,6 +17,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.agent import register_internal_plugins
 from src.agent.connectors import connector_manager
 from src.api.routes import router
+
+load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,5 +53,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def bind_workspace(request: Request, call_next):
+    session = request.headers.get("x-reso-session", "")
+    if session and not re.fullmatch(r"[a-f0-9]{32}", session):
+        return JSONResponse({"detail": "Invalid workspace session"}, status_code=400)
+    token = session_id.set(session)
+    try:
+        return await call_next(request)
+    finally:
+        session_id.reset(token)
+
 
 app.include_router(router)

@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from src.utils.workspace import workspace_path, session_id
 from src.llm.provider import LLMProvider
 
 KEYS_PATH = Path("data/keys.json")
@@ -25,7 +26,7 @@ PROVIDER_BASE_URLS: dict[str, str] = {
 }
 
 PROVIDER_DEFAULT_MODELS: dict[str, str] = {
-    "nvidia": "meta/llama-3.1-70b-instruct",
+    "nvidia": "meta/llama-3.3-70b-instruct",
     "grok": "grok-2-latest",
     "deepseek": "deepseek-chat",
     "qwen": "qwen-plus",
@@ -58,10 +59,10 @@ def get_builtin_nvidia_key() -> str:
 
 
 def create_llm() -> LLMProvider:
-    cfg = _read_json(CONFIG_PATH)
-    keys = _read_json(KEYS_PATH)
+    cfg = _read_json(workspace_path(CONFIG_PATH))
+    keys = _read_json(workspace_path(KEYS_PATH))
 
-    provider = str(cfg.get("provider") or os.getenv("LLM_PROVIDER") or "nvidia").lower()
+    provider = str(cfg.get("provider") or (None if session_id.get() else os.getenv("LLM_PROVIDER")) or "nvidia").lower()
     saved_entry = keys.get(provider, {})
     user_key = ""
     if isinstance(saved_entry, dict):
@@ -69,25 +70,21 @@ def create_llm() -> LLMProvider:
     elif isinstance(saved_entry, str):
         user_key = saved_entry.strip()
 
-    if not user_key:
-        user_key = os.getenv(f"{provider.upper()}_API_KEY", "").strip()
-
+    hosted = provider == "nvidia" and (cfg.get("hosted") or not user_key)
+    if hosted:
+        user_key = get_builtin_nvidia_key()
+        base_url = PROVIDER_BASE_URLS["nvidia"]
+        model = os.getenv("NVIDIA_MODEL") or PROVIDER_DEFAULT_MODELS["nvidia"]
+    else:
+        base_url = cfg.get("base_url") or (saved_entry.get("base_url") if isinstance(saved_entry, dict) else None) or PROVIDER_BASE_URLS.get(provider)
+        model = cfg.get("model") or (saved_entry.get("model") if isinstance(saved_entry, dict) else None) or PROVIDER_DEFAULT_MODELS.get(provider)
+        if not user_key and not session_id.get() and provider in PROVIDER_BASE_URLS:
+            user_key = os.getenv(f"{provider.upper()}_API_KEY", "")
+            base_url = PROVIDER_BASE_URLS[provider]
     if not user_key and provider != "ollama":
-        builtin_nv = get_builtin_nvidia_key()
-        if builtin_nv:
-            provider = "nvidia"
-            user_key = builtin_nv
-
-    base_url = (
-        str(cfg.get("base_url") or "").strip()
-        or (saved_entry.get("base_url") if isinstance(saved_entry, dict) else "")
-        or PROVIDER_BASE_URLS.get(provider, "https://integrate.api.nvidia.com/v1")
-    )
-    model = (
-        str(cfg.get("model") or "").strip()
-        or (saved_entry.get("model") if isinstance(saved_entry, dict) else "")
-        or PROVIDER_DEFAULT_MODELS.get(provider, "meta/llama-3.1-70b-instruct")
-    )
+        raise ValueError(f"No API key configured for {provider}.")
+    if not model or not base_url:
+        raise ValueError("Configure the provider model and endpoint in Settings.")
 
     temperature = float(cfg.get("temperature", 0.3))
     max_tokens = int(cfg.get("max_tokens", 1024))

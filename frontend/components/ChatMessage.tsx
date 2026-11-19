@@ -66,7 +66,7 @@ function extractCodeBlocks(content: string): ExtractedCodeFile[] {
     const ext = LANG_EXTENSION_MAP[rawLang] || "txt";
     const firstLine = code.split("\n")[0] || "";
     const nameMatch = firstLine.match(/(?:\/\/|#|\/\*|--)\s*([a-zA-Z0-9_.-]+\.[a-zA-Z0-9]+)/);
-    const filename = nameMatch ? nameMatch[1] : `script_${index}.${ext}`;
+    const filename = nameMatch?.[1] || `script_${index}.${ext}`;
     files.push({
       filename,
       language: rawLang || "text",
@@ -91,8 +91,8 @@ export function ChatMessage({
 
   const resolvedAssistantName = profile?.assistantName || assistantName || "RAG Assistant";
   const resolvedUserName = profile?.name?.trim() || "User";
-  const assistantLogoSrc = profile?.assistantLogo || DEFAULT_RAG_ASSISTANT_LOGO;
-  const userAvatarSrc = profile?.avatarDataUrl || INBUILT_USER_PFPS[0].url;
+  const assistantLogoSrc = profile?.assistantLogo ?? DEFAULT_RAG_ASSISTANT_LOGO;
+  const userAvatarSrc = profile?.avatarDataUrl || INBUILT_USER_PFPS[0]!.url;
 
   const extractedFiles = useMemo(
     () => (!isUser ? extractCodeBlocks(message.content) : []),
@@ -113,7 +113,7 @@ export function ChatMessage({
         isUser ? "justify-end" : "justify-start"
       }`}
     >
-      {!isUser && (
+      {!isUser && assistantLogoSrc && (
         <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#e6e4f0]/20 bg-[#141417]">
           <img
             src={assistantLogoSrc}
