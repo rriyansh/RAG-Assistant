@@ -4,18 +4,19 @@ import { useCallback, useEffect, useState } from "react";
 import { FontId, UserProfile } from "../lib/types";
 import { DEFAULT_RAG_ASSISTANT_LOGO, INBUILT_USER_PFPS } from "../lib/utils";
 
-const PROFILE_STORAGE_KEY = "rag_assistant_user_profile_v3";
+const PROFILE_STORAGE_KEY = "rag_assistant_user_profile_v4";
 const LEGACY_KEYS = [
+  "rag_assistant_user_profile_v3",
   "rag_assistant_user_profile_v2",
   "rag_assistant_user_profile_v1",
   "rag_assistant_profile",
   "user_profile",
 ];
-const ONBOARDING_STORAGE_KEY = "rag_assistant_onboarded_v3";
+const ONBOARDING_STORAGE_KEY = "rag_assistant_onboarded_v4";
 
 export const DEFAULT_PROFILE: UserProfile = {
   name: "",
-  assistantName: "RAG Assistant",
+  assistantName: "Reso Agent",
   headline: "Grounded Knowledge & Code Synthesis",
   bodyText: "Search documents, connect workspace tools, and generate code or documents.",
   font: "open-sans",
@@ -43,13 +44,13 @@ export function useProfile() {
 
   useEffect(() => {
     try {
-      let savedLogo = "";
-      let savedAvatar = "";
+      let savedLogo: string | undefined;
+      let savedAvatar: string | undefined;
       for (const k of [PROFILE_STORAGE_KEY, ...LEGACY_KEYS]) {
         const raw = localStorage.getItem(k);
         if (raw) {
           const parsed = JSON.parse(raw) as Partial<UserProfile>;
-          if (parsed.assistantLogo && !savedLogo) {
+          if (parsed.assistantLogo !== undefined && savedLogo === undefined) {
             savedLogo = parsed.assistantLogo;
           }
           if (parsed.avatarDataUrl && !savedAvatar) {
@@ -64,15 +65,21 @@ export function useProfile() {
         setProfile({
           ...DEFAULT_PROFILE,
           ...parsed,
+          assistantName: parsed.assistantName || "Reso Agent",
           font: (parsed.font as FontId) || "open-sans",
           avatarDataUrl: parsed.avatarDataUrl || savedAvatar || INBUILT_USER_PFPS[0].url,
-          assistantLogo: parsed.assistantLogo || savedLogo || DEFAULT_RAG_ASSISTANT_LOGO,
+          assistantLogo:
+            parsed.assistantLogo !== undefined
+              ? parsed.assistantLogo
+              : savedLogo !== undefined
+              ? savedLogo
+              : DEFAULT_RAG_ASSISTANT_LOGO,
         });
-      } else if (savedLogo || savedAvatar) {
+      } else if (savedLogo !== undefined || savedAvatar) {
         setProfile((prev) => ({
           ...prev,
           avatarDataUrl: savedAvatar || prev.avatarDataUrl,
-          assistantLogo: savedLogo || prev.assistantLogo,
+          assistantLogo: savedLogo !== undefined ? savedLogo : prev.assistantLogo,
         }));
       }
 
@@ -91,9 +98,7 @@ export function useProfile() {
         ...prev,
         ...patch,
         assistantLogo:
-          patch.assistantLogo !== undefined
-            ? patch.assistantLogo || DEFAULT_RAG_ASSISTANT_LOGO
-            : prev.assistantLogo || DEFAULT_RAG_ASSISTANT_LOGO,
+          patch.assistantLogo !== undefined ? patch.assistantLogo : prev.assistantLogo,
       };
       try {
         localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(next));
@@ -130,7 +135,7 @@ export function useProfile() {
   );
 
   const clearAssistantLogo = useCallback(() => {
-    update({ assistantLogo: DEFAULT_RAG_ASSISTANT_LOGO });
+    update({ assistantLogo: "" });
   }, [update]);
 
   const completeOnboarding = useCallback(() => {
@@ -146,7 +151,7 @@ export function useProfile() {
 
   return {
     profile,
-    assistantName: profile.assistantName || "RAG Assistant",
+    assistantName: profile.assistantName || "Reso Agent",
     isOnboarded,
     hydrated,
     update,
