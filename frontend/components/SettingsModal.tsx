@@ -160,6 +160,10 @@ function ProviderBrandLogo({ provider }: { provider: string }) {
 
 export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnector, onOpenOnboarding }: SettingsModalProps) {
   const modalVisible = Boolean(isOpen ?? open);
+  const [sheetTheme, setSheetTheme] = useState("system");
+  useEffect(() => {
+    try { setSheetTheme(localStorage.getItem("reso-connector-theme") || "system"); } catch {}
+  }, []);
   const [activeTab, setActiveTab] = useState<TabKey | null>(null);
   const {
     profile,
@@ -419,15 +423,16 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
       }}
     >
       <div
+        data-sheet-theme={activeTab === "connectors" ? sheetTheme : undefined}
         role="dialog"
         aria-modal="true" aria-labelledby="workspace-settings-title"
         className="settings-dialog flex h-[min(94dvh,820px)] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-[#e6e4f0]/15 bg-[#141417] text-[#f4f3f8] shadow-2xl"
       >
         <div className="flex items-center justify-between border-b border-[#e6e4f0]/10 px-5 py-4 sm:px-6">
-          <h2 id="workspace-settings-title" className={activeTab === "connectors" ? "sr-only" : "text-base font-semibold tracking-tight text-[#f4f3f8]"}>
-            Workspace settings
+          {activeTab === "connectors" && <button type="button" className="sheet-back" aria-label="Back to settings" onClick={() => setActiveTab(null)}>‹</button>}
+          <h2 id="workspace-settings-title" className="text-base font-semibold tracking-tight">
+            {activeTab === "connectors" ? "Add connector" : "Workspace settings"}
           </h2>
-          {activeTab === "connectors" && <button type="button" aria-label="Back to settings" onClick={() => setActiveTab(null)}>←</button>}
           <button
             type="button" aria-label="Close settings"
             onClick={onClose}
@@ -665,17 +670,14 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
             <div className="connector-catalog space-y-6">
               <input type="search" aria-label="Search connectors" placeholder="Search connectors" value={connectorSearch}
                 onChange={event => setConnectorSearch(event.target.value)} className="connector-search" />
-              {!query && connectors.length > 0 && <nav className="service-shortcuts" aria-label="Featured connectors">
-                {["notion", "asana", "github", "gmail", "google_drive", "vercel", "linear", "stripe"].map(id => {
-                  const service = connectors.find(item => item.id === id);
-                  if (!service) return null;
-                  return <button key={id} type="button" title={service.name} aria-label={service.name}
-                    onClick={() => {
-                      void openConnector(service);
-                      document.getElementById(`connector-card-${id}`)?.focus();
-                    }}><ConnectorBrandLogo id={id} /></button>;
-                })}
-              </nav>}
+              <label className="sheet-appearance">Appearance
+                <select value={sheetTheme} onChange={event => {
+                  setSheetTheme(event.target.value);
+                  try { localStorage.setItem("reso-connector-theme", event.target.value); } catch {}
+                }}>
+                  <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option>
+                </select>
+              </label>
               {connectorError && (
                 <div className="rounded-xl border border-[#e6e4f0]/20 bg-[#1c1c21] px-4 py-2.5 text-xs text-[#f4f3f8]">
                   {connectorError}
