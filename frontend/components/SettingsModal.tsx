@@ -190,6 +190,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
   });
 
   useEffect(() => { if (!modalVisible) setActiveTab(null); }, [modalVisible]);
+  const [connectorSearch, setConnectorSearch] = useState("");
   const [catalogUnavailable, setCatalogUnavailable] = useState(false);
   const [connectors, setConnectors] = useState<ConnectorInfo[]>(() => directory.map(([id, name, category, description]) => ({
     id: id!, name: name!, category: category!, description: description!, auth_type: "", built_in: false,
@@ -234,6 +235,31 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
       setCatalogUnavailable(connData === null);
       if (connData) setConnectors(connData);
     } catch {}
+  }
+
+  async function openConnector(service: ConnectorInfo) {
+    setConnectorError(null);
+    setConnectorCredentials({});
+    setActiveConnectorFormId(null);
+    let current = service;
+    if (service.status === "unavailable" || catalogUnavailable) {
+      setConnectorBusyId(service.id);
+      try {
+        const live = await fetchConnectors();
+        const match = live.find(item => item.id === service.id);
+        if (!match) throw new Error();
+        setConnectors(live);
+        setCatalogUnavailable(false);
+        current = match;
+      } catch {
+        setConnectorError(`Could not open ${service.name}. Please try again.`);
+        return;
+      } finally {
+        setConnectorBusyId(null);
+      }
+    }
+    if (current.built_in) await handleToggleConnector(current.id, !current.enabled);
+    else if (!current.connected && activeConnectorFormId !== current.id) setActiveConnectorFormId(current.id);
   }
 
   function handleKeyInputChange(raw: string) {
@@ -376,6 +402,10 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
     }
   }
 
+  const query = connectorSearch.trim().toLowerCase();
+  const matches = connectors.filter(item =>
+    [item.name, item.description, item.id].some(value => value.toLowerCase().includes(query))
+  );
   if (!modalVisible) return null;
 
   const currentAvatar = profile.avatarDataUrl || INBUILT_USER_PFPS[0]!.url;
@@ -633,15 +663,15 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
 
           {activeTab === "connectors" && (
             <div className="connector-catalog space-y-6">
-              {connectors.length > 0 && <nav className="service-shortcuts" aria-label="Featured connectors">
+              <input type="search" aria-label="Search connectors" placeholder="Search connectors" value={connectorSearch}
+                onChange={event => setConnectorSearch(event.target.value)} className="connector-search" />
+              {!query && connectors.length > 0 && <nav className="service-shortcuts" aria-label="Featured connectors">
                 {["notion", "asana", "github", "gmail", "google_drive", "vercel", "linear", "stripe"].map(id => {
                   const service = connectors.find(item => item.id === id);
                   if (!service) return null;
                   return <button key={id} type="button" title={service.name} aria-label={service.name}
                     onClick={() => {
-                      setConnectorCredentials({});
-                      setConnectorError(null);
-                      setActiveConnectorFormId(service.connected || service.status === "unavailable" || catalogUnavailable ? null : id);
+                      void openConnector(service);
                       document.getElementById(`connector-card-${id}`)?.focus();
                     }}><ConnectorBrandLogo id={id} /></button>;
                 })}
@@ -652,12 +682,14 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
                 </div>
               )}
 
-              {CONNECTOR_CATEGORIES.map((cat) => {
-                const catItems = connectors.filter(
-                  (c) =>
-                    c.category === cat.id ||
-                    (cat.id === "workspace" && ["google", "productivity", "custom"].includes(c.category))
-                );
+              {!matches.length && <p role="status">No matching connectors.</p>}
+              {[{ id: "connected", title: "Connected" }, ...CONNECTOR_CATEGORIES].map((cat) => {
+                const catItems = matches.filter(item => {
+                  const connected = item.built_in ? item.enabled : item.connected;
+                  if (cat.id === "connected") return connected;
+                  return !connected && (item.category === cat.id ||
+                    (cat.id === "workspace" && ["google", "productivity", "custom"].includes(item.category)));
+                });
                 if (cat.id === "developer") {
                   const order = ["vercel", "cloudflare", "github"];
                   const rank = (id: string) => order.includes(id) ? order.indexOf(id) : order.length;
@@ -690,16 +722,14 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
                                   <h5 className="break-words text-base font-semibold text-[#f4f3f8]">
                                     {conn.name}
                                   </h5>
-                                  <p className="mt-1 text-sm leading-relaxed text-[#e6e4f0]/80">
+                                  <p title={conn.description} className="mt-1 text-sm leading-relaxed text-[#e6e4f0]/80">
                                     {conn.description}
                                   </p>
                                 </div>
                               </div>
 
                               <div className="shrink-0">
-                                {catalogUnavailable || conn.status === "unavailable" ? (
-                                  <span className="text-xs text-gray-400">{catalogUnavailable ? "Offline" : "Loading…"}</span>
-                                ) : conn.built_in ? (
+                                {conn.built_in ? (
                                   <button
                                     type="button"
                                     onClick={() =>
@@ -711,7 +741,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
                                         : "bg-[#f4f3f8] text-[#0c0c0e] shadow-[0_3px_0_0_#bdb9ce]"
                                     }`}
                                   >
-                                    {conn.enabled ? "Active" : "Connect"}
+                                    {conn.enabled ? "Disconnect" : "Connect"}
                                   </button>
                                 ) : conn.connected ? (
                                   <button
@@ -720,18 +750,13 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
                                     onClick={() => handleDisconnectService(conn.id)}
                                     className="rounded-xl border border-[#e6e4f0]/25 bg-[#1c1c21] px-4 py-1.5 text-xs font-semibold text-[#f4f3f8] hover:bg-[#141417]"
                                   >
-                                    Connected
+                                    Disconnect
                                   </button>
                                 ) : (
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      setConnectorError(null);
-                                      setConnectorCredentials({});
-                                      setActiveConnectorFormId(
-                                        isConfiguring ? null : conn.id
-                                      );
-                                    }}
+                                    disabled={isBusy}
+                                    onClick={() => openConnector(conn)}
                                     className="rounded-xl bg-[#f4f3f8] px-4 py-1.5 text-xs font-semibold text-[#0c0c0e] shadow-[0_3px_0_0_#bdb9ce] transition active:translate-y-[1px] active:shadow-[0_1px_0_0_#bdb9ce]"
                                   >
                                     Connect
@@ -799,7 +824,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
                   </div>
                 );
               })}
-              <section aria-labelledby="connector-providers">
+              {!query && <section aria-labelledby="connector-providers">
                 <h4 id="connector-providers">AI Models &amp; API Providers</h4>
                 <div className="connector-grid">
                   {([
@@ -820,7 +845,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
                     </div>
                   </div>)}
                 </div>
-              </section>
+              </section>}
             </div>
           )}
 

@@ -488,3 +488,7 @@ html[data-font="source-sans-3"] { --font-body: "Source Sans 3", system-ui, sans-
   .connector-grid form .flex { flex-wrap: wrap; }
   .connector-catalog .provider-tile, .connector-catalog .catalog-entry .h-11 { width: 32px; height: 32px; padding: 3px; }
 }
+
+.connector-search { width: 100%; min-height: 42px; border-radius: 12px; border: 1px solid #ffffff29; background: #141417; padding: 8px 13px; color: #f4f3f8; font-size: 16px; }
+.connector-catalog .catalog-entry p { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 12px; line-height: 17px; }
+.connector-catalog .catalog-entry h5 { font-size: 14px; line-height: 18px; }
