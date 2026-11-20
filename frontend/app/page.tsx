@@ -80,7 +80,7 @@ export default function HomePage() {
             {messages[0]?.timestamp && <p className="text-center text-xs text-[#c6c4cf]">{messages[0].timestamp}</p>}
             {messages.length === 0 ? (
               <section className="chat-welcome">
-                <img className="mx-auto mb-4 h-16 w-16 rounded-2xl bg-white p-1 object-contain" src="/icon.svg" width={64} height={64} alt="RAG Assistant" />
+                <img className="mx-auto mb-4 h-16 w-16 object-contain" src="/icon.svg" width={64} height={64} alt="RAG Assistant" />
                 <h1>Welcome to RESO AGENT</h1>
                 <p>How can I help you?</p>
               </section>

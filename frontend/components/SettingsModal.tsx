@@ -147,7 +147,7 @@ function connectorPrompt(connector: ConnectorInfo): string {
 function ConnectorBrandLogo({ id }: { id: string }) {
   if (brandedConnectors.has(id)) {
     const src = `/connectors/${id}.svg`;
-    return <img src={src} alt="" className="h-8 w-8 rounded-md bg-white p-1 object-contain" />;
+    return <img src={src} alt="" className="h-7 w-7 object-contain" />;
   }
   return <Plug aria-hidden className="h-5 w-5" />;
 }
@@ -160,10 +160,6 @@ function ProviderBrandLogo({ provider }: { provider: string }) {
 
 export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnector, onOpenOnboarding }: SettingsModalProps) {
   const modalVisible = Boolean(isOpen ?? open);
-  const [sheetTheme, setSheetTheme] = useState("system");
-  useEffect(() => {
-    try { setSheetTheme(localStorage.getItem("reso-connector-theme") || "system"); } catch {}
-  }, []);
   const [activeTab, setActiveTab] = useState<TabKey | null>(null);
   const {
     profile,
@@ -423,7 +419,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
       }}
     >
       <div
-        data-sheet-theme={activeTab === "connectors" ? sheetTheme : undefined}
+        data-connector-sheet={activeTab === "connectors" ? "" : undefined}
         role="dialog"
         aria-modal="true" aria-labelledby="workspace-settings-title"
         className="settings-dialog flex h-[min(94dvh,820px)] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-[#e6e4f0]/15 bg-[#141417] text-[#f4f3f8] shadow-2xl"
@@ -670,14 +666,6 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
             <div className="connector-catalog space-y-6">
               <input type="search" aria-label="Search connectors" placeholder="Search connectors" value={connectorSearch}
                 onChange={event => setConnectorSearch(event.target.value)} className="connector-search" />
-              <label className="sheet-appearance">Appearance
-                <select value={sheetTheme} onChange={event => {
-                  setSheetTheme(event.target.value);
-                  try { localStorage.setItem("reso-connector-theme", event.target.value); } catch {}
-                }}>
-                  <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option>
-                </select>
-              </label>
               {connectorError && (
                 <div className="rounded-xl border border-[#e6e4f0]/20 bg-[#1c1c21] px-4 py-2.5 text-xs text-[#f4f3f8]">
                   {connectorError}
@@ -717,7 +705,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
                           >
                             <div className="catalog-entry">
                               <div className="flex items-start gap-3.5 min-w-0">
-                                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#e6e4f0]/15 bg-[#141417] p-2">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center">
                                   <ConnectorBrandLogo id={conn.id} />
                                 </div>
                                 <div className="space-y-1 min-w-0">

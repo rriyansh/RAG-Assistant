@@ -494,31 +494,32 @@ html[data-font="source-sans-3"] { --font-body: "Source Sans 3", system-ui, sans-
 .connector-catalog .catalog-entry h5 { font-size: 14px; line-height: 18px; }
 
 /* Connector sheet shares the same layout and control sizes in both themes. */
-.settings-dialog[data-sheet-theme] {
+.settings-dialog[data-connector-sheet] {
   --sheet: #17171b; --ink: #faf9fc; --secondary: #cbc9d0; --line: #45444b; --control: #35343d;
   color-scheme: dark; background: var(--sheet); color: var(--ink); max-width: 42rem;
 }
-.settings-dialog[data-sheet-theme="light"] {
-  --sheet: #faf9fc; --ink: #19181d; --secondary: #49474f; --line: #ceccd4; --control: #e6e4ec;
-  color-scheme: light;
-}
 @media (prefers-color-scheme: light) {
-  .settings-dialog[data-sheet-theme="system"] {
+  .settings-dialog[data-connector-sheet] {
     --sheet: #faf9fc; --ink: #19181d; --secondary: #49474f; --line: #ceccd4; --control: #e6e4ec;
     color-scheme: light;
   }
 }
-[data-sheet-theme] > div:first-child { border-color: var(--line); }
-[data-sheet-theme] > div:first-child button { color: var(--ink); background: var(--control); border: 0; border-radius: 50%; width: 36px; height: 36px; display: grid; place-items: center; }
+[data-connector-sheet] > div:first-child { border-color: var(--line); }
+[data-connector-sheet] > div:first-child button { color: var(--ink); background: var(--control); border: 0; border-radius: 50%; width: 36px; height: 36px; display: grid; place-items: center; }
 .sheet-back { font-size: 24px; }
-[data-sheet-theme] .connector-search, [data-sheet-theme] :is(input,select) { background: var(--sheet); color: var(--ink); border: 1px solid var(--line); }
-[data-sheet-theme] input::placeholder { color: var(--secondary); }
-.sheet-appearance { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--secondary); }
-.sheet-appearance select { border-radius: 8px; padding: 5px 8px; }
-[data-sheet-theme] .connector-grid { grid-template-columns: minmax(0,1fr); gap: 0; }
-[data-sheet-theme] .settings-content .connector-grid > div { background: transparent; padding: 12px 0; border: 0 !important; border-bottom: 1px solid var(--line) !important; border-radius: 0; }
-[data-sheet-theme] .catalog-entry, [data-sheet-theme] .catalog-entry > div:first-child { flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 10px; }
-[data-sheet-theme] .catalog-entry h5, [data-sheet-theme] .connector-catalog button, [data-sheet-theme] .connector-catalog label { color: var(--ink); }
-[data-sheet-theme] .connector-catalog h4, [data-sheet-theme] .catalog-entry p { color: var(--secondary); }
-[data-sheet-theme] .catalog-entry button, [data-sheet-theme] form button { background: var(--control); border: 0; box-shadow: none; border-radius: 999px; padding: 8px 13px; font-size: 12px; font-weight: 700; flex-shrink: 0; }
-[data-sheet-theme] .connector-catalog :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+[data-connector-sheet] .connector-search, [data-connector-sheet] :is(input,select) { background: var(--sheet); color: var(--ink); border: 1px solid var(--line); }
+[data-connector-sheet] input::placeholder { color: var(--secondary); }
+[data-connector-sheet] .connector-grid { grid-template-columns: minmax(0,1fr); gap: 0; }
+[data-connector-sheet] .settings-content .connector-grid > div { background: transparent; padding: 12px 0; border: 0 !important; border-bottom: 1px solid var(--line) !important; border-radius: 0; }
+[data-connector-sheet] .catalog-entry, [data-connector-sheet] .catalog-entry > div:first-child { flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 10px; }
+[data-connector-sheet] .catalog-entry h5, [data-connector-sheet] .connector-catalog button, [data-connector-sheet] .connector-catalog label { color: var(--ink); }
+[data-connector-sheet] .connector-catalog h4, [data-connector-sheet] .catalog-entry p { color: var(--secondary); }
+[data-connector-sheet] .catalog-entry button, [data-connector-sheet] form button { background: var(--control); border: 0; box-shadow: none; border-radius: 999px; padding: 8px 13px; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+[data-connector-sheet] .connector-catalog :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+[data-connector-sheet] .provider-tile, [data-connector-sheet] .provider-tile img {
+  border: 0; border-radius: 0; background: transparent; padding: 0;
+}
+@media (prefers-color-scheme: dark) {
+  [data-connector-sheet] :is(img[src="/connectors/github.svg"],img[src="/connectors/vercel.svg"],img[src="/connectors/notion.svg"],img[src="/providers/openai.svg"],img[src="/providers/grok.svg"]) { filter: invert(1); }
+}
