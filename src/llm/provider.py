@@ -8,7 +8,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-from openai import OpenAI
+from openai import APIConnectionError, APIStatusError, OpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +62,10 @@ class ChatResponse:
             return default
 
 
+class ProviderResponseError(RuntimeError):
+    """Provider failure with a message safe to display to the caller."""
+
+
 class LLMProvider:
     """OpenAI-compatible LLM wrapper supporting both standard generation and tool-calling."""
 
@@ -87,6 +91,44 @@ class LLMProvider:
             timeout=timeout,
         )
 
+    def _completion(self, **kwargs: Any) -> Any:
+        # Retry only a retired NVIDIA model and only on NVIDIA's own endpoint.
+        selected = kwargs["model"]
+        candidates = [selected]
+        if self.base_url.rstrip("/") == "https://integrate.api.nvidia.com/v1":
+            fallback = "meta/llama-3.3-70b-instruct"
+            if selected == fallback:
+                fallback = "nvidia/nemotron-3-super-120b-a12b"
+            candidates.append(fallback)
+        for candidate in candidates:
+            try:
+                kwargs["model"] = candidate
+                response = self.client.chat.completions.create(**kwargs)
+            except APIStatusError as exc:
+                status = exc.status_code
+                if status == 410 and candidate != candidates[-1]:
+                    continue
+                messages = {
+                    401: "The provider rejected this credential. Check the key and provider.",
+                    403: "The credential lacks access to this model.",
+                    404: "The provider could not find this model or endpoint.",
+                    410: "The provider retired this model or endpoint. Choose an available model in Settings.",
+                    429: "The provider rate or quota limit was reached. Check your quota and retry.",
+                }
+                message = messages.get(status, f"The provider returned HTTP {status}.")
+                if status == 400 and kwargs.get("tools") and "tool" in str(exc).lower():
+                    message = "The model rejected the tool_choice or tool definitions."
+                raise ProviderResponseError(message) from None
+            except APIConnectionError:
+                raise ProviderResponseError("Could not reach the model provider. Check connectivity and retry.") from None
+            except Exception:
+                raise ProviderResponseError("The provider returned an unreadable response.") from None
+            if not getattr(response, "choices", None) or not getattr(response.choices[0], "message", None):
+                raise ProviderResponseError("The provider returned no completion. Check the model and retry.")
+            self.model = candidate
+            return response
+        raise ProviderResponseError("No available model returned a completion.")
+
     def generate(
         self,
         prompt: str | list[dict[str, Any]],
@@ -98,7 +140,7 @@ class LLMProvider:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt},
         ]
-        response = self.client.chat.completions.create(
+        response = self._completion(
             model=self.model,
             messages=messages,  # type: ignore[arg-type]
             temperature=temperature if temperature is not None else self.temperature,
@@ -106,7 +148,9 @@ class LLMProvider:
             top_p=self.top_p,
         )
         content = response.choices[0].message.content
-        return content.strip() if content else ""
+        if not isinstance(content, str) or not content.strip():
+            raise ProviderResponseError("The model returned no answer text. Check its output token limit.")
+        return content.strip()
 
     def chat(
         self,
@@ -126,7 +170,7 @@ class LLMProvider:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
 
-        response = self.client.chat.completions.create(**kwargs)
+        response = self._completion(**kwargs)
         msg = response.choices[0].message
         content = (msg.content or "").strip()
 

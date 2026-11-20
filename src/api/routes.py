@@ -39,6 +39,7 @@ from src.api.schemas import (
     ThinkingGenerateRequest,
 )
 from src.generation.generator import generate_answer
+from src.llm.provider import ProviderResponseError
 from src.llm.factory import (
     PROVIDER_BASE_URLS,
     PROVIDER_DEFAULT_MODELS,
@@ -298,13 +299,15 @@ async def test_key(req: KeyTestRequest) -> dict[str, Any]:
             api_key=req.api_key,
             base_url=base_url,
             model=model,
-            max_tokens=8,
+            max_tokens=256,
             timeout=15.0,
         )
-        await asyncio.to_thread(p.generate, "OK")
-        return {"valid": True, "provider": provider_id, "model": model}
-    except Exception as exc:
+        await asyncio.to_thread(p.generate, "Reply with the word OK.")
+        return {"valid": True, "provider": provider_id, "model": p.model}
+    except ProviderResponseError as exc:
         return {"valid": False, "error": str(exc)}
+    except Exception:
+        return {"valid": False, "error": "Verification failed. Check the provider, endpoint and model."}
 
 
 @router.post("/keys/set")

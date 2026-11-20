@@ -76,7 +76,7 @@ def create_llm() -> LLMProvider:
         base_url = PROVIDER_BASE_URLS["nvidia"]
         model = os.getenv("NVIDIA_MODEL") or PROVIDER_DEFAULT_MODELS["nvidia"]
     else:
-        base_url = cfg.get("base_url") or (saved_entry.get("base_url") if isinstance(saved_entry, dict) else None) or PROVIDER_BASE_URLS.get(provider)
+        base_url = PROVIDER_BASE_URLS.get(provider) or cfg.get("base_url") or (saved_entry.get("base_url") if isinstance(saved_entry, dict) else None)
         model = cfg.get("model") or (saved_entry.get("model") if isinstance(saved_entry, dict) else None) or PROVIDER_DEFAULT_MODELS.get(provider)
         if not user_key and not session_id.get() and provider in PROVIDER_BASE_URLS:
             user_key = os.getenv(f"{provider.upper()}_API_KEY", "")
