@@ -8,6 +8,7 @@ import {
   INBUILT_USER_PFPS,
   triggerFileDownload,
 } from "../lib/utils";
+import { CommitReview } from "./CommitReview";
 import { ToolCalls } from "./ToolCalls";
 import { ConsentPrompt } from "./ConsentPrompt";
 import { AiStreamingText } from "./ui/ai-streaming-text";
@@ -221,6 +222,7 @@ export function ChatMessage({
 
         {!isUser && message.toolCalls && message.toolCalls.length > 0 && (
           <div className="w-full">
+            {message.toolCalls.map(tc => tc.review && <CommitReview key={tc.id} review={tc.review} />)}
             <ToolCalls toolCalls={message.toolCalls} />
           </div>
         )}

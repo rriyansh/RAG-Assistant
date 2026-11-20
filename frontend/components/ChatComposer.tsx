@@ -12,6 +12,7 @@ export interface ChatComposerProps {
   disabled?: boolean;
   prompts?: string[];
   placeholder?: string;
+  mode?: "agent" | "chat";
   models?: string[];
   modelNotes?: string[];
   hint?: boolean;
@@ -70,6 +71,7 @@ export default function ChatComposer({
   disabled = false,
   prompts = DEFAULT_PROMPTS,
   placeholder = "Ask about your documents...",
+  mode = "agent",
   models = ["Turbo", "Studio", "Deep"],
   modelNotes,
   hint = false,
@@ -123,7 +125,7 @@ export default function ChatComposer({
     if (!text || enhancing) return;
     setEnhancing(true);
     try {
-      const res = await enhancePrompt(text);
+      const res = await enhancePrompt(text, mode);
       setValue(res);
       inputRef.current?.focus();
     } catch {
@@ -275,7 +277,7 @@ export default function ChatComposer({
             >
               <Wand2 size={14} className={enhancing ? "animate-pulse" : ""} />
             </button>
-            <div className="ppc-model-wrap">
+            {models.length > 0 && <div className="ppc-model-wrap">
               <button
                 ref={modelBtnRef}
                 type="button"
@@ -313,7 +315,7 @@ export default function ChatComposer({
                   ))}
                 </div>
               )}
-            </div>
+            </div>}
             <button
               type="submit"
               className="ppc-send"

@@ -10,11 +10,12 @@ const BACKEND_URL =
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const res = await backendFetch(`${BACKEND_URL}/ask`, {
+    const res = await backendFetch(`${BACKEND_URL}/ask${body.stream ? "/stream" : ""}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+    if (body.stream && res.ok) return new Response(res.body, { headers: { "Content-Type": "application/x-ndjson", "Cache-Control": "no-store", "X-Accel-Buffering": "no" } });
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
   } catch (err) {

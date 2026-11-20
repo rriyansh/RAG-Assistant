@@ -15,9 +15,9 @@ const policies = {
     intro: "This policy explains what Reso processes when you personalize the workspace, search local documents, use an AI provider, or connect an external service.",
     sections: [
       ["Local documents and retrieval", "Documents added to the knowledge base are processed by the workspace backend and indexed for retrieval using ChromaDB. When you ask a question, Reso searches that index and selects relevant passages; the whole document collection is not automatically sent to a model for each question. Document files, indexes, logs, backups, and retention are controlled by the deployment operator and the storage configuration."],
-      ["AI provider transmission", "The backend sends your prompt and the context required to answer it—including relevant document passages and, when used, connector results—to the active inference provider. Hosted NVIDIA chat sends those request contents to NVIDIA using the server-side NVIDIA key. A personal provider key routes requests to that provider, and a custom endpoint sends them to the operator of that endpoint. Providers may process or retain requests under their own terms and policies; review those policies before sending sensitive information."],
+      ["AI provider transmission", "Chat sends up to six recent conversation turns for continuity. Agent mode uses the same bounded history and can call enabled tools. The backend sends your prompt and the context required to answer it—including relevant document passages and, when used, connector results—to the active inference provider. Hosted NVIDIA chat sends those request contents to NVIDIA using the server-side NVIDIA key. A personal provider key routes requests to that provider, and a custom endpoint sends them to the operator of that endpoint. Providers may process or retain requests under their own terms and policies; review those policies before sending sensitive information."],
       ["Connected services", "A connector request sends the required operation and credential to the service you chose. Only records returned by that operation are available to the assistant as connector context, but the external service handles the request under its own privacy and retention practices. Reso does not control how a provider processes data after it has received it."],
-      ["Profile and browser data", "Your browser stores interface preferences such as your name, avatar, assistant identity, selected font, and onboarding status. Uploaded profile images are saved as part of those browser preferences. The interface also loads its selected fonts from Google Fonts, which receives ordinary connection information such as your IP address and browser headers."],
+      ["Profile and browser data", "Your browser stores interface preferences such as your name, avatar, assistant identity, selected font, and onboarding status. Uploaded profile images are saved as part of those browser preferences. Plus Jakarta Sans and Google Sans are served with the app. The interface also requests optional typefaces from Google Fonts, which receives ordinary connection information such as your IP address and browser headers."],
       ["Retention, deletion, and revocation", "Provider and connector credentials are stored by the backend for the workspace that configured them. Delete a key or disconnect a connector in Settings to remove it from active use; contact the deployment operator for removal from server backups or other retained storage. Clear browser site data to remove local profile preferences. Revoke a credential with its issuer to stop access outside Reso. Data already transmitted to an AI or connected service is subject to that service’s retention policy."],
     ],
   },
@@ -41,7 +41,10 @@ export function WorkspacePolicy({ section }: { section: keyof typeof policies })
       <h1 className="text-3xl font-semibold tracking-tight text-[#f4f3f8] sm:text-4xl">{policy.title}</h1>
       <p className="mt-3">{policy.intro}</p>
     </header>
-    {policy.sections.map(([heading, body]) => <section key={heading}>
+    <nav aria-label="On this page" className="flex flex-wrap gap-x-5 gap-y-1 border-y border-white/10 py-3 text-xs">
+      {policy.sections.map(([heading], i) => <a className="underline decoration-white/30 underline-offset-4" key={heading} href={`#${section}-${i}`}>{heading}</a>)}
+    </nav>
+    {policy.sections.map(([heading, body], i) => <section id={`${section}-${i}`} className="scroll-mt-4" key={heading}>
       <h2 className="mb-1 text-lg font-semibold text-[#f4f3f8]">{heading}</h2>
       <p>{body}</p>
     </section>)}

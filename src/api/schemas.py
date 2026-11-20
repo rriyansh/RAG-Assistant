@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class ToolCallSchema(BaseModel):
+    review: dict[str, Any] | None = None
     id: str = ""
     name: str
     args: dict[str, Any] = Field(default_factory=dict)
@@ -15,7 +16,13 @@ class ToolCallSchema(BaseModel):
     error: str | None = None
 
 
+class ConversationTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(max_length=4000)
+
+
 class AskRequest(BaseModel):
+    history: list[ConversationTurn] = Field(default_factory=list, max_length=6)
     question: str = Field(..., min_length=1)
     assistant_name: str = Field(default="Assistant")
     consent: list[str] = Field(default_factory=list)

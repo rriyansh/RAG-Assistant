@@ -7,9 +7,6 @@ from dataclasses import dataclass
 from src.ingestion.pdf_loader import Page
 from src.ingestion.cleaner import clean_text
 
-_encoder = tiktoken.get_encoding("cl100k_base")
-
-
 @dataclass
 class Chunk:
     chunk_id: str
@@ -24,7 +21,8 @@ def chunk_page(page: Page, size: int, overlap: int) -> list[Chunk]:
     if not text:
         return []
 
-    tokens = _encoder.encode(text)
+    encoder = tiktoken.get_encoding("cl100k_base")
+    tokens = encoder.encode(text)
     chunks: list[Chunk] = []
     start = 0
     index = 0
@@ -32,7 +30,7 @@ def chunk_page(page: Page, size: int, overlap: int) -> list[Chunk]:
 
     while start < len(tokens):
         end = min(start + size, len(tokens))
-        piece = _encoder.decode(tokens[start:end]).strip()
+        piece = encoder.decode(tokens[start:end]).strip()
         if piece:
             chunks.append(
                 Chunk(

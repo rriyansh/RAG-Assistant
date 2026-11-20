@@ -3,11 +3,12 @@
 
 import { useCallback, useState } from "react";
 import { askQuestion } from "../lib/api";
-import { ChatMessageItem, PendingConsent, ToolCall } from "../lib/types";
+import { ApiMode, ChatMessageItem, PendingConsent, ToolCall } from "../lib/types";
 
-export function useChat(assistantName: string = "Assistant") {
+export function useChat(assistantName: string = "Assistant", mode: ApiMode = "agent") {
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [activity, setActivity] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const sendMessage = useCallback(
@@ -21,6 +22,7 @@ export function useChat(assistantName: string = "Assistant") {
 
       setError(null);
       setIsLoading(true);
+      setActivity([]);
 
       if (!replaceMessageId) {
         const userMessage: ChatMessageItem = {
@@ -36,7 +38,13 @@ export function useChat(assistantName: string = "Assistant") {
       }
 
       try {
-        const response = await askQuestion(trimmed, assistantName, consent);
+        const history = replaceMessageId ? [] : messages.slice(-6).map(({role, content}) => ({
+          role, content: content.slice(-4000),
+        }));
+        const response = await askQuestion(
+          trimmed, assistantName, consent, replaceMessageId ? "agent" : mode,
+          label => setActivity(prev => [...prev, label]), history,
+        );
         const toolCalls: ToolCall[] = response.tool_calls || [];
         const pendingNames: string[] = response.pending_consent || [];
 
@@ -98,7 +106,7 @@ export function useChat(assistantName: string = "Assistant") {
         setIsLoading(false);
       }
     },
-    [assistantName]
+    [assistantName, mode, messages]
   );
 
   const approveToolConsent = useCallback(
@@ -146,6 +154,7 @@ export function useChat(assistantName: string = "Assistant") {
 
   return {
     messages,
+    activity,
     isLoading,
     error,
     sendMessage,

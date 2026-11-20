@@ -7,7 +7,7 @@ import logging
 import re
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from src.utils.workspace import session_id
+from src.utils.workspace import session_id, api_mode
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
@@ -59,11 +59,13 @@ async def bind_workspace(request: Request, call_next):
     session = request.headers.get("x-reso-session", "")
     if session and not re.fullmatch(r"[a-f0-9]{32}", session):
         return JSONResponse({"detail": "Invalid workspace session"}, status_code=400)
+    mode_token = api_mode.set("chat" if request.headers.get("x-reso-mode") == "chat" else "agent")
     token = session_id.set(session)
     try:
         return await call_next(request)
     finally:
         session_id.reset(token)
+        api_mode.reset(mode_token)
 
 
 app.include_router(router)

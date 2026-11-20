@@ -14,6 +14,10 @@ from src.agent.registry import ToolRegistry
 from src.agent import register_internal_plugins
 from src.agent.connectors import ConnectorManager
 from src.utils.workspace import workspace_path, session_id
+from fastapi.responses import StreamingResponse
+from src.agent.connectors.github_changes import ReviewedChange
+from src.utils.workspace import api_mode
+from requests import HTTPError
 from fastapi import Depends
 from src.api.schemas import (
     AskRequest,
@@ -142,6 +146,63 @@ async def ask(req: AskRequest, manager: ConnectorManager = Depends(active_connec
         tool_calls=[ToolCallSchema(**tc) for tc in res.get("tool_calls", [])],
         pending_consent=res.get("pending_consent", []),
     )
+
+
+@router.post("/github/commit")
+async def commit_review(change: ReviewedChange, manager: ConnectorManager = Depends(active_connectors)):
+    try:
+        return await asyncio.to_thread(manager.commit_reviewed_file, change)
+    except HTTPError as exc:
+        raise HTTPException(409 if exc.response.status_code in (409, 422) else 400,
+                            "GitHub rejected the commit. Check branch permissions and refresh the file review.") from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.post("/ask/stream")
+async def stream_answer(req: AskRequest, manager: ConnectorManager = Depends(active_connectors)):
+    events = asyncio.Queue()
+    mode = api_mode.get()
+
+    async def run():
+        def activity(label):
+            events.put_nowait({"activity": label})
+        try:
+            if mode == "chat":
+                activity("Requesting a chat response")
+                llm = create_llm()
+                turns = [{"role": "system", "content": f"You are {req.assistant_name}."},
+                         *(turn.model_dump() for turn in req.history), {"role": "user", "content": req.question}]
+                answer = await asyncio.to_thread(llm.generate, turns)
+                result = AskResponse(answer=answer, sources=[], source_type="chat")
+            elif os.getenv("AGENT_ENABLED", "true").lower() == "false" or not manager.registry.list_for_llm():
+                activity("Searching indexed documents")
+                result = await asyncio.to_thread(_run_legacy, req.question, req.assistant_name)
+            else:
+                try:
+                    data = await run_agent(req.question, req.assistant_name, manager.registry,
+                                           consent=req.consent, on_activity=activity,
+                                           history=[turn.model_dump() for turn in req.history])
+                    result = AskResponse(**{**data, "source_type": "agent"})
+                except ToolNotSupportedError:
+                    activity("Searching indexed documents")
+                    result = await asyncio.to_thread(_run_legacy, req.question, req.assistant_name)
+            events.put_nowait({"result": result.model_dump()})
+        except Exception:
+            events.put_nowait({"error": "The request could not finish. Check the selected mode’s key, model and quota."})
+        finally:
+            events.put_nowait(None)
+
+    async def lines():
+        task = asyncio.create_task(run())
+        try:
+            while (event := await events.get()) is not None:
+                yield json.dumps(event) + "\n"
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+    return StreamingResponse(lines(), media_type="application/x-ndjson",
+                             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
 
 @router.get("/connectors", response_model=ConnectorsListResponse)

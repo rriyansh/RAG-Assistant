@@ -12,6 +12,7 @@ import { DEFAULT_RAG_ASSISTANT_LOGO } from "../lib/utils";
 import { Code2, Plug } from "lucide-react";
 
 const FONT_STACK_MAP: Record<string, string> = {
+  "google-sans": "'Google Sans', system-ui, sans-serif",
   "open-sans": "'Open Sans', system-ui, sans-serif",
   system: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
   "dm-sans": "'DM Sans', system-ui, sans-serif",
@@ -45,6 +46,7 @@ const QUICK_BUILDER_ACTIONS = [
 ];
 
 export default function HomePage() {
+  const [mode, setMode] = useState<"chat" | "agent">("agent");
   const profileState = useProfile();
   const {
     profile,
@@ -60,13 +62,13 @@ export default function HomePage() {
   } = profileState;
 
   const {
-    messages,
+    messages, activity,
     isLoading,
     sendMessage,
     approveToolConsent,
     denyToolConsent,
     clearMessages,
-  } = useChat(assistantName);
+  } = useChat(assistantName, mode);
 
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
 
@@ -201,7 +203,17 @@ export default function HomePage() {
 
         <div className="border-t border-[#e6e4f0]/10 bg-[#0c0c0e] px-3 py-3 sm:px-4">
           <div className="mx-auto w-full max-w-3xl">
-            <ChatComposer onSubmit={handleSend} disabled={isLoading} />
+            <div className="mb-2 flex flex-wrap items-center gap-1" aria-label="Conversation mode">
+              {(["chat", "agent"] as const).map(item => <button key={item} type="button"
+                aria-pressed={mode === item} disabled={isLoading} onClick={() => setMode(item)}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold ${mode === item ? "bg-[#f4f3f8] text-[#141417]" : "text-[#e6e4f0]/70"}`}>
+                {item === "agent" ? "Agent" : "Chat"}
+              </button>)}
+            </div>
+            {isLoading && <div role="status" className="mb-2 max-h-24 overflow-auto text-xs leading-5 text-[#e6e4f0]/80">
+              {activity.slice(-3).map((line, index) => <p key={index}>{line}</p>)}
+            </div>}
+            <ChatComposer models={[]} mode={mode} onSubmit={handleSend} disabled={isLoading} />
           </div>
         </div>
       </div>

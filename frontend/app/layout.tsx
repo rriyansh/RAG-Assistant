@@ -1,4 +1,12 @@
 import type { Metadata } from "next";
+import "@fontsource/google-sans/latin-400.css";
+import "@fontsource/google-sans/latin-500.css";
+import "@fontsource/google-sans/latin-600.css";
+import "@fontsource/google-sans/latin-700.css";
+import "@fontsource/plus-jakarta-sans/latin-400.css";
+import "@fontsource/plus-jakarta-sans/latin-500.css";
+import "@fontsource/plus-jakarta-sans/latin-600.css";
+import "@fontsource/plus-jakarta-sans/latin-700.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,7 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300..700&family=Josefin+Sans:wght@300..700&family=Fredoka:wght@300..700&family=Open+Sans:wght@300..700&family=Outfit:wght@100..900&family=Plus+Jakarta+Sans:wght@200..800&display=swap"
+          href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300..700&family=Josefin+Sans:wght@300..700&family=Fredoka:wght@300..700&family=Open+Sans:wght@300..700&family=Outfit:wght@100..900&display=swap"
         />
         <script dangerouslySetInnerHTML={{ __html: fontScript }} />
       </head>

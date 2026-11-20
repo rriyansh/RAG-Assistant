@@ -1,6 +1,6 @@
 // lib/api.ts
 import {
-  AskApiResponse,
+  ApiMode, AskApiResponse,
   ConnectorInfo,
   KeyListResponse,
   LLMConfig,
@@ -24,18 +24,37 @@ async function handleJson<T>(res: Response): Promise<T> {
 export async function askQuestion(
   question: string,
   assistantName: string = "Assistant",
-  consent: string[] = []
+  consent: string[] = [],
+  mode: ApiMode = "agent",
+  onActivity?: (label: string) => void,
+  history: { role: "user" | "assistant"; content: string }[] = [],
 ): Promise<AskApiResponse> {
   const res = await fetch("/api/ask", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      question,
-      assistant_name: assistantName,
-      consent,
-    }),
+    method: "POST", headers: { "Content-Type": "application/json", "X-Reso-Mode": mode },
+    body: JSON.stringify({question, assistant_name: assistantName, consent, history, stream: true}),
   });
-  return handleJson<AskApiResponse>(res);
+  if (!res.ok || !res.body) throw new Error("Could not reach the workspace backend.");
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  try {
+    while (true) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      buffer += value;
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const event = JSON.parse(line);
+        if (event.error) throw new Error(event.error);
+        if (event.activity) onActivity?.(event.activity);
+        if (event.result) return event.result as AskApiResponse;
+      }
+    }
+    throw new Error("The response stream ended early.");
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 export async function fetchConnectors(): Promise<ConnectorInfo[]> {
@@ -134,18 +153,18 @@ export async function fetchThinkingMessages(
   return data.messages;
 }
 
-export async function enhancePrompt(prompt: string): Promise<string> {
+export async function enhancePrompt(prompt: string, mode: ApiMode = "agent"): Promise<string> {
   const res = await fetch("/api/prompt/enhance", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-Reso-Mode": mode },
     body: JSON.stringify({ prompt }),
   });
   const data = await handleJson<{ enhanced_prompt: string }>(res);
   return data.enhanced_prompt;
 }
 
-export async function fetchKeys(): Promise<KeyListResponse> {
-  const res = await fetch("/api/keys", { cache: "no-store" });
+export async function fetchKeys(mode: ApiMode = "agent"): Promise<KeyListResponse> {
+  const res = await fetch("/api/keys", { cache: "no-store", headers: { "X-Reso-Mode": mode } });
   const data = await handleJson<KeyListResponse>(res);
   return {
     keys: data.keys || {},
@@ -183,31 +202,31 @@ export async function saveProviderKey(payload: {
   api_key: string;
   base_url?: string;
   model?: string;
-}): Promise<void> {
+}, mode: ApiMode = "agent"): Promise<void> {
   const res = await fetch("/api/keys/set", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "X-Reso-Mode": mode, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
   await handleJson(res);
 }
 
-export async function deleteProviderKey(provider: string): Promise<void> {
+export async function deleteProviderKey(provider: string, mode: ApiMode = "agent"): Promise<void> {
   const res = await fetch(`/api/keys/${encodeURIComponent(provider)}`, {
-    method: "DELETE",
+    method: "DELETE", headers: { "X-Reso-Mode": mode },
   });
   await handleJson(res);
 }
 
-export async function fetchConfig(): Promise<LLMConfig> {
-  const res = await fetch("/api/config", { cache: "no-store" });
+export async function fetchConfig(mode: ApiMode = "agent"): Promise<LLMConfig> {
+  const res = await fetch("/api/config", { cache: "no-store", headers: { "X-Reso-Mode": mode } });
   return handleJson<LLMConfig>(res);
 }
 
-export async function updateConfig(config: Partial<LLMConfig>): Promise<void> {
+export async function updateConfig(config: Partial<LLMConfig>, mode: ApiMode = "agent"): Promise<void> {
   const res = await fetch("/api/config", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "X-Reso-Mode": mode, "Content-Type": "application/json" },
     body: JSON.stringify(config),
   });
   await handleJson(res);

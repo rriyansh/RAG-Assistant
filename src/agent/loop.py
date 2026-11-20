@@ -85,6 +85,8 @@ async def run_agent(
     registry: ToolRegistry,
     max_turns: int = 12,
     consent: list[str] | None = None,
+    on_activity=None,
+    history: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     approved_set = set(consent or [])
     llm = create_llm()
@@ -99,6 +101,7 @@ async def run_agent(
 
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},
+        *(history or []),
         {"role": "user", "content": question},
     ]
 
@@ -106,6 +109,8 @@ async def run_agent(
     sources: list[dict[str, Any]] = []
 
     for _turn in range(max_turns):
+        if on_activity:
+            on_activity("Requesting the next model response")
         try:
             chat_resp = await asyncio.to_thread(
                 llm.chat,
@@ -174,6 +179,8 @@ async def run_agent(
         messages.append(chat_resp.as_message())
 
         for tc in chat_resp.tool_calls:
+            if on_activity:
+                on_activity(f"Running {tc.name}")
             start_ts = time.perf_counter()
             spec = registry.get(tc.name)
             error_msg: str | None = None
@@ -197,7 +204,9 @@ async def run_agent(
 
                     _extract_sources_from_tool(tc.name, raw_result, sources)
 
-                    if isinstance(raw_result, str):
+                    if tc.name == "github_review_change":
+                        serialized_output = json.dumps({k: raw_result[k] for k in ("repo", "branch", "path", "message")})
+                    elif isinstance(raw_result, str):
                         serialized_output = raw_result
                     else:
                         serialized_output = json.dumps(raw_result, ensure_ascii=False, default=str)
@@ -209,6 +218,8 @@ async def run_agent(
                     error_msg = str(exec_err)
                     serialized_output = json.dumps({"error": error_msg})
 
+            if on_activity:
+                on_activity(f"{tc.name} failed" if error_msg else f"Completed {tc.name}")
             duration_ms = int((time.perf_counter() - start_ts) * 1000)
             capped_output = serialized_output[:MAX_TOOL_OUTPUT_CHARS]
 
@@ -220,6 +231,7 @@ async def run_agent(
                     "result_summary": error_msg if error_msg else _summarize_result(capped_output),
                     "status": "error" if error_msg else "ok",
                     "duration_ms": duration_ms,
+                    "review": raw_result if tc.name == "github_review_change" and not error_msg else None,
                     "error": error_msg,
                 }
             )

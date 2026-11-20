@@ -16,6 +16,7 @@ from typing import Any
 
 import requests
 
+from src.agent.connectors import github_changes
 from src.agent.connectors.catalog import SERVICES
 from src.agent.registry import ToolRegistry, ToolSpec, registry as global_registry
 
@@ -118,7 +119,7 @@ CONNECTOR_CATALOG: list[ConnectorCatalogItem] = [
         id="github",
         name="GitHub",
         category="developer",
-        description="Search repositories, read source files, and inspect or create GitHub issues.",
+        description="Read repository files, review proposed code changes, commit approved edits, and create issues.",
         auth_type="api_key",
         fields=[
             ConnectorFieldSpec(
@@ -136,7 +137,7 @@ CONNECTOR_CATALOG: list[ConnectorCatalogItem] = [
                 required=False,
             ),
         ],
-        tool_names=["github_search_repos", "github_get_file", "github_create_issue"],
+        tool_names=["github_search_repos", "github_get_file", "github_create_issue", "github_review_change"],
     ),
     ConnectorCatalogItem(
         id="notion",
@@ -835,12 +836,28 @@ class ConnectorManager:
             )
         )
 
+    def commit_reviewed_file(self, change):
+        entry = self._state["connected"].get("github", {})
+        token = entry.get("credentials", {}).get("token")
+        if not token or not entry.get("enabled"):
+            raise ConnectorError("Connect and enable GitHub before committing.")
+        return github_changes.commit(token, change)
+
     def _register_github_tools(self, creds: dict[str, str], enabled: bool) -> None:
         token = creds["token"]
         headers = {
             "Authorization": f"Bearer {token}",
             "Accept": "application/vnd.github+json",
         }
+
+        def review_change(**fields):
+            return github_changes.review(token, github_changes.FileChange(**fields))
+
+        self._registry.register(ToolSpec(
+            name="github_review_change", source="connector", server_id="github", enabled=enabled,
+            description="Prepare a single file change for human review. Specify the repository, branch, path, commit message and full new content. The user commits the exact reviewed change in the interface.",
+            input_schema=github_changes.FileChange.model_json_schema(), handler=review_change,
+        ))
 
         def search_repos(query: str) -> list[dict[str, Any]]:
             resp = requests.get(

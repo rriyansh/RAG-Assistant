@@ -2,7 +2,7 @@ export function cn(...inputs: Array<string | undefined | null | false>): string 
   return inputs.filter(Boolean).join(" ");
 }
 
-export const CODES_ICON_SVG_PATH = "/icon.svg";
+export const CODES_ICON_SVG_PATH = "/codes%20icon.svg";
 
 export const CODES_ICON_FALLBACK_DATA_URL =
   "data:image/svg+xml;utf8," +

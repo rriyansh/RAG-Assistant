@@ -85,6 +85,7 @@ const DEFAULT_MODELS: Record<string, string> = {
 const FONT_OPTIONS: Array<{ id: FontId; label: string }> = [
   { id: "plus-jakarta-sans", label: "Plus Jakarta Sans (Default)" },
   { id: "open-sans", label: "Open Sans" },
+  { id: "google-sans", label: "Google Sans" },
   { id: "system", label: "System Default" },
   { id: "dm-sans", label: "DM Sans" },
   { id: "josefin-sans", label: "Josefin Sans" },
@@ -100,216 +101,52 @@ const CONNECTOR_CATEGORIES: Array<{ id: string; title: string }> = [
   { id: "custom", title: "Custom Web Connectors" },
 ];
 
+const brandedConnectors = new Set([
+  "airtable",
+  "asana",
+  "bitbucket",
+  "brevo",
+  "circleci",
+  "clickup",
+  "cloudflare",
+  "digitalocean",
+  "fly",
+  "github",
+  "gitlab",
+  "gmail",
+  "mailerlite",
+  "google_calendar",
+  "google_drive",
+  "google_tasks",
+  "hubspot",
+  "huggingface",
+  "ms_teams",
+  "netlify",
+  "notion",
+  "onedrive",
+  "outlook",
+  "postman",
+  "render",
+  "sentry",
+  "slack",
+  "stripe",
+  "supabase",
+  "vercel",
+  "zoom",
+]);
+
 function ConnectorBrandLogo({ id }: { id: string }) {
-  switch (id) {
-    case "gmail":
-      return (
-        <svg viewBox="0 0 48 48" className="h-6 w-6 shrink-0">
-          <path fill="#4caf50" d="M45,16.2l-5,2.75l-5,4.75L35,40h7c1.657,0,3-1.343,3-3V16.2z" />
-          <path fill="#1e88e5" d="M3,16.2l3.614,1.71L13,23.7V40H6c-1.657,0-3-1.343-3-3V16.2z" />
-          <polygon fill="#e53935" points="35,11.2 24,19.45 13,11.2 12,17 13,23.7 24,31.95 35,23.7 36,17" />
-          <path fill="#c62828" d="M3,12.298V16.2l10,7.5V11.2L9.876,8.859C9.132,8.301,8.228,8,7.298,8C4.924,8,3,9.924,3,12.298z" />
-          <path fill="#fbc02d" d="M45,12.298V16.2l-10,7.5V11.2l3.124-2.341C38.868,8.301,39.772,8,40.702,8C43.076,8,45,9.924,45,12.298z" />
-        </svg>
-      );
-    case "google_drive":
-      return (
-        <svg viewBox="0 0 87.3 78" className="h-6 w-6 shrink-0">
-          <path fill="#0066da" d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" />
-          <path fill="#00ac47" d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" />
-          <path fill="#ea4335" d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" />
-          <path fill="#00832d" d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" />
-          <path fill="#2684fc" d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" />
-          <path fill="#ffba00" d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" />
-        </svg>
-      );
-    case "google_calendar":
-      return (
-        <svg viewBox="0 0 48 48" className="h-6 w-6 shrink-0">
-          <rect x="8" y="8" width="32" height="32" rx="6" fill="#4285F4" />
-          <rect x="13" y="16" width="22" height="19" rx="2" fill="#ffffff" />
-          <text x="24" y="30" textAnchor="middle" fill="#1a73e8" fontSize="11" fontWeight="bold" fontFamily="sans-serif">31</text>
-        </svg>
-      );
-    case "github":
-      return (
-        <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0 fill-[#f4f3f8]">
-          <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
-        </svg>
-      );
-    case "vercel":
-      return (
-        <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0 fill-[#f4f3f8]">
-          <polygon points="12,3 23,21 1,21" />
-        </svg>
-      );
-    case "gitlab":
-      return (
-        <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0">
-          <path fill="#E24329" d="M12 22.2l4.4-13.5H7.6L12 22.2z" />
-          <path fill="#FC6D26" d="M12 22.2L7.6 8.7H1.5L12 22.2zm0 0l4.4-13.5h6.1L12 22.2z" />
-          <path fill="#FCA326" d="M1.5 8.7l-1.3 4.1c-.1.4 0 .8.3 1.1L12 22.2 1.5 8.7zm21 0l1.3 4.1c.1.4 0 .8-.3 1.1L12 22.2 22.5 8.7z" />
-          <path fill="#E24329" d="M1.5 8.7h6.1L5 1c-.1-.4-.7-.4-.9 0L1.5 8.7zm21 0h-6.1L19 1c.1-.4.7-.4.9 0l2.6 7.7z" />
-        </svg>
-      );
-    case "supabase":
-      return (
-        <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0">
-          <path fill="#3ECF8E" d="M13.5 2.1c-.5-.6-1.5-.3-1.5.5v9h8.2c.9 0 1.4 1 .8 1.7l-9 10.6c-.5.6-1.5.3-1.5-.5v-9H2.3c-.9 0-1.4-1-.8-1.7L13.5 2.1z" />
-        </svg>
-      );
-    case "cloudflare":
-      return (
-        <svg viewBox="0 0 48 48" className="h-6 w-6 shrink-0">
-          <path fill="#F38020" d="M34 32H11a7 7 0 01-.7-13.9A10 10 0 0129.8 15a8 8 0 018.2 7.8A6.5 6.5 0 0134 32z" />
-        </svg>
-      );
-    case "linear":
-      return (
-        <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0">
-          <circle cx="12" cy="12" r="10" fill="#5E6AD2" />
-          <path d="M7 17L17 7M5 12l7 7M12 5l7 7" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
-        </svg>
-      );
-    case "jira":
-      return (
-        <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0">
-          <path fill="#2684FF" d="M11.5 3L4 10.5 8 14.5l3.5-3.5 4 4 4-4L11.5 3z" />
-          <path fill="#0052CC" d="M11.5 11L7.5 15l4 4 4-4-4-4z" />
-        </svg>
-      );
-    case "sentry":
-      return (
-        <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0 fill-[#f4f3f8]">
-          <path d="M13.9 2.6c-.8-1.4-2.9-1.4-3.7 0L1.5 17.7c-.8 1.4.2 3.2 1.9 3.2h4.2v-2.4H4.1l7.9-13.7 7.9 13.7h-3.5v2.4h4.2c1.7 0 2.7-1.8 1.9-3.2L13.9 2.6z" />
-        </svg>
-      );
-    case "docker":
-      return (
-        <svg viewBox="0 0 48 48" className="h-6 w-6 shrink-0">
-          <rect x="10" y="18" width="6" height="5" fill="#2496ED" />
-          <rect x="17" y="18" width="6" height="5" fill="#2496ED" />
-          <rect x="24" y="18" width="6" height="5" fill="#2496ED" />
-          <rect x="17" y="12" width="6" height="5" fill="#2496ED" />
-          <rect x="24" y="12" width="6" height="5" fill="#2496ED" />
-          <path fill="#2496ED" d="M6 25h32c2-3 5-2 6 0-1 4-4 5-7 5-2 6-8 10-17 10S6 35 6 25z" />
-        </svg>
-      );
-    case "huggingface":
-      return (
-        <svg viewBox="0 0 48 48" className="h-6 w-6 shrink-0">
-          <circle cx="24" cy="24" r="18" fill="#FFD21E" />
-          <circle cx="18" cy="20" r="2.5" fill="#0c0c0e" />
-          <circle cx="30" cy="20" r="2.5" fill="#0c0c0e" />
-          <path d="M16 28c2 4 14 4 16 0" stroke="#0c0c0e" strokeWidth="3" fill="none" strokeLinecap="round" />
-        </svg>
-      );
-    case "postman":
-      return (
-        <svg viewBox="0 0 48 48" className="h-6 w-6 shrink-0">
-          <circle cx="24" cy="24" r="18" fill="#FF6C37" />
-          <path d="M16 32L32 16M22 16h10v10" stroke="#ffffff" strokeWidth="3" fill="none" strokeLinecap="round" />
-        </svg>
-      );
-    case "bitbucket":
-      return (
-        <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0">
-          <path fill="#2684FF" d="M2.6 3h18.8c.6 0 1 .5.9 1.1l-2.7 16.1c-.1.5-.5.8-1 .8H5.4c-.5 0-.9-.3-1-.8L1.7 4.1C1.6 3.5 2 3 2.6 3zm11.8 12.5l1.1-6.5H8.5l1.1 6.5h4.8z" />
-        </svg>
-      );
-    case "notion":
-      return (
-        <svg viewBox="0 0 100 100" className="h-6 w-6 shrink-0">
-          <rect width="100" height="100" rx="20" fill="#f4f3f8" />
-          <path d="M28 24h14l24 38V24h10v52H62L38 38v38H28V24z" fill="#0c0c0e" />
-        </svg>
-      );
-    case "slack":
-      return (
-        <svg viewBox="0 0 122.8 122.8" className="h-6 w-6 shrink-0">
-          <path d="M25.8 77.6c0 7.1-5.8 12.9-12.9 12.9S0 84.7 0 77.6s5.8-12.9 12.9-12.9h12.9v12.9zm6.5 0c0-7.1 5.8-12.9 12.9-12.9s12.9 5.8 12.9 12.9v32.3c0 7.1-5.8 12.9-12.9 12.9s-12.9-5.8-12.9-12.9V77.6z" fill="#e01e5a" />
-          <path d="M45.2 25.8c-7.1 0-12.9-5.8-12.9-12.9S38.1 0 45.2 0s12.9 5.8 12.9 12.9v12.9H45.2zm0 6.5c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9H12.9C5.8 58.1 0 52.3 0 45.2s5.8-12.9 12.9-12.9h32.3z" fill="#36c5f0" />
-          <path d="M97 45.2c0-7.1 5.8-12.9 12.9-12.9s12.9 5.8 12.9 12.9-5.8 12.9-12.9 12.9H97V45.2zm-6.5 0c0 7.1-5.8 12.9-12.9 12.9s-12.9-5.8-12.9-12.9V12.9C64.7 5.8 70.5 0 77.6 0s12.9 5.8 12.9 12.9v32.3z" fill="#2eb67d" />
-          <path d="M77.6 97c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9-12.9-5.8-12.9-12.9V97h12.9zm0-6.5c-7.1 0-12.9-5.8-12.9-12.9s5.8-12.9 12.9-12.9h32.3c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9H77.6z" fill="#ecb22e" />
-        </svg>
-      );
-    case "discord":
-      return (
-        <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0">
-          <rect width="24" height="24" rx="6" fill="#5865F2" />
-          <circle cx="9" cy="12" r="1.6" fill="#ffffff" />
-          <circle cx="15" cy="12" r="1.6" fill="#ffffff" />
-          <path d="M7 8c3-1.5 7-1.5 10 0l1 8c-2.5 1.5-4.5 1.5-5 1-.5.5-2.5.5-5-1l1-8z" stroke="#ffffff" strokeWidth="1.5" fill="none" />
-        </svg>
-      );
-    case "ms_teams":
-      return (
-        <svg viewBox="0 0 48 48" className="h-6 w-6 shrink-0">
-          <rect x="8" y="10" width="26" height="26" rx="5" fill="#5059C9" />
-          <path d="M16 18h10v3h-3.5v10h-3V21H16v-3z" fill="#ffffff" />
-        </svg>
-      );
-    case "dropbox":
-      return (
-        <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0">
-          <path fill="#0061FF" d="M6 3L1 6.5 6 10l5-3.5L6 3zm12 0l-5 3.5L18 10l5-3.5L18 3zM1 13.5L6 17l5-3.5L6 10 1 13.5zm17-3.5l-5 3.5 5 3.5 5-3.5-5-3.5zM12 14.8L7 18.3 12 21.8l5-3.5-5-3.5z" />
-        </svg>
-      );
-    case "stripe":
-      return (
-        <svg viewBox="0 0 48 48" className="h-6 w-6 shrink-0">
-          <rect width="48" height="48" rx="10" fill="#635BFF" />
-          <text x="24" y="32" textAnchor="middle" fill="#ffffff" fontSize="22" fontWeight="bold" fontFamily="sans-serif">S</text>
-        </svg>
-      );
-    case "hubspot":
-      return (
-        <svg viewBox="0 0 48 48" className="h-6 w-6 shrink-0">
-          <circle cx="24" cy="24" r="18" fill="#FF7A59" />
-          <circle cx="24" cy="24" r="6" stroke="#ffffff" strokeWidth="3" fill="none" />
-        </svg>
-      );
-    case "salesforce":
-      return (
-        <svg viewBox="0 0 48 48" className="h-6 w-6 shrink-0">
-          <path fill="#00A1E0" d="M35 33H14a7 7 0 01-.8-13.9A10 10 0 0131 16a7.5 7.5 0 014 17z" />
-        </svg>
-      );
-    case "postgres":
-      return (
-        <svg viewBox="0 0 48 48" className="h-6 w-6 shrink-0">
-          <rect width="48" height="48" rx="10" fill="#336791" />
-          <text x="24" y="30" textAnchor="middle" fill="#ffffff" fontSize="14" fontWeight="bold" fontFamily="monospace">PG</text>
-        </svg>
-      );
-    case "mongodb":
-      return (
-        <svg viewBox="0 0 48 48" className="h-6 w-6 shrink-0">
-          <rect width="48" height="48" rx="10" fill="#00ED64" />
-          <path d="M24 9c6 8 8 15 0 28-8-13-6-20 0-28z" fill="#001E2B" />
-        </svg>
-      );
-    case "pdf_rag":
-      return (
-        <svg viewBox="0 0 48 48" className="h-6 w-6 shrink-0">
-          <rect x="6" y="4" width="36" height="40" rx="8" fill="#f4f3f8" />
-          <text x="24" y="29" textAnchor="middle" fill="#0c0c0e" fontSize="12" fontWeight="bold" fontFamily="sans-serif">PDF</text>
-        </svg>
-      );
-    default:
-      return (
-        <svg viewBox="0 0 48 48" className="h-6 w-6 shrink-0">
-          <circle cx="24" cy="24" r="18" stroke="#f4f3f8" strokeWidth="3" fill="none" />
-          <path d="M12 24h24M24 12v24" stroke="#f4f3f8" strokeWidth="3" />
-        </svg>
-      );
+  if (brandedConnectors.has(id)) {
+    const src = `/connectors/${id}.svg`;
+    return <img src={src} alt="" className="h-8 w-8 rounded-md bg-white p-1 object-contain" />;
   }
+  return <Plug aria-hidden className="h-5 w-5" />;
 }
 
 function ProviderBrandLogo({ provider }: { provider: string }) {
   if (provider === "custom") return <Plug aria-hidden className="h-5 w-5 shrink-0" />;
   const icon = provider === "anthropic" ? "claude" : provider;
-  return <img src={`/providers/${icon}.svg`} alt="" className="h-5 w-5 shrink-0 object-contain" />;
+  return <img src={`/providers/${icon}.svg`} alt="" className="h-6 w-6 shrink-0 rounded bg-white p-0.5 object-contain" />;
 }
 
 export function SettingsModal({ isOpen, open, onClose, profileState }: SettingsModalProps) {
@@ -325,6 +162,8 @@ export function SettingsModal({ isOpen, open, onClose, profileState }: SettingsM
   const [profileError, setProfileError] = useState<string | null>(null);
 
   const [hostedReady, setHostedReady] = useState(false);
+  const [keyMode, setKeyMode] = useState<"agent" | "chat">("agent");
+  const loadVersion = React.useRef(0);
   const [keys, setKeys] = useState<KeyStatusMap>({});
   const [selectedProvider, setSelectedProvider] = useState<string>("nvidia");
   const [detectedProvider, setDetectedProvider] = useState<string | null>(null);
@@ -360,13 +199,14 @@ export function SettingsModal({ isOpen, open, onClose, profileState }: SettingsM
   useEffect(() => {
     if (!modalVisible) return;
     loadAllData();
-  }, [modalVisible]);
+  }, [modalVisible, keyMode]);
 
   async function loadAllData() {
+    const version = ++loadVersion.current;
     try {
       const [kData, cData, connData] = await Promise.all([
-        fetchKeys().catch((): KeyListResponse => ({ keys: {}, active_provider: "" })),
-        fetchConfig().catch(() => ({
+        fetchKeys(keyMode).catch((): KeyListResponse => ({ keys: {}, active_provider: "" })),
+        fetchConfig(keyMode).catch(() => ({
           provider: "nvidia",
           model: "meta/llama-3.3-70b-instruct",
           base_url: "",
@@ -376,6 +216,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState }: SettingsM
         })),
         fetchConnectors().catch(() => []),
       ]);
+      if (version !== loadVersion.current) return;
       setKeys(kData.keys);
       setHostedReady(Boolean(kData.hosted_ready));
       const activeProvider =
@@ -489,7 +330,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState }: SettingsM
         api_key: apiKeyInput.trim(),
         model: activeModel,
         base_url: config.provider === targetProvider ? config.base_url : "",
-      });
+      }, keyMode);
       const nextConfig = {
         ...config,
         provider: targetProvider,
@@ -497,10 +338,10 @@ export function SettingsModal({ isOpen, open, onClose, profileState }: SettingsM
         base_url: config.provider === targetProvider ? config.base_url : "",
         model: activeModel,
       };
-      await updateConfig(nextConfig);
+      await updateConfig(nextConfig, keyMode);
       setConfig(nextConfig);
       setSelectedProvider(targetProvider);
-      const updated = await fetchKeys();
+      const updated = await fetchKeys(keyMode);
       setKeys(updated.keys);
       setApiKeyInput("");
       setDetectedProvider(null);
@@ -522,7 +363,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState }: SettingsM
         base_url: "",
         model: DEFAULT_MODELS.nvidia!,
       };
-      await updateConfig(nextConfig);
+      await updateConfig(nextConfig, keyMode);
       setConfig(nextConfig);
       setSelectedProvider("nvidia");
       setKeyStatusMsg("Activated built-in Free NVIDIA NIM tier.");
@@ -535,8 +376,8 @@ export function SettingsModal({ isOpen, open, onClose, profileState }: SettingsM
 
   async function handleDeleteKey(provider: string) {
     try {
-      await deleteProviderKey(provider);
-      const updated = await fetchKeys();
+      await deleteProviderKey(provider, keyMode);
+      const updated = await fetchKeys(keyMode);
       setKeys(updated.keys);
     } catch {}
   }
@@ -544,7 +385,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState }: SettingsM
   async function handleSaveModelConfig() {
     setKeyBusy(true);
     try {
-      await updateConfig(config);
+      await updateConfig(config, keyMode);
       setSelectedProvider(config.provider);
       setKeyStatusMsg("Model settings saved.");
     } catch (err) {
@@ -569,14 +410,14 @@ export function SettingsModal({ isOpen, open, onClose, profileState }: SettingsM
       <div
         role="dialog"
         aria-modal="true"
-        className="flex h-[min(90vh,820px)] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-[#e6e4f0]/15 bg-[#141417] text-[#f4f3f8] shadow-2xl"
+        className="settings-dialog flex h-[min(94dvh,820px)] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-[#e6e4f0]/15 bg-[#141417] text-[#f4f3f8] shadow-2xl"
       >
         <div className="flex items-center justify-between border-b border-[#e6e4f0]/10 px-5 py-4 sm:px-6">
           <h2 className="text-base font-semibold tracking-tight text-[#f4f3f8]">
             Settings
           </h2>
           <button
-            type="button"
+            type="button" aria-label="Close settings"
             onClick={onClose}
             className="rounded-xl border border-[#e6e4f0]/15 p-1.5 text-[#e6e4f0]/70 transition hover:bg-[#1c1c21] hover:text-[#f4f3f8]"
           >
@@ -584,7 +425,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState }: SettingsM
           </button>
         </div>
 
-        <div className="flex gap-1 overflow-x-auto border-b border-[#e6e4f0]/10 bg-[#0c0c0e] px-3 sm:px-4">
+        <div className="settings-tabs flex gap-1 overflow-x-auto border-b border-[#e6e4f0]/10 bg-[#0c0c0e] px-3 sm:px-4">
           {(
             [
               { id: "profile", label: "Profile", icon: UserRound },
@@ -600,6 +441,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState }: SettingsM
               <button
                 key={tab.id}
                 type="button"
+                aria-current={active ? "page" : undefined}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex shrink-0 items-center gap-2 border-b-2 px-3.5 py-3 text-xs font-medium transition sm:px-4 ${
                   active
@@ -614,7 +456,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState }: SettingsM
           })}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="settings-content min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
           {activeTab === "profile" && (
             <div className="mx-auto max-w-3xl space-y-6">
               {profileError && (
@@ -1078,6 +920,14 @@ export function SettingsModal({ isOpen, open, onClose, profileState }: SettingsM
             </div>
           )}
 
+          {(activeTab === "keys" || activeTab === "model") && <fieldset className="mb-4 flex flex-wrap gap-2" disabled={keyBusy}>
+            <legend className="mb-2 text-sm font-semibold">Configure credentials for</legend>
+            {(["agent", "chat"] as const).map(mode => <button key={mode} type="button" aria-pressed={mode === keyMode}
+              onClick={() => { ++loadVersion.current; setApiKeyInput(""); setDetectedProvider(null); setKeyStatusMsg(null); setKeyMode(mode); }}
+              className={`rounded-xl px-4 py-2 text-xs font-semibold ${keyMode === mode ? "bg-[#f4f3f8] text-[#141417]" : "border border-white/15"}`}>
+              {mode === "agent" ? "Agent API key" : "Chat API key"}
+            </button>)}
+          </fieldset>}
           {activeTab === "keys" && (
             <div className="space-y-5">
               <div className="flex flex-col justify-between gap-3 rounded-2xl border border-[#e6e4f0]/15 bg-[#0c0c0e] p-4 sm:flex-row sm:items-center">

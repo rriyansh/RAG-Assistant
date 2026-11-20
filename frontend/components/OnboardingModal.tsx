@@ -27,6 +27,7 @@ const FONT_OPTIONS: Array<{ id: FontId; label: string; family: string }> = [
   { id: "outfit", label: "Outfit", family: "'Outfit', sans-serif" },
   { id: "josefin-sans", label: "Josefin Sans", family: "'Josefin Sans', sans-serif" },
   { id: "fredoka", label: "Fredoka", family: "'Fredoka', sans-serif" },
+  { id: "google-sans", label: "Google Sans", family: "'Google Sans', sans-serif" },
   { id: "system", label: "System Default", family: "system-ui, sans-serif" },
 ];
 

@@ -5,7 +5,8 @@ export type FontId =
   | "josefin-sans"
   | "fredoka"
   | "outfit"
-  | "plus-jakarta-sans";
+  | "plus-jakarta-sans"
+  | "google-sans";
 
 export interface UserProfile {
   name: string;
@@ -28,7 +29,13 @@ export interface SourceItem {
   score?: number;
 }
 
+export type ApiMode = "chat" | "agent";
+export interface FileReview {
+  repo: string; branch: string; path: string; message: string;
+  content: string; diff: string; expected_sha: string;
+}
 export interface ToolCall {
+  review?: FileReview;
   id: string;
   name: string;
   args: Record<string, unknown>;
