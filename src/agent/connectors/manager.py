@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import smtplib
+import tempfile
 import urllib.parse
 from dataclasses import dataclass, field
 from email.header import decode_header
@@ -194,11 +195,16 @@ for service_id, service in SERVICES.items():
 
 def _write_secure_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    os.chmod(tmp, 0o600)
-    tmp.replace(path)
-    os.chmod(path, 0o600)
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False) as stream:
+        tmp = Path(stream.name)
+        try:
+            json.dump(payload, stream, indent=2)
+            stream.flush()
+            os.fsync(stream.fileno())
+            stream.close()
+            os.replace(tmp, path)
+        finally:
+            tmp.unlink(missing_ok=True)
 
 
 def _read_secure_json(path: Path) -> dict[str, Any]:

@@ -14,7 +14,6 @@ import {
   Shield,
   Sliders,
   Trash2,
-  UserRound,
   X,
 } from "lucide-react";
 import {
@@ -161,7 +160,7 @@ function ProviderBrandLogo({ provider }: { provider: string }) {
 
 export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnector, onOpenOnboarding }: SettingsModalProps) {
   const modalVisible = Boolean(isOpen ?? open);
-  const [activeTab, setActiveTab] = useState<TabKey>("connectors");
+  const [activeTab, setActiveTab] = useState<TabKey | null>(null);
   const {
     profile,
     update: updateProfile,
@@ -190,7 +189,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
     top_p: 0.9,
   });
 
-  const [showDirectory, setShowDirectory] = useState(false);
+  useEffect(() => { if (!modalVisible) setActiveTab(null); }, [modalVisible]);
   const [catalogUnavailable, setCatalogUnavailable] = useState(false);
   const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
   const [activeConnectorFormId, setActiveConnectorFormId] = useState<string | null>(null);
@@ -438,38 +437,19 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
           </button>
         </div>
 
-        <div className="settings-tabs flex gap-1 overflow-x-auto border-b border-[#e6e4f0]/10 bg-[#0c0c0e] px-3 sm:px-4">
-          {(
-            [
-              { id: "profile", label: "Profile", icon: UserRound },
-              { id: "connectors", label: "Connectors", icon: Plug },
-              { id: "keys", label: "API Keys", icon: Key },
-              { id: "model", label: "Model", icon: Sliders },
-              { id: "security", label: "Security & Legal", icon: Shield },
-            ] as const
-          ).map((tab) => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                aria-current={active ? "page" : undefined}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex shrink-0 items-center gap-2 border-b-2 px-3.5 py-3 text-xs font-medium transition sm:px-4 ${
-                  active
-                    ? "border-[#f4f3f8] text-[#f4f3f8]"
-                    : "border-transparent text-[#e6e4f0]/60 hover:text-[#f4f3f8]"
-                }`}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="settings-content min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
+        <div key={activeTab ?? "menu"} className="settings-content min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
+          {activeTab === null ? <nav className="settings-menu" aria-label="Workspace settings">
+            <button type="button" onClick={() => setActiveTab("profile")}>
+              <img src={currentAvatar} alt="" width={44} height={44} className="rounded-full" />
+              <span><strong>{profile.name || "Your profile"}</strong><small>Edit profile</small></span>
+            </button>
+            {([
+              ["connectors", "Connectors", Plug], ["keys", "API Keys", Key],
+              ["model", "Model", Sliders], ["security", "Security & Legal", Shield],
+            ] as const).map(([id, title, Icon]) => <button key={id} type="button" onClick={() => setActiveTab(id)}>
+              <Icon size={19} />{title}<span aria-hidden="true" className="ml-auto">›</span>
+            </button>)}
+          </nav> : <button className="mb-4 text-sm text-gray-300" type="button" onClick={() => setActiveTab(null)}>← Settings</button>}
           {activeTab === "profile" && (
             <div className="mx-auto max-w-3xl space-y-6">
               <button type="button" onClick={onOpenOnboarding} className="text-sm underline underline-offset-4">Open onboarding</button>
@@ -683,35 +663,6 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
 
           {activeTab === "connectors" && (
             <div className="connector-catalog space-y-6">
-              {!showDirectory && <section className="connector-intro">
-                <div className="connector-art" aria-hidden="true">
-                  {["gmail", "notion", "github"].map(id => <span key={id}><img src={`/connectors/${id}.svg`} alt="" /></span>)}
-                </div>
-                <h3>Connect your workspace</h3>
-                <p>Bring files, events, and project context into your RESO conversations.</p>
-                {connectors.length > 0 && <div className="suggested-services">
-                  <h4>Suggested connectors</h4>
-                  {["gmail", "google_calendar", "google_drive"].map(id => {
-                    const service = connectors.find(item => item.id === id);
-                    if (!service) return null;
-                    return <button key={id} type="button" onClick={() => {
-                      setConnectorError(null);
-                      setConnectorCredentials({});
-                      setActiveConnectorFormId(service.connected ? null : id);
-                      setShowDirectory(true);
-                      requestAnimationFrame(() => document.getElementById(`connector-card-${id}`)?.focus());
-                    }}>
-                      <ConnectorBrandLogo id={id} />
-                      <span>{service.name}</span>
-                      <span aria-hidden="true">{service.connected ? "✓" : "+"}</span>
-                    </button>;
-                  })}
-                </div>}
-                <button className="browse-connectors" type="button" onClick={() => setShowDirectory(true)}>Browse all connectors</button>
-                {catalogUnavailable && <button type="button" className="mt-3 underline" onClick={loadAllData}>Retry loading services</button>}
-              </section>}
-              {showDirectory && <>
-              <button type="button" className="text-sm text-gray-300" onClick={() => setShowDirectory(false)}>← Suggested connectors</button>
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#e6e4f0]/12 bg-[#0c0c0e] px-5 py-3.5">
                 <div>
                   <h3 className="text-sm font-semibold text-[#f4f3f8]">
@@ -971,7 +922,6 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
                   </div>
                 );
               })}
-              </>}
             </div>
           )}
 

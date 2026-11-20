@@ -110,12 +110,12 @@ export function ChatMessage({
 
   return (
     <div
-      className={`flex w-full items-start gap-3.5 py-4 ${
+      className={`flex w-full items-start gap-2.5 py-2 ${
         isUser ? "justify-end" : "justify-start"
       }`}
     >
       {!isUser && assistantLogoSrc && (
-        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full">
+        <div className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full">
           <img
             src={assistantLogoSrc}
             alt={resolvedAssistantName}
@@ -139,7 +139,7 @@ export function ChatMessage({
           </span>
         </div>
 
-        <div className="max-w-full whitespace-pre-wrap text-base leading-7 text-[#faf9fc] [overflow-wrap:anywhere]">
+        <div className="max-w-full whitespace-pre-wrap text-[15px] leading-6 text-[#faf9fc] [overflow-wrap:anywhere]">
           {isUser ? (
             <div className="whitespace-pre-wrap break-words">{message.content}</div>
           ) : (
@@ -276,7 +276,7 @@ export function ChatMessage({
       </div>
 
       {isUser && (
-        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full">
+        <div className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full">
           <img
             src={userAvatarSrc}
             alt={resolvedUserName}

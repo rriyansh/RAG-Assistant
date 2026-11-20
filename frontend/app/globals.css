@@ -437,22 +437,21 @@ html[data-font="source-sans-3"] { --font-body: "Source Sans 3", system-ui, sans-
 .settings-tabs button { min-height: 44px; }
 .settings-tabs button[aria-current="page"] { color: white; background: #28282c; }
 .settings-content { scrollbar-width: thin; scrollbar-color: #46464b transparent; }
-.connector-intro { max-width: 32rem; margin: auto; text-align: center; padding: clamp(.75rem,3vw,2rem); }
-.connector-art { display: flex; align-items: center; justify-content: center; gap: clamp(.8rem,4vw,2rem); padding: 1rem 0 2rem; }
-.connector-art span { display: grid; place-items: center; width: clamp(3rem,12vw,5rem); aspect-ratio: 1; border-radius: 26%; background: #28282c; border: 1px solid #ffffff12; transform: rotate(-8deg); }
-.connector-art span:nth-child(2) { width: clamp(4rem,16vw,6.5rem); transform: translateY(-.45rem); background: #ecebf1; }
-.connector-art span:last-child { transform: rotate(8deg); background: #bdbdc3; }
-.connector-art img { width: 56%; }
-.connector-intro h3 { font-size: clamp(1.6rem,4vw,2.3rem); line-height: 1.13; font-weight: 700; letter-spacing: -.035em; }
-.connector-intro > p { margin: .75rem auto 1.6rem; max-width: 34ch; color: #c1c0c8; line-height: 1.55; }
-.suggested-services { text-align: start; }
-.suggested-services h4 { font-weight: 600; font-size: .85rem; color: #b9b8c1; }
-.suggested-services button { display: flex; width: 100%; align-items: center; gap: .8rem; min-height: 3.5rem; border-bottom: 1px solid #ffffff0d; }
-.suggested-services button span:last-child { margin-inline-start: auto; font-size: 1.4rem; color: #bebdc5; }
-.browse-connectors { width: 100%; margin-top: 1.25rem; border-radius: 2rem; background: #f4f3f8; color: #141417; padding: .8rem; font-weight: 650; }
 @media (max-width: 767px) {
   .settings-overlay { align-items: flex-end; padding: 0; }
   .settings-dialog { border-radius: 1.6rem 1.6rem 0 0; height: min(90dvh,52rem); padding-bottom: env(safe-area-inset-bottom); }
   .settings-dialog::before { content: ""; flex: none; align-self: center; width: 2.5rem; height: .25rem; margin-top: .55rem; border-radius: 1rem; background: #505056; }
   .settings-tabs { flex-shrink: 0; }
 }
+
+.settings-dialog { display: flex; flex-direction: column; }
+.settings-menu { max-width: 36rem; margin: auto; }
+.settings-menu button { display: flex; align-items: center; gap: .9rem; width: 100%; min-height: 48px; padding: .5rem .25rem; text-align: left; }
+.settings-menu button:first-child { margin-bottom: 1rem; }
+.settings-menu small { display: block; color: #c0bfc8; }
+.settings-content :is(section,div,form).rounded-2xl { background: transparent; border: 0; border-radius: 0; box-shadow: none; padding-inline: 0; }
+.connector-grid { gap: .65rem 1.25rem; }
+.connector-grid > div { border-bottom: 1px solid #ffffff1a !important; }
+.ppc-card { padding: 10px 12px; border-radius: 18px; }
+.ppc-tools { margin-top: 5px; gap: 8px; }
+.ppc-input { min-height: 28px; }

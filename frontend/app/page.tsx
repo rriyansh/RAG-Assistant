@@ -75,8 +75,8 @@ export default function HomePage() {
             onClear={clearMessages}
           />
 
-        <main className="flex-1 overflow-y-auto px-3 py-6 sm:px-6">
-          <div className={`mx-auto w-full max-w-3xl ${messages.length ? "space-y-4" : "grid min-h-full place-items-center"}`}>
+        <main className="flex-1 overflow-y-auto px-3 py-3 sm:px-5">
+          <div className={`mx-auto w-full max-w-3xl ${messages.length ? "space-y-2" : "grid min-h-full place-items-center"}`}>
             {messages[0]?.timestamp && <p className="text-center text-xs text-[#c6c4cf]">{messages[0].timestamp}</p>}
             {messages.length === 0 ? (
               <section className="chat-welcome">
@@ -101,7 +101,7 @@ export default function HomePage() {
           </div>
         </main>
 
-        <div className="border-t border-[#e6e4f0]/10 bg-[#0c0c0e] px-3 py-3 sm:px-4">
+        <div className="border-t border-[#e6e4f0]/10 bg-[#0c0c0e] px-3 py-2 sm:px-4">
           <div className="mx-auto w-full max-w-3xl">
             <div className="mb-2 flex flex-wrap items-center gap-1" aria-label="Conversation mode">
               {(["chat", "agent"] as const).map(item => <button key={item} type="button"
