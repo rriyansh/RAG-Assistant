@@ -6,7 +6,9 @@ export type FontId =
   | "fredoka"
   | "outfit"
   | "plus-jakarta-sans"
-  | "google-sans";
+  | "google-sans"
+  | "manrope"
+  | "source-sans-3";
 
 export interface UserProfile {
   name: string;

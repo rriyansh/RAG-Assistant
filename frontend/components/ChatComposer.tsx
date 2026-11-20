@@ -13,6 +13,7 @@ export interface ChatComposerProps {
   prompts?: string[];
   placeholder?: string;
   mode?: "agent" | "chat";
+  draft?: { text: string };
   models?: string[];
   modelNotes?: string[];
   hint?: boolean;
@@ -71,6 +72,7 @@ export default function ChatComposer({
   disabled = false,
   prompts = DEFAULT_PROMPTS,
   placeholder = "Ask about your documents...",
+  draft,
   mode = "agent",
   models = ["Turbo", "Studio", "Deep"],
   modelNotes,
@@ -88,6 +90,12 @@ export default function ChatComposer({
   const menuRef = React.useRef<HTMLDivElement | null>(null);
 
   const [value, setValue] = React.useState("");
+  React.useEffect(() => {
+    if (draft) {
+      setValue(draft.text);
+      inputRef.current?.focus();
+    }
+  }, [draft]);
   const [model, setModel] = React.useState(0);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [typed, setTyped] = React.useState("");

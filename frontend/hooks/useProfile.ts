@@ -24,7 +24,7 @@ export const DEFAULT_PROFILE: UserProfile = {
   assistantLogo: DEFAULT_RAG_ASSISTANT_LOGO,
 };
 
-function readFileAsDataUrl(file: File): Promise<string> {
+export function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     if (file.size > 4 * 1024 * 1024) {
       reject(new Error("Image must be smaller than 4 MB."));

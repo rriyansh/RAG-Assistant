@@ -1,6 +1,7 @@
 "use client";
 
 import { WorkspacePolicy } from "./WorkspacePolicy";
+import { FONT_OPTIONS } from "../lib/fonts";
 import React, { useEffect, useState } from "react";
 import {
   Check,
@@ -47,6 +48,7 @@ export interface SettingsModalProps {
   isOpen?: boolean;
   open?: boolean;
   onClose: () => void;
+  onUseConnector: (prompt: string) => void;
   profileState: ReturnType<typeof useProfile>;
 }
 
@@ -82,17 +84,6 @@ const DEFAULT_MODELS: Record<string, string> = {
   custom: "gpt-4o-mini",
 };
 
-const FONT_OPTIONS: Array<{ id: FontId; label: string }> = [
-  { id: "plus-jakarta-sans", label: "Plus Jakarta Sans (Default)" },
-  { id: "open-sans", label: "Open Sans" },
-  { id: "google-sans", label: "Google Sans Flex" },
-  { id: "system", label: "System Default" },
-  { id: "dm-sans", label: "DM Sans" },
-  { id: "josefin-sans", label: "Josefin Sans" },
-  { id: "fredoka", label: "Fredoka" },
-  { id: "outfit", label: "Outfit" },
-];
-
 const CONNECTOR_CATEGORIES: Array<{ id: string; title: string }> = [
   { id: "developer", title: "Developers & Tools" },
   { id: "workspace", title: "Cloud, Email & Workspace" },
@@ -102,6 +93,7 @@ const CONNECTOR_CATEGORIES: Array<{ id: string; title: string }> = [
 ];
 
 const brandedConnectors = new Set([
+  "linear", "jira", "docker", "discord", "dropbox", "confluence", "salesforce", "postgres", "mongodb", "snowflake", "trello",
   "airtable",
   "asana",
   "bitbucket",
@@ -135,6 +127,21 @@ const brandedConnectors = new Set([
   "zoom",
 ]);
 
+function connectorPrompt(connector: ConnectorInfo): string {
+  const examples: Record<string, string> = {
+    github: "Use GitHub to search repositories for ",
+    gmail: "Use Gmail to summarize my five most recent messages.",
+    google_drive: "Use Google Drive to find documents about ",
+    notion: "Use Notion to find pages about ",
+    slack: "Draft a Slack update for my review about ",
+    pdf_rag: "Search my indexed PDFs for ",
+    web_research: "Search the web for ",
+  };
+  return examples[connector.id] ?? (connector.category === "custom"
+    ? `Use the ${connector.name} connector to `
+    : connector.description);
+}
+
 function ConnectorBrandLogo({ id }: { id: string }) {
   if (brandedConnectors.has(id)) {
     const src = `/connectors/${id}.svg`;
@@ -149,7 +156,7 @@ function ProviderBrandLogo({ provider }: { provider: string }) {
   return <img src={`/providers/${icon}.svg`} alt="" className="h-6 w-6 shrink-0 rounded bg-white p-0.5 object-contain" />;
 }
 
-export function SettingsModal({ isOpen, open, onClose, profileState }: SettingsModalProps) {
+export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnector }: SettingsModalProps) {
   const modalVisible = Boolean(isOpen ?? open);
   const [activeTab, setActiveTab] = useState<TabKey>("profile");
   const {
@@ -698,7 +705,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState }: SettingsM
                 <p className="my-2 text-xs text-gray-400">Choose a service, then enter the URL and credentials for its configured gateway.</p>
                 <div className="flex flex-wrap gap-2">
                   {["Linear", "Jira", "Docker", "Discord", "Dropbox", "Confluence", "Salesforce", "Postgres", "MongoDB", "Snowflake", "Trello"].map((service) => (
-                    <button key={service} type="button" className="rounded-lg border border-white/15 px-3 py-1"
+                    <button key={service} type="button" className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-3 py-1"
                       onClick={() => {
                         setCustomId(service.toLowerCase());
                         setCustomName(service);
@@ -706,7 +713,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState }: SettingsM
                         setCustomApiKey("");
                         setCustomDesc(`Query the configured ${service} gateway.`);
                         setShowCustomForm(true);
-                      }}>{service}</button>
+                      }}><ConnectorBrandLogo id={service.toLowerCase()} />{service}</button>
                   ))}
                 </div>
               </details>
@@ -806,13 +813,13 @@ export function SettingsModal({ isOpen, open, onClose, profileState }: SettingsM
                             key={conn.id}
                             className="flex flex-col justify-between rounded-2xl border border-[#e6e4f0]/12 bg-[#0c0c0e] p-4 transition hover:border-[#e6e4f0]/25"
                           >
-                            <div className="flex items-start justify-between gap-3">
+                            <div className="connector-row flex items-start justify-between gap-3">
                               <div className="flex items-start gap-3.5 min-w-0">
                                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#e6e4f0]/15 bg-[#141417] p-2">
                                   <ConnectorBrandLogo id={conn.id} />
                                 </div>
                                 <div className="space-y-1 min-w-0">
-                                  <h5 className="truncate text-sm font-semibold text-[#f4f3f8]">
+                                  <h5 className="break-words text-sm font-semibold text-[#f4f3f8]">
                                     {conn.name}
                                   </h5>
                                   <p className="text-xs leading-relaxed text-[#e6e4f0]/70">
@@ -863,6 +870,11 @@ export function SettingsModal({ isOpen, open, onClose, profileState }: SettingsM
                               </div>
                             </div>
 
+                            {conn.connected && conn.enabled && <button type="button"
+                              className="mt-3 self-start text-sm font-semibold underline underline-offset-4"
+                              onClick={() => onUseConnector(connectorPrompt(conn))}>
+                              Use in Agent
+                            </button>}
                             {isConfiguring && (
                               <form
                                 onSubmit={(e) => handleConnectService(e, conn.id)}

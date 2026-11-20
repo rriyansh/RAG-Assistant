@@ -378,3 +378,45 @@ code, pre { font-family: var(--font-mono); }
   .settings-content input:not([type="file"]), .settings-content select, .ppc-input { font-size: 16px; }
   .settings-content { overscroll-behavior: contain; }
 }
+
+@font-face { font-family: "Manrope"; src: url("/fonts/manrope.woff2") format("woff2"); font-weight: 200 800; font-style: normal; font-display: swap; }
+html[data-font="manrope"] { --font-body: "Manrope", system-ui, sans-serif; --font-display: var(--font-body); }
+
+@font-face { font-family: "Source Sans 3"; src: url("/fonts/source-sans-3.woff2") format("woff2"); font-weight: 200 900; font-style: normal; font-display: swap; }
+html[data-font="source-sans-3"] { --font-body: "Source Sans 3", system-ui, sans-serif; --font-display: var(--font-body); }
+
+.setup-overlay { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 1rem; background: #0c0c0edb; }
+.setup-sheet { display: flex; flex-direction: column; width: min(100%, 38rem); max-height: min(90dvh, 52rem); min-height: 0; overflow: hidden; background: #141417; color: #f4f3f8; border-radius: 1.5rem; box-shadow: 0 1.5rem 5rem #0007; }
+.setup-header, .setup-footer { display: flex; justify-content: space-between; align-items: center; gap: .5rem; flex: none; padding: .8rem clamp(1rem, 4vw, 2rem); }
+.setup-header { border-bottom: 1px solid #ffffff19; }
+.setup-body { overflow-y: auto; overscroll-behavior: contain; padding: 1.5rem clamp(1rem, 4vw, 2rem); min-height: 0; }
+.setup-body h1 { font-size: clamp(1.5rem, 4vw, 2rem); font-weight: 700; letter-spacing: -.035em; line-height: 1.25; margin-bottom: .35rem; }
+.setup-label { display: block; font-size: .875rem; font-weight: 600; }
+.setup-label input, .setup-label select { display: block; width: 100%; margin-top: .4rem; border: 1px solid #ffffff27; border-radius: .65rem; background: #0c0c0e; padding: .65rem .8rem; font-size: 1rem; font-weight: 400; }
+.setup-options { display: grid; grid-template-columns: repeat(auto-fit,minmax(4.4rem,1fr)); gap: .5rem; margin: .7rem 0; }
+.setup-options button { display: grid; align-content: start; justify-items: center; gap: .35rem; color: #e6e4f0; font-size: .75rem; line-height: 1.35; }
+.setup-thumb { position: relative; display: block; width: 3.25rem; height: 3.25rem; border-radius: 50%; padding: .22rem; }
+.setup-thumb img { width: 100%; height: 100%; border-radius: inherit; }
+.setup-options [aria-pressed=true] .setup-thumb { outline: 2px solid #f4f3f8; }
+.setup-thumb svg { position: absolute; right: -.1rem; bottom: -.1rem; background: #f4f3f8; color: #141417; border-radius: 100%; }
+.setup-upload, .setup-actions button, .setup-footer button { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: .4rem; padding: .4rem .65rem; font-size: .8125rem; font-weight: 600; cursor: pointer; }
+.setup-upload:focus-within, .setup-sheet button:focus-visible { outline: 2px solid #e6e4f0; outline-offset: 2px; }
+.setup-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.setup-actions button { border-radius: .6rem; border: 1px solid #ffffff25; }
+.setup-actions [aria-pressed=true], .setup-primary { background: #f4f3f8; color: #141417; }
+.setup-preview { display: flex; align-items: center; gap: .75rem; padding-top: .8rem; overflow-wrap: anywhere; }
+.setup-preview img { width: 2.75rem; height: 2.75rem; object-fit: contain; }
+.setup-preview p { color: #e6e4f0af; font-size: .8rem; }
+.setup-footer { border-top: 1px solid #ffffff19; }
+.setup-primary { border-radius: .6rem; }
+@media (max-width: 600px) {
+  .setup-overlay { padding: 0; align-items: end; }
+  .setup-sheet { max-height: 100dvh; border-radius: 1.25rem 1.25rem 0 0; }
+  .setup-footer { padding-bottom: max(.65rem,env(safe-area-inset-bottom)); }
+  .connector-row { flex-direction: column; }
+}
+@media (max-height: 460px) {
+  .setup-overlay { padding: 0; }
+  .setup-sheet { max-height: 100dvh; }
+  .setup-header, .setup-footer { padding-block: .25rem; }
+}

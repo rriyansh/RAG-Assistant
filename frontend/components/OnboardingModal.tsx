@@ -1,359 +1,123 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { Check, ImagePlus } from "lucide-react";
-import { FontId, UserProfile } from "../lib/types";
-import {
-  CODES_ICON_SVG_PATH,
-  DEFAULT_RAG_ASSISTANT_LOGO,
-  INBUILT_ASSISTANT_LOGOS,
-  INBUILT_USER_PFPS,
-} from "../lib/utils";
+import { readFileAsDataUrl } from "../hooks/useProfile";
+import { FONT_OPTIONS } from "../lib/fonts";
+import type { UserProfile } from "../lib/types";
+import { CODES_ICON_SVG_PATH, DEFAULT_RAG_ASSISTANT_LOGO, INBUILT_ASSISTANT_LOGOS, INBUILT_USER_PFPS } from "../lib/utils";
 
 export interface OnboardingModalProps {
   isOpen: boolean;
   profile: UserProfile;
   onUpdateProfile: (patch: Partial<UserProfile>) => void;
   onUploadUserAvatar: (file: File) => Promise<void>;
-  onUploadAssistantLogo: (file: File) => Promise<void>;
-  onResetAssistantLogo: () => void;
   onComplete: () => void;
 }
 
-const FONT_OPTIONS: Array<{ id: FontId; label: string; family: string }> = [
-  { id: "plus-jakarta-sans", label: "Plus Jakarta Sans (Default)", family: "'Plus Jakarta Sans', sans-serif" },
-  { id: "open-sans", label: "Open Sans", family: "'Open Sans', sans-serif" },
-  { id: "dm-sans", label: "DM Sans", family: "'DM Sans', sans-serif" },
-  { id: "outfit", label: "Outfit", family: "'Outfit', sans-serif" },
-  { id: "josefin-sans", label: "Josefin Sans", family: "'Josefin Sans', sans-serif" },
-  { id: "fredoka", label: "Fredoka", family: "'Fredoka', sans-serif" },
-  { id: "google-sans", label: "Google Sans Flex", family: "'Google Sans Flex', sans-serif" },
-  { id: "system", label: "System Default", family: "system-ui, sans-serif" },
-];
-
-export function OnboardingModal({
-  isOpen,
-  profile,
-  onUpdateProfile,
-  onUploadUserAvatar,
-  onUploadAssistantLogo,
-  onComplete,
-}: OnboardingModalProps) {
+export function OnboardingModal({ isOpen, profile, onUpdateProfile, onUploadUserAvatar, onComplete }: OnboardingModalProps) {
   const [step, setStep] = useState<1 | 2>(1);
-  const [headerIconSrc, setHeaderIconSrc] = useState<string>(CODES_ICON_SVG_PATH);
-  const [initialLogo] = useState<string>(
-    profile.assistantLogo !== undefined
-      ? profile.assistantLogo
-      : DEFAULT_RAG_ASSISTANT_LOGO
-  );
-
+  const [originalLogo] = useState(profile.assistantLogo ?? DEFAULT_RAG_ASSISTANT_LOGO);
+  const [draftLogo, setDraftLogo] = useState(originalLogo);
+  const [choice, setChoice] = useState("initial");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [headerIcon, setHeaderIcon] = useState(CODES_ICON_SVG_PATH);
   if (!isOpen) return null;
 
-  const currentLogo = profile.assistantLogo ?? "";
-  const currentAvatar = profile.avatarDataUrl || INBUILT_USER_PFPS[0]!.url;
+  function selectLogo(id: string, value: string) {
+    setChoice(id);
+    setDraftLogo(value);
+    setError("");
+  }
 
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0c0c0e]/75 p-3 sm:p-4 backdrop-blur-md"
-    >
-      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-[#e6e4f0]/15 bg-[#141417] text-[#f4f3f8] shadow-2xl">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e6e4f0]/10 px-5 py-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <img
-              src={headerIconSrc}
-              alt="codes icon"
-              onError={() => setHeaderIconSrc("/icon.svg")}
-              className="h-9 w-9 shrink-0 rounded-xl border border-[#e6e4f0]/20 bg-[#0c0c0e] object-contain p-1"
-            />
-            <div>
-              <p className="text-[11px] font-medium text-[#e6e4f0]/60">
-                Workspace setup &gt; {step === 1 ? "Your profile" : "Name your assistant"}
-              </p>
-              <span className="text-sm font-semibold tracking-tight text-[#f4f3f8]">
-                {profile.assistantName || "Reso Agent"}
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => setStep(1)}
-              className={`rounded-full px-3 py-1 font-medium transition ${
-                step === 1
-                  ? "bg-[#f4f3f8] text-[#0c0c0e]"
-                  : "bg-[#1c1c21] text-[#e6e4f0]/70"
-              }`}
-            >
-              1. Your profile
-            </button>
-            <button
-              type="button"
-              onClick={() => setStep(2)}
-              className={`rounded-full px-3 py-1 font-medium transition ${
-                step === 2
-                  ? "bg-[#f4f3f8] text-[#0c0c0e]"
-                  : "bg-[#1c1c21] text-[#e6e4f0]/70"
-              }`}
-            >
-              2. Assistant
-            </button>
-          </div>
+  async function upload(file: File) {
+    setBusy(true);
+    setError("");
+    try {
+      if (!file.type.startsWith("image/")) throw new Error("Choose an image file.");
+      if (step === 1) await onUploadUserAvatar(file);
+      else selectLogo("upload", await readFileAsDataUrl(file));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to load the image.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const options = step === 1 ? INBUILT_USER_PFPS : INBUILT_ASSISTANT_LOGOS;
+  const selectedName = choice === "initial" ? (originalLogo ? "Current logo" : "No logo")
+    : choice === "existing" ? (originalLogo ? "Existing logo selected" : "Existing setting: no logo")
+    : choice === "blank" ? "No logo selected" : choice === "upload" ? "Uploaded logo selected"
+    : INBUILT_ASSISTANT_LOGOS.find(item => item.id === choice)?.label;
+  return <div className="setup-overlay">
+    <section className="setup-sheet" role="dialog" aria-modal="true" aria-labelledby="setup-heading">
+      <header className="setup-header">
+        <div className="flex min-w-0 items-center gap-3">
+          <img src={headerIcon} onError={() => setHeaderIcon("/icon.svg")} alt="" className="h-9 w-9 shrink-0 object-contain" />
+          <strong>Workspace setup</strong>
         </div>
-
-        <div className="flex-1 space-y-6 overflow-y-auto p-5 sm:p-6">
-          {step === 1 && (
-            <div className="space-y-5">
-              <div>
-                <label className="block text-xs font-medium text-[#e6e4f0]/80">
-                  Name
-                </label>
-                <input
-                  type="text"
-                  value={profile.name}
-                  placeholder=""
-                  onChange={(e) => onUpdateProfile({ name: e.target.value })}
-                  className="mt-1.5 w-full rounded-xl border border-[#e6e4f0]/15 bg-[#0c0c0e] px-3.5 py-2.5 text-sm text-[#f4f3f8] outline-none focus:border-[#f4f3f8]"
-                />
-              </div>
-
-              <div>
-                <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-[#e6e4f0]/80">
-                    Profile picture
-                  </span>
-                  <label className="cursor-pointer text-xs text-[#e6e4f0]/70 hover:text-[#f4f3f8]">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="sr-only"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (file) await onUploadUserAvatar(file);
-                      }}
-                    />
-                    <span className="inline-flex items-center gap-1.5 rounded-xl border border-[#e6e4f0]/15 bg-[#0c0c0e] px-3 py-1.5">
-                      <span className="text-[#e6e4f0]/50">No file chosen</span>
-                      <span>|</span>
-                      <ImagePlus className="h-3.5 w-3.5" />
-                      <span className="font-medium text-[#f4f3f8]">Upload image</span>
-                    </span>
-                  </label>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-6">
-                  {INBUILT_USER_PFPS.map((pfp) => {
-                    const active = currentAvatar === pfp.url;
-                    return (
-                      <button
-                        key={pfp.id}
-                        type="button"
-                        onClick={() => onUpdateProfile({ avatarDataUrl: pfp.url })}
-                        className={`flex flex-col items-center gap-1.5 rounded-2xl border p-2.5 transition ${
-                          active
-                            ? "border-[#f4f3f8] bg-[#1c1c21]"
-                            : "border-[#e6e4f0]/10 bg-[#0c0c0e] hover:border-[#e6e4f0]/30"
-                        }`}
-                      >
-                        <img
-                          src={pfp.url}
-                          alt={pfp.label}
-                          className="h-12 w-12 rounded-xl object-cover"
-                        />
-                        <span className="text-[11px] font-medium text-[#f4f3f8]">
-                          {pfp.label}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-[#e6e4f0]/80">
-                  Interface Font
-                </label>
-                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {FONT_OPTIONS.map((f) => (
-                    <button
-                      key={f.id}
-                      type="button"
-                      style={{ fontFamily: f.family }}
-                      onClick={() => onUpdateProfile({ font: f.id })}
-                      className={`flex items-center justify-between rounded-xl border px-3 py-2 text-xs transition ${
-                        profile.font === f.id
-                          ? "border-[#f4f3f8] bg-[#1c1c21] text-[#f4f3f8] font-semibold"
-                          : "border-[#e6e4f0]/10 bg-[#0c0c0e] text-[#e6e4f0]/75 hover:border-[#e6e4f0]/30"
-                      }`}
-                    >
-                      <span className="truncate">{f.label}</span>
-                      {profile.font === f.id && (
-                        <Check className="h-3.5 w-3.5 shrink-0" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="space-y-5">
-              <div>
-                <h3 className="text-sm font-semibold text-[#f4f3f8]">
-                  Name your assistant
-                </h3>
-                <p className="text-xs text-[#e6e4f0]/65">
-                  Choose the identity shown in the conversation.
-                </p>
-                <label className="mt-3 block text-xs font-medium text-[#e6e4f0]/80">
-                  Assistant name
-                </label>
-                <input
-                  type="text"
-                  value={profile.assistantName}
-                  placeholder="Reso Agent"
-                  onChange={(e) =>
-                    onUpdateProfile({ assistantName: e.target.value })
-                  }
-                  className="mt-1.5 w-full rounded-xl border border-[#e6e4f0]/15 bg-[#0c0c0e] px-3.5 py-2.5 text-sm text-[#f4f3f8] outline-none focus:border-[#f4f3f8]"
-                />
-              </div>
-
-              <div>
-                <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-[#e6e4f0]/80">
-                    Assistant logo
-                  </span>
-                  <label className="cursor-pointer text-xs text-[#e6e4f0]/70 hover:text-[#f4f3f8]">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="sr-only"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (file) await onUploadAssistantLogo(file);
-                      }}
-                    />
-                    <span className="inline-flex items-center gap-1.5 rounded-xl border border-[#e6e4f0]/15 bg-[#0c0c0e] px-3 py-1.5">
-                      <span className="text-[#e6e4f0]/50">No file chosen</span>
-                      <span>|</span>
-                      <ImagePlus className="h-3.5 w-3.5" />
-                      <span className="font-medium text-[#f4f3f8]">Upload image</span>
-                    </span>
-                  </label>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
-                  {INBUILT_ASSISTANT_LOGOS.map((item) => {
-                    const selected = currentLogo === item.url;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() =>
-                          onUpdateProfile({ assistantLogo: item.url })
-                        }
-                        className={`flex flex-col items-center gap-1.5 rounded-2xl border p-3 transition ${
-                          selected
-                            ? "border-[#f4f3f8] bg-[#1c1c21]"
-                            : "border-[#e6e4f0]/10 bg-[#0c0c0e] hover:border-[#e6e4f0]/30"
-                        }`}
-                      >
-                        <img
-                          src={item.url}
-                          alt={item.label}
-                          className="h-11 w-11 rounded-xl object-contain"
-                        />
-                        <span className="text-[11px] font-medium text-[#e6e4f0]">
-                          {item.label}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  {initialLogo && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onUpdateProfile({ assistantLogo: initialLogo })
-                      }
-                      className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition ${
-                        currentLogo === initialLogo
-                          ? "border-[#f4f3f8] bg-[#1c1c21] text-[#f4f3f8]"
-                          : "border-[#e6e4f0]/15 bg-[#0c0c0e] text-[#e6e4f0]/80 hover:border-[#f4f3f8]"
-                      }`}
-                    >
-                      Keep existing logo
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => onUpdateProfile({ assistantLogo: "" })}
-                    className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition ${
-                      currentLogo === ""
-                        ? "border-[#f4f3f8] bg-[#1c1c21] text-[#f4f3f8]"
-                        : "border-[#e6e4f0]/15 bg-[#0c0c0e] text-[#e6e4f0]/80 hover:border-[#f4f3f8]"
-                    }`}
-                  >
-                    Leave blank
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onComplete}
-                    className="rounded-xl border border-[#e6e4f0]/15 bg-[#0c0c0e] px-3 py-1.5 text-xs font-medium text-[#e6e4f0]/80 hover:border-[#f4f3f8] hover:text-[#f4f3f8]"
-                  >
-                    Skip this step
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between border-t border-[#e6e4f0]/10 bg-[#0c0c0e] px-5 py-4 sm:px-6">
-          <button
-            type="button"
-            onClick={onComplete}
-            className="text-xs text-[#e6e4f0]/60 hover:text-[#f4f3f8]"
-          >
-            Skip
-          </button>
-          <div className="flex items-center gap-2.5">
-            {step === 2 && (
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="rounded-xl border border-[#e6e4f0]/20 bg-[#141417] px-4 py-2 text-xs font-medium text-[#f4f3f8]"
-              >
-                Back
-              </button>
-            )}
-            {step === 1 ? (
-              <button
-                type="button"
-                onClick={() => setStep(2)}
-                className="rounded-xl bg-[#f4f3f8] px-5 py-2 text-xs font-semibold text-[#0c0c0e] shadow-[0_3px_0_0_#bdb9ce] active:translate-y-[1px]"
-              >
-                Next
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={onComplete}
-                className="rounded-xl bg-[#f4f3f8] px-5 py-2 text-xs font-semibold text-[#0c0c0e] shadow-[0_3px_0_0_#bdb9ce] active:translate-y-[1px]"
-              >
-                Start Workspace
-              </button>
-            )}
+        <span className="text-xs text-white/65">Step {step} of 2</span>
+      </header>
+      <div key={step} className="setup-body">
+        <h1 id="setup-heading">{step === 1 ? "Your profile" : "Name your assistant"}</h1>
+        <p className="mb-5 text-sm text-white/65">{step === 1 ? "Choose how you appear in your workspace." : "Choose the identity shown in the conversation."}</p>
+        <label className="setup-label">{step === 1 ? "Name" : "Assistant name"}
+          <input value={step === 1 ? profile.name : profile.assistantName} autoComplete={step === 1 ? "given-name" : "off"}
+            onChange={e => onUpdateProfile(step === 1 ? {name: e.target.value} : {assistantName: e.target.value})} />
+        </label>
+        <fieldset disabled={busy} className="mt-5 min-w-0">
+          <legend className="setup-label">{step === 1 ? "Profile picture" : "Assistant logo"}</legend>
+          <div className="setup-options">
+            {options.map(item => {
+              const active = step === 1 ? profile.avatarDataUrl === item.url : choice === item.id;
+              return <button type="button" key={item.id} aria-pressed={active} onClick={() =>
+                step === 1 ? onUpdateProfile({avatarDataUrl: item.url}) : selectLogo(item.id, item.url)}>
+                <span className="setup-thumb"><img src={item.url} alt="" />{active && <Check aria-hidden size={14} />}</span>
+                <span>{item.label}</span>
+              </button>;
+            })}
           </div>
-        </div>
+          <label className="setup-upload"><ImagePlus size={16} /> Upload image
+            <input type="file" accept="image/*" className="sr-only" onChange={e => {
+              const file = e.currentTarget.files?.[0];
+              e.currentTarget.value = "";
+              if (file) void upload(file);
+            }} />
+          </label>
+          {step === 1 && profile.avatarDataUrl && !INBUILT_USER_PFPS.some(item => item.url === profile.avatarDataUrl) &&
+            <div className="setup-preview"><img src={profile.avatarDataUrl} alt="Uploaded profile picture" /><span>Uploaded picture selected</span></div>}
+          {step === 2 && <>
+            <div className="setup-actions">
+              <button type="button" aria-pressed={choice === "existing"} onClick={() => selectLogo("existing", originalLogo)}>Keep existing logo</button>
+              <button type="button" aria-pressed={choice === "blank"} onClick={() => selectLogo("blank", "")}>Leave blank</button>
+            </div>
+            <div role="status" className="setup-preview">
+              {draftLogo && <img src={draftLogo} alt="Selected assistant logo" />}
+              <div><strong>{profile.assistantName || "Reso Agent"}</strong><p>{selectedName}</p></div>
+            </div>
+          </>}
+        </fieldset>
+        {error && <p role="alert" className="mt-2 text-sm">{error}</p>}
+        {step === 1 && <label className="setup-label mt-5">Interface font
+          <select value={profile.font} onChange={e => {
+            const font = FONT_OPTIONS.find(item => item.id === e.target.value);
+            if (font) onUpdateProfile({font: font.id});
+          }}>{FONT_OPTIONS.map(font => <option key={font.id} value={font.id}>{font.label}</option>)}</select>
+        </label>}
       </div>
-    </div>
-  );
+      <footer className="setup-footer">
+        <button disabled={busy} onClick={onComplete}>{step === 1 ? "Skip" : "Skip this step"}</button>
+        <div className="flex gap-2">
+          {step === 2 && <button disabled={busy} onClick={() => setStep(1)}>Back</button>}
+          <button className="setup-primary" disabled={busy} onClick={() => {
+            if (step === 1) {setError(""); setStep(2); return;}
+            onUpdateProfile({assistantLogo: draftLogo});
+            onComplete();
+          }}>{step === 1 ? "Next" : "Start Workspace"}</button>
+        </div>
+      </footer>
+    </section>
+  </div>;
 }
-
 export default OnboardingModal;

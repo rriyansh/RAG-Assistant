@@ -7,20 +7,10 @@ import ChatComposer from "../components/ChatComposer";
 import { SettingsModal } from "../components/SettingsModal";
 import { OnboardingModal } from "../components/OnboardingModal";
 import { useChat } from "../hooks/useChat";
+import { FONT_OPTIONS } from "../lib/fonts";
 import { useProfile } from "../hooks/useProfile";
 import { DEFAULT_RAG_ASSISTANT_LOGO } from "../lib/utils";
 import { Code2, Plug } from "lucide-react";
-
-const FONT_STACK_MAP: Record<string, string> = {
-  "google-sans": "'Google Sans Flex', system-ui, sans-serif",
-  "open-sans": "'Open Sans', system-ui, sans-serif",
-  system: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-  "dm-sans": "'DM Sans', system-ui, sans-serif",
-  "josefin-sans": "'Josefin Sans', system-ui, sans-serif",
-  fredoka: "'Fredoka', system-ui, sans-serif",
-  outfit: "'Outfit', system-ui, sans-serif",
-  "plus-jakarta-sans": "'Plus Jakarta Sans', system-ui, sans-serif",
-};
 
 const QUICK_BUILDER_ACTIONS = [
   {
@@ -47,6 +37,7 @@ const QUICK_BUILDER_ACTIONS = [
 
 export default function HomePage() {
   const [mode, setMode] = useState<"chat" | "agent">("agent");
+  const [connectorDraft, setConnectorDraft] = useState<{text: string}>();
   const profileState = useProfile();
   const {
     profile,
@@ -55,8 +46,6 @@ export default function HomePage() {
     hydrated,
     update: updateProfile,
     setAvatarFromFile,
-    setAssistantLogoFromFile,
-    clearAssistantLogo,
     completeOnboarding,
     reopenOnboarding,
   } = profileState;
@@ -81,7 +70,7 @@ export default function HomePage() {
 
   const showOnboarding = hydrated && !isOnboarded;
   const activeFontFamily =
-    FONT_STACK_MAP[profile.font] || FONT_STACK_MAP["plus-jakarta-sans"];
+    FONT_OPTIONS.find(option => option.id === profile.font)?.family ?? "'Plus Jakarta Sans', sans-serif";
   React.useEffect(() => {
     if (hydrated) document.documentElement.dataset.font = profile.font;
   }, [hydrated, profile.font]);
@@ -213,7 +202,7 @@ export default function HomePage() {
             {isLoading && <div role="status" className="mb-2 max-h-24 overflow-auto text-xs leading-5 text-[#e6e4f0]/80">
               {activity.slice(-3).map((line, index) => <p key={index}>{line}</p>)}
             </div>}
-            <ChatComposer models={[]} mode={mode} onSubmit={handleSend} disabled={isLoading} />
+            <ChatComposer draft={connectorDraft} models={[]} mode={mode} onSubmit={handleSend} disabled={isLoading} />
           </div>
         </div>
       </div>
@@ -223,12 +212,11 @@ export default function HomePage() {
         profile={profile}
         onUpdateProfile={updateProfile}
         onUploadUserAvatar={setAvatarFromFile}
-        onUploadAssistantLogo={setAssistantLogoFromFile}
-        onResetAssistantLogo={clearAssistantLogo}
         onComplete={completeOnboarding}
       />}
 
       <SettingsModal
+          onUseConnector={text => { setMode("agent"); setConnectorDraft({text}); setSettingsOpen(false); }}
           profileState={profileState}
           isOpen={settingsOpen}
           open={settingsOpen}
