@@ -4,7 +4,7 @@ import asyncio
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from fastapi import APIRouter, HTTPException
 
@@ -37,7 +37,6 @@ from src.api.schemas import (
     PluginsListResponse,
     PromptEnhanceRequest,
     ThinkingGenerateRequest,
-    ToolCallSchema,
 )
 from src.generation.generator import generate_answer
 from src.llm.factory import (
@@ -124,28 +123,37 @@ async def health(manager: ConnectorManager = Depends(active_connectors)) -> dict
     }
 
 
+async def _answer(req: AskRequest, manager: ConnectorManager,
+                  activity: Callable[[str], None] | None = None) -> AskResponse:
+    history = [turn.model_dump() for turn in req.history]
+    if api_mode.get() == "chat":
+        if activity:
+            activity("Requesting a chat response")
+        turns = [{"role": "system", "content": f"You are {req.assistant_name}."},
+                 *history, {"role": "user", "content": req.question}]
+        llm = create_llm()
+        answer = await asyncio.to_thread(llm.generate, turns)
+        return AskResponse(answer=answer, sources=[], source_type="chat")
+
+    if os.getenv("AGENT_ENABLED", "true").lower() != "false" and manager.registry.list_for_llm():
+        try:
+            data = await run_agent(req.question, req.assistant_name, manager.registry,
+                                   consent=req.consent, history=history, on_activity=activity)
+            return AskResponse(**{**data, "source_type": "agent"})
+        except ToolNotSupportedError:
+            pass
+
+    if activity:
+        activity("Searching indexed documents")
+    return await asyncio.to_thread(_run_legacy, req.question, req.assistant_name)
+
+
 @router.post("/ask", response_model=AskResponse)
 async def ask(req: AskRequest, manager: ConnectorManager = Depends(active_connectors)) -> AskResponse:
-    if (
-        os.getenv("AGENT_ENABLED", "true").lower() == "false"
-        or not manager.registry.list_for_llm()
-    ):
-        return await asyncio.to_thread(_run_legacy, req.question, req.assistant_name)
     try:
-        res = await run_agent(
-            req.question, req.assistant_name, manager.registry, consent=req.consent
-        )
+        return await _answer(req, manager)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except ToolNotSupportedError:
-        return await asyncio.to_thread(_run_legacy, req.question, req.assistant_name)
-    return AskResponse(
-        answer=res.get("answer", ""),
-        sources=res.get("sources", []),
-        source_type="agent",
-        tool_calls=[ToolCallSchema(**tc) for tc in res.get("tool_calls", [])],
-        pending_consent=res.get("pending_consent", []),
-    )
+        raise HTTPException(status_code=400, detail="Check the selected provider, API key and model in Settings.") from exc
 
 
 @router.post("/github/commit")
@@ -162,31 +170,12 @@ async def commit_review(change: ReviewedChange, manager: ConnectorManager = Depe
 @router.post("/ask/stream")
 async def stream_answer(req: AskRequest, manager: ConnectorManager = Depends(active_connectors)):
     events = asyncio.Queue()
-    mode = api_mode.get()
 
     async def run():
-        def activity(label):
+        def activity(label: str):
             events.put_nowait({"activity": label})
         try:
-            if mode == "chat":
-                activity("Requesting a chat response")
-                llm = create_llm()
-                turns = [{"role": "system", "content": f"You are {req.assistant_name}."},
-                         *(turn.model_dump() for turn in req.history), {"role": "user", "content": req.question}]
-                answer = await asyncio.to_thread(llm.generate, turns)
-                result = AskResponse(answer=answer, sources=[], source_type="chat")
-            elif os.getenv("AGENT_ENABLED", "true").lower() == "false" or not manager.registry.list_for_llm():
-                activity("Searching indexed documents")
-                result = await asyncio.to_thread(_run_legacy, req.question, req.assistant_name)
-            else:
-                try:
-                    data = await run_agent(req.question, req.assistant_name, manager.registry,
-                                           consent=req.consent, on_activity=activity,
-                                           history=[turn.model_dump() for turn in req.history])
-                    result = AskResponse(**{**data, "source_type": "agent"})
-                except ToolNotSupportedError:
-                    activity("Searching indexed documents")
-                    result = await asyncio.to_thread(_run_legacy, req.question, req.assistant_name)
+            result = await _answer(req, manager, activity)
             events.put_nowait({"result": result.model_dump()})
         except Exception:
             events.put_nowait({"error": "The request could not finish. Check the selected mode’s key, model and quota."})

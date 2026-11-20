@@ -12,7 +12,7 @@ import { DEFAULT_RAG_ASSISTANT_LOGO } from "../lib/utils";
 import { Code2, Plug } from "lucide-react";
 
 const FONT_STACK_MAP: Record<string, string> = {
-  "google-sans": "'Google Sans', system-ui, sans-serif",
+  "google-sans": "'Google Sans Flex', system-ui, sans-serif",
   "open-sans": "'Open Sans', system-ui, sans-serif",
   system: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
   "dm-sans": "'DM Sans', system-ui, sans-serif",

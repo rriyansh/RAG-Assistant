@@ -85,7 +85,7 @@ const DEFAULT_MODELS: Record<string, string> = {
 const FONT_OPTIONS: Array<{ id: FontId; label: string }> = [
   { id: "plus-jakarta-sans", label: "Plus Jakarta Sans (Default)" },
   { id: "open-sans", label: "Open Sans" },
-  { id: "google-sans", label: "Google Sans" },
+  { id: "google-sans", label: "Google Sans Flex" },
   { id: "system", label: "System Default" },
   { id: "dm-sans", label: "DM Sans" },
   { id: "josefin-sans", label: "Josefin Sans" },
