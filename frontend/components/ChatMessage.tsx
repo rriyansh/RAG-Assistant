@@ -137,8 +137,6 @@ export function ChatMessage({
           <span className="font-semibold text-[#f4f3f8]">
             {isUser ? resolvedUserName : resolvedAssistantName}
           </span>
-          <span>·</span>
-          <span className="text-[10px]">{message.timestamp}</span>
         </div>
 
         <div className="max-w-full whitespace-pre-wrap text-base leading-7 text-[#faf9fc] [overflow-wrap:anywhere]">

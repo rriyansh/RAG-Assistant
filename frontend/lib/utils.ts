@@ -26,37 +26,37 @@ export const INBUILT_USER_PFPS: Array<{
     id: "pfp-leo",
     label: "Leo",
     gender: "boy",
-    url: "/portraits/pfp-leo.svg",
+    url: "/portraits/pfp-leo.webp",
   },
   {
     id: "pfp-max",
     label: "Max",
     gender: "boy",
-    url: "/portraits/pfp-max.svg",
+    url: "/portraits/pfp-max.webp",
   },
   {
     id: "pfp-kai",
     label: "Kai",
     gender: "boy",
-    url: "/portraits/pfp-kai.svg",
+    url: "/portraits/pfp-kai.webp",
   },
   {
     id: "pfp-maya",
     label: "Maya",
     gender: "girl",
-    url: "/portraits/pfp-maya.svg",
+    url: "/portraits/pfp-maya.webp",
   },
   {
     id: "pfp-zoe",
     label: "Zoe",
     gender: "girl",
-    url: "/portraits/pfp-zoe.svg",
+    url: "/portraits/pfp-zoe.webp",
   },
   {
     id: "pfp-aria",
     label: "Aria",
     gender: "girl",
-    url: "/portraits/pfp-aria.svg",
+    url: "/portraits/pfp-aria.webp",
   },
 ];
 
@@ -68,28 +68,29 @@ export const INBUILT_ASSISTANT_LOGOS: Array<{
   {
     id: "reso- emblem",
     label: "Reso Core",
-    url: "/portraits/reso-emblem.svg",
+    url: "/portraits/reso-emblem.webp",
   },
   {
     id: "dragon-crest",
     label: "Dragon Emblem",
-    url: "/portraits/dragon-crest.svg",
+    url: "/portraits/dragon-crest.webp",
   },
   {
     id: "neural-core",
     label: "Neural Core",
-    url: "/portraits/neural-core.svg",
+    url: "/portraits/neural-core.webp",
   },
   {
     id: "eclipse-ai",
     label: "Eclipse",
-    url: "/portraits/eclipse-ai.svg",
+    url: "/portraits/eclipse-ai.webp",
   },
   {
     id: "spark-vertex",
     label: "Vertex",
-    url: "/portraits/spark-vertex.svg",
+    url: "/portraits/spark-vertex.webp",
   },
+  { id: "pip", label: "Pip", url: "/portraits/pip.webp" },
 ];
 
 export function detectProviderFromKeyString(rawKey: string): string | null {

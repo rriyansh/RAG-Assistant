@@ -77,6 +77,7 @@ export default function HomePage() {
 
         <main className="flex-1 overflow-y-auto px-3 py-6 sm:px-6">
           <div className={`mx-auto w-full max-w-3xl ${messages.length ? "space-y-4" : "grid min-h-full place-items-center"}`}>
+            {messages[0]?.timestamp && <p className="text-center text-xs text-[#c6c4cf]">{messages[0].timestamp}</p>}
             {messages.length === 0 ? (
               <section className="chat-welcome">
                 <img className="mx-auto mb-4 h-16 w-16 rounded-2xl bg-white p-1 object-contain" src="/icon.svg" width={64} height={64} alt="RAG Assistant" />
