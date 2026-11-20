@@ -115,7 +115,7 @@ export function ChatMessage({
       }`}
     >
       {!isUser && assistantLogoSrc && (
-        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#e6e4f0]/20 bg-[#141417]">
+        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full">
           <img
             src={assistantLogoSrc}
             alt={resolvedAssistantName}
@@ -125,12 +125,12 @@ export function ChatMessage({
       )}
 
       <div
-        className={`flex max-w-[82%] flex-col space-y-2 ${
+        className={`flex min-w-0 max-w-[min(82%,65ch)] flex-col space-y-2 ${
           isUser ? "items-end" : "items-start"
         }`}
       >
         <div
-          className={`flex items-center gap-2 px-1 text-[11px] text-[#e6e4f0]/60 ${
+          className={`flex items-center gap-2 text-xs text-[#c6c4cf] ${
             isUser ? "flex-row-reverse" : ""
           }`}
         >
@@ -141,13 +141,7 @@ export function ChatMessage({
           <span className="text-[10px]">{message.timestamp}</span>
         </div>
 
-        <div
-          className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-            isUser
-              ? "rounded-tr-sm bg-[#f4f3f8] text-[#0c0c0e] font-medium"
-              : "rounded-tl-sm border border-[#e6e4f0]/15 bg-[#141417] text-[#f4f3f8]"
-          }`}
-        >
+        <div className="max-w-full whitespace-pre-wrap text-base leading-7 text-[#faf9fc] [overflow-wrap:anywhere]">
           {isUser ? (
             <div className="whitespace-pre-wrap break-words">{message.content}</div>
           ) : (
@@ -167,7 +161,7 @@ export function ChatMessage({
             <button
               type="button"
               onClick={handleCopyText}
-              className="inline-flex items-center gap-1 rounded-lg border border-[#e6e4f0]/15 bg-[#141417] px-2.5 py-1 text-[11px] text-[#e6e4f0]/80 transition hover:border-[#f4f3f8]/40 hover:text-[#f4f3f8]"
+              className="inline-flex items-center gap-1 px-1 py-1 text-[11px] text-[#e6e4f0]/80 transition hover:border-[#f4f3f8]/40 hover:text-[#f4f3f8]"
             >
               {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
               {copied ? "Copied" : "Copy"}
@@ -178,7 +172,7 @@ export function ChatMessage({
               onClick={() =>
                 triggerFileDownload(`response_${message.id}.pdf`, message.content, "pdf")
               }
-              className="inline-flex items-center gap-1 rounded-lg border border-[#e6e4f0]/15 bg-[#141417] px-2.5 py-1 text-[11px] text-[#e6e4f0]/80 transition hover:border-[#f4f3f8]/40 hover:text-[#f4f3f8]"
+              className="inline-flex items-center gap-1 px-1 py-1 text-[11px] text-[#e6e4f0]/80 transition hover:border-[#f4f3f8]/40 hover:text-[#f4f3f8]"
             >
               <Download className="h-3 w-3" />
               PDF
@@ -189,7 +183,7 @@ export function ChatMessage({
               onClick={() =>
                 triggerFileDownload(`response_${message.id}.doc`, message.content, "doc")
               }
-              className="inline-flex items-center gap-1 rounded-lg border border-[#e6e4f0]/15 bg-[#141417] px-2.5 py-1 text-[11px] text-[#e6e4f0]/80 transition hover:border-[#f4f3f8]/40 hover:text-[#f4f3f8]"
+              className="inline-flex items-center gap-1 px-1 py-1 text-[11px] text-[#e6e4f0]/80 transition hover:border-[#f4f3f8]/40 hover:text-[#f4f3f8]"
             >
               <Download className="h-3 w-3" />
               DOC
@@ -200,7 +194,7 @@ export function ChatMessage({
               onClick={() =>
                 triggerFileDownload(`response_${message.id}.txt`, message.content, "raw")
               }
-              className="inline-flex items-center gap-1 rounded-lg border border-[#e6e4f0]/15 bg-[#141417] px-2.5 py-1 text-[11px] text-[#e6e4f0]/80 transition hover:border-[#f4f3f8]/40 hover:text-[#f4f3f8]"
+              className="inline-flex items-center gap-1 px-1 py-1 text-[11px] text-[#e6e4f0]/80 transition hover:border-[#f4f3f8]/40 hover:text-[#f4f3f8]"
             >
               <Download className="h-3 w-3" />
               TXT
@@ -284,7 +278,7 @@ export function ChatMessage({
       </div>
 
       {isUser && (
-        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#e6e4f0]/20 bg-[#141417]">
+        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full">
           <img
             src={userAvatarSrc}
             alt={resolvedUserName}
