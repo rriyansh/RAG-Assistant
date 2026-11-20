@@ -1,5 +1,6 @@
 "use client";
 
+import { DockNav } from "./ui/dock-nav";
 import { WorkspacePolicy } from "./WorkspacePolicy";
 import { FONT_OPTIONS } from "../lib/fonts";
 import React, { useEffect, useState } from "react";
@@ -191,6 +192,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
 
   const [catalogUnavailable, setCatalogUnavailable] = useState(false);
   const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
+  const [selectedByCategory, setSelectedByCategory] = useState<Record<string, string>>({});
   const [activeConnectorFormId, setActiveConnectorFormId] = useState<string | null>(null);
   const [connectorCredentials, setConnectorCredentials] = useState<Record<string, string>>({});
   const [connectorBusyId, setConnectorBusyId] = useState<string | null>(null);
@@ -806,15 +808,22 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
                   const rank = (id: string) => order.includes(id) ? order.indexOf(id) : order.length;
                   catItems.sort((a, b) => rank(a.id) - rank(b.id) || a.name.localeCompare(b.name));
                 }
-                if (catItems.length === 0) return null;
+                const selected = catItems.find(item => item.id === selectedByCategory[cat.id]) ?? catItems[0];
+                if (!selected) return null;
 
                 return (
                   <div key={cat.id} className="space-y-3">
                     <h4 className="text-lg font-semibold tracking-tight text-[#f4f3f8]">
                       {cat.title}
                     </h4>
-                    <div className="connector-grid">
-                      {catItems.map((conn) => {
+                    <DockNav label={cat.title} items={catItems.map(item => ({
+                      label: item.name,
+                      icon: <ConnectorBrandLogo id={item.id} />,
+                      selected: selected.id === item.id,
+                      onSelect: () => setSelectedByCategory(previous => ({ ...previous, [cat.id]: item.id })),
+                    }))} />
+                    <div>
+                      {[selected].map((conn) => {
                         const isConfiguring = activeConnectorFormId === conn.id;
                         const isBusy = connectorBusyId === conn.id;
 

@@ -70,7 +70,6 @@ export default function HomePage() {
         }`}
       >
         <Header
-            profile={profile}
             canClear={messages.length > 0}
             onOpenSettings={() => setSettingsOpen(true)}
             onClear={clearMessages}
