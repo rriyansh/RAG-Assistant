@@ -663,6 +663,19 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
 
           {activeTab === "connectors" && (
             <div className="connector-catalog space-y-6">
+              {connectors.length > 0 && <nav className="service-shortcuts" aria-label="Featured connectors">
+                {["notion", "asana", "github", "gmail", "google_drive", "vercel", "linear", "stripe"].map(id => {
+                  const service = connectors.find(item => item.id === id);
+                  if (!service) return null;
+                  return <button key={id} type="button" title={service.name} aria-label={service.name}
+                    onClick={() => {
+                      setConnectorCredentials({});
+                      setConnectorError(null);
+                      setActiveConnectorFormId(service.connected ? null : id);
+                      document.getElementById(`connector-card-${id}`)?.focus();
+                    }}><ConnectorBrandLogo id={id} /></button>;
+                })}
+              </nav>}
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#e6e4f0]/12 bg-[#0c0c0e] px-5 py-3.5">
                 <div>
                   <h3 className="text-sm font-semibold text-[#f4f3f8]">
@@ -922,6 +935,28 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
                   </div>
                 );
               })}
+              <section aria-labelledby="connector-providers">
+                <h4 id="connector-providers">AI Models &amp; API Providers</h4>
+                <div className="connector-grid">
+                  {([
+                    ["nvidia", "NVIDIA NIM", hostedReady ? "Use hosted NVIDIA inference or connect your own key." : "Connect your NVIDIA key to run hosted models."],
+                    ["grok", "xAI Grok", "Use Grok for chat, reasoning, and code generation."],
+                    ["gemini", "Google Gemini", "Connect Gemini for chat and agent requests."],
+                    ["openai", "OpenAI", "Use your OpenAI API key for chat and tool calling."],
+                  ] as const).map(([id, label, description]) => <div key={id} className="provider-entry">
+                    <div className="catalog-entry">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <span className="provider-tile"><ProviderBrandLogo provider={id} /></span>
+                        <div><h5>{label}</h5><p>{description}</p></div>
+                      </div>
+                      <button className="provider-connect" type="button" aria-label={`Connect ${label}`} onClick={() => {
+                        setApiKeyInput(""); setDetectedProvider(null); setKeyStatusMsg(null);
+                        setSelectedProvider(id); setActiveTab("keys");
+                      }}>Connect</button>
+                    </div>
+                  </div>)}
+                </div>
+              </section>
             </div>
           )}
 
