@@ -96,7 +96,7 @@ const CONNECTOR_CATEGORIES: Array<{ id: string; title: string }> = [
 ];
 
 const brandedConnectors = new Set([
-  "linear", "jira", "docker", "discord", "dropbox", "confluence", "salesforce", "postgres", "mongodb", "snowflake", "trello",
+  "figma", "linear", "jira", "docker", "discord", "dropbox", "confluence", "salesforce", "postgres", "mongodb", "snowflake", "trello",
   "airtable",
   "asana",
   "bitbucket",
@@ -161,7 +161,7 @@ function ProviderBrandLogo({ provider }: { provider: string }) {
 
 export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnector, onOpenOnboarding }: SettingsModalProps) {
   const modalVisible = Boolean(isOpen ?? open);
-  const [activeTab, setActiveTab] = useState<TabKey>("profile");
+  const [activeTab, setActiveTab] = useState<TabKey>("connectors");
   const {
     profile,
     update: updateProfile,
@@ -192,7 +192,6 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
 
   const [catalogUnavailable, setCatalogUnavailable] = useState(false);
   const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
-  const [selectedByCategory, setSelectedByCategory] = useState<Record<string, string>>({});
   const [activeConnectorFormId, setActiveConnectorFormId] = useState<string | null>(null);
   const [connectorCredentials, setConnectorCredentials] = useState<Record<string, string>>({});
   const [connectorBusyId, setConnectorBusyId] = useState<string | null>(null);
@@ -683,6 +682,19 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
 
           {activeTab === "connectors" && (
             <div className="connector-catalog space-y-6">
+              {connectors.length > 0 && <section className="rounded-2xl border border-white/10 bg-[#0c0c0e] px-3 pb-3">
+                <DockNav aria-label="Featured connectors" items={["notion", "asana", "github", "gmail", "google_drive", "vercel", "slack", "linear", "figma", "stripe"].flatMap(id => {
+                  const entry = connectors.find(conn => conn.id === id);
+                  if (!entry) return [];
+                  return [{ label: entry.name, iconSrc: `/connectors/${id}.svg`, onClick: () => {
+                    setConnectorCredentials({});
+                    setConnectorError(null);
+                    setActiveConnectorFormId(entry.connected ? null : id);
+                    document.getElementById(`connector-card-${id}`)?.focus();
+                  } }];
+                })} />
+                <p className="text-center text-xs text-[#e6e4f0]/65">Select a logo to open its connection settings.</p>
+              </section>}
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#e6e4f0]/12 bg-[#0c0c0e] px-5 py-3.5">
                 <div>
                   <h3 className="text-sm font-semibold text-[#f4f3f8]">
@@ -712,7 +724,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
                 <summary className="cursor-pointer font-medium">Connect a service through your own REST gateway</summary>
                 <p className="my-2 text-xs text-gray-400">Choose a service, then enter the URL and credentials for its configured gateway.</p>
                 <div className="flex flex-wrap gap-2">
-                  {["Linear", "Jira", "Docker", "Discord", "Dropbox", "Confluence", "Salesforce", "Postgres", "MongoDB", "Snowflake", "Trello"].map((service) => (
+                  {["Jira", "Docker", "Discord", "Dropbox", "Confluence", "Salesforce", "Postgres", "MongoDB", "Snowflake", "Trello"].map((service) => (
                     <button key={service} type="button" className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-3 py-1"
                       onClick={() => {
                         setCustomId(service.toLowerCase());
@@ -808,28 +820,22 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
                   const rank = (id: string) => order.includes(id) ? order.indexOf(id) : order.length;
                   catItems.sort((a, b) => rank(a.id) - rank(b.id) || a.name.localeCompare(b.name));
                 }
-                const selected = catItems.find(item => item.id === selectedByCategory[cat.id]) ?? catItems[0];
-                if (!selected) return null;
+                if (!catItems.length) return null;
 
                 return (
                   <div key={cat.id} className="space-y-3">
                     <h4 className="text-lg font-semibold tracking-tight text-[#f4f3f8]">
                       {cat.title}
                     </h4>
-                    <DockNav label={cat.title} items={catItems.map(item => ({
-                      label: item.name,
-                      icon: <ConnectorBrandLogo id={item.id} />,
-                      selected: selected.id === item.id,
-                      onSelect: () => setSelectedByCategory(previous => ({ ...previous, [cat.id]: item.id })),
-                    }))} />
-                    <div>
-                      {[selected].map((conn) => {
+                    <div className="connector-grid">
+                      {catItems.map((conn) => {
                         const isConfiguring = activeConnectorFormId === conn.id;
                         const isBusy = connectorBusyId === conn.id;
 
                         return (
                           <div
                             key={conn.id}
+                            id={`connector-card-${conn.id}`} tabIndex={-1}
                             className="flex flex-col justify-between rounded-2xl border border-[#e6e4f0]/12 bg-[#0c0c0e] p-4 transition hover:border-[#e6e4f0]/25"
                           >
                             <div className="catalog-entry">

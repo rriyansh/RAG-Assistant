@@ -23,11 +23,25 @@ class Service:
         return response.json()
 
 
+class LinearService(Service):
+    def read(self, token: str):
+        response = requests.post(
+            self.endpoint, headers={"Authorization": token},
+            json={"query": "{ viewer { assignedIssues(first: 10) { nodes { identifier title url } } } }"},
+            timeout=12, allow_redirects=False,
+        )
+        if response.status_code != 200 or response.json().get("errors"):
+            raise ValueError("Linear could not read assigned issues. Check your personal API key.")
+        return response.json()["data"]["viewer"]["assignedIssues"]["nodes"]
+
+
 DEV = "developer"
 WORK = "workspace"
 COMM = "communication"
 OPS = "operations"
 SERVICES = {
+    "linear": LinearService("Linear", DEV, "https://api.linear.app/graphql", "List up to ten issues assigned to you with their titles and links.", "Authorization", ""),
+    "figma": Service("Figma", WORK, "https://api.figma.com/v1/me", "Read the profile associated with your Figma personal access token.", "X-Figma-Token", ""),
     "vercel": Service("Vercel", DEV, "https://api.vercel.com/v6/deployments?limit=10", "List recent deployments and inspect their URLs and build states."),
     "gitlab": Service("GitLab", DEV, "https://gitlab.com/api/v4/projects?membership=true&per_page=10", "Find projects you belong to and open their repository links.", "PRIVATE-TOKEN", ""),
     "supabase": Service("Supabase", DEV, "https://api.supabase.com/v1/projects", "List your projects and check their regions and operational status."),
