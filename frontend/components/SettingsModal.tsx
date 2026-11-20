@@ -1,6 +1,6 @@
 "use client";
 
-import { DockNav } from "./ui/dock-nav";
+
 import { WorkspacePolicy } from "./WorkspacePolicy";
 import { FONT_OPTIONS } from "../lib/fonts";
 import React, { useEffect, useState } from "react";
@@ -190,6 +190,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
     top_p: 0.9,
   });
 
+  const [showDirectory, setShowDirectory] = useState(false);
   const [catalogUnavailable, setCatalogUnavailable] = useState(false);
   const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
   const [activeConnectorFormId, setActiveConnectorFormId] = useState<string | null>(null);
@@ -414,19 +415,19 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0c0c0e]/80 p-2 backdrop-blur-md sm:p-5"
+      className="settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-[#0c0c0e]/80 p-2 backdrop-blur-md sm:p-5"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       <div
         role="dialog"
-        aria-modal="true"
+        aria-modal="true" aria-labelledby="workspace-settings-title"
         className="settings-dialog flex h-[min(94dvh,820px)] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-[#e6e4f0]/15 bg-[#141417] text-[#f4f3f8] shadow-2xl"
       >
         <div className="flex items-center justify-between border-b border-[#e6e4f0]/10 px-5 py-4 sm:px-6">
-          <h2 className="text-base font-semibold tracking-tight text-[#f4f3f8]">
-            Settings
+          <h2 id="workspace-settings-title" className="text-base font-semibold tracking-tight text-[#f4f3f8]">
+            Workspace settings
           </h2>
           <button
             type="button" aria-label="Close settings"
@@ -682,19 +683,35 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
 
           {activeTab === "connectors" && (
             <div className="connector-catalog space-y-6">
-              {connectors.length > 0 && <section className="rounded-2xl border border-white/10 bg-[#0c0c0e] px-3 pb-3">
-                <DockNav aria-label="Featured connectors" items={["notion", "asana", "github", "gmail", "google_drive", "vercel", "slack", "linear", "figma", "stripe"].flatMap(id => {
-                  const entry = connectors.find(conn => conn.id === id);
-                  if (!entry) return [];
-                  return [{ label: entry.name, iconSrc: `/connectors/${id}.svg`, onClick: () => {
-                    setConnectorCredentials({});
-                    setConnectorError(null);
-                    setActiveConnectorFormId(entry.connected ? null : id);
-                    document.getElementById(`connector-card-${id}`)?.focus();
-                  } }];
-                })} />
-                <p className="text-center text-xs text-[#e6e4f0]/65">Select a logo to open its connection settings.</p>
+              {!showDirectory && <section className="connector-intro">
+                <div className="connector-art" aria-hidden="true">
+                  {["gmail", "notion", "github"].map(id => <span key={id}><img src={`/connectors/${id}.svg`} alt="" /></span>)}
+                </div>
+                <h3>Connect your workspace</h3>
+                <p>Bring files, events, and project context into your RESO conversations.</p>
+                {connectors.length > 0 && <div className="suggested-services">
+                  <h4>Suggested connectors</h4>
+                  {["gmail", "google_calendar", "google_drive"].map(id => {
+                    const service = connectors.find(item => item.id === id);
+                    if (!service) return null;
+                    return <button key={id} type="button" onClick={() => {
+                      setConnectorError(null);
+                      setConnectorCredentials({});
+                      setActiveConnectorFormId(service.connected ? null : id);
+                      setShowDirectory(true);
+                      requestAnimationFrame(() => document.getElementById(`connector-card-${id}`)?.focus());
+                    }}>
+                      <ConnectorBrandLogo id={id} />
+                      <span>{service.name}</span>
+                      <span aria-hidden="true">{service.connected ? "✓" : "+"}</span>
+                    </button>;
+                  })}
+                </div>}
+                <button className="browse-connectors" type="button" onClick={() => setShowDirectory(true)}>Browse all connectors</button>
+                {catalogUnavailable && <button type="button" className="mt-3 underline" onClick={loadAllData}>Retry loading services</button>}
               </section>}
+              {showDirectory && <>
+              <button type="button" className="text-sm text-gray-300" onClick={() => setShowDirectory(false)}>← Suggested connectors</button>
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#e6e4f0]/12 bg-[#0c0c0e] px-5 py-3.5">
                 <div>
                   <h3 className="text-sm font-semibold text-[#f4f3f8]">
@@ -954,6 +971,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
                   </div>
                 );
               })}
+              </>}
             </div>
           )}
 
