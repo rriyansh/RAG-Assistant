@@ -1,183 +1,96 @@
+# Reso Agent
 
+Find answers in your documents, write code, and work with your connected apps in one conversation.
 
+![Reso Agent preview with the workspace logo on a soft black and lavender gradient](frontend/public/reso-preview.jpg)
 
+Reso Agent pairs a Next.js chat workspace with a Python API. Use **Chat** to talk to your chosen model, or switch to **Agent** when a task needs a tool. For example, you can ask for a summary of an indexed PDF, open the cited page to check the answer, then ask the agent to prepare a GitHub change.
 
+## Run locally
 
-
-# RAG Document Q&A Assistant
-
-![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?style=flat-square&logo=fastapi&logoColor=white)
-![Chroma](https://img.shields.io/badge/Chroma-0.5+-FF6B4A?style=flat-square&logo=databricks&logoColor=white)
-![OpenAI](https://img.shields.io/badge/OpenAI-API-412991?style=flat-square&logo=openai&logoColor=white)
-![LangChain](https://img.shields.io/badge/LangChain-Framework-1C3C3C?style=flat-square&logo=chainlink&logoColor=white)
-![Streamlit](https://img.shields.io/badge/Streamlit-UI-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white)
-![HuggingFace](https://img.shields.io/badge/HuggingFace-Models-FFD21E?style=flat-square&logo=huggingface&logoColor=black)
-
-A retrieval-augmented generation (RAG) system that answers questions from your own PDF collection. It extracts text, chunks documents, stores embeddings locally, and produces grounded answers with source citations. The design starts with PDF-only retrieval and is structured to accept web search and re-ranking as additive modules.
-
-## Architecture
-
-
-PDFs ──► Text Extraction ──► Cleaning ──► Chunking ──► Embeddings ──► Chroma (Local)
-                                                                             │
-User Query ──► Embed Query ──► Top-k Retrieval ──► Prompt Assembly ──► LLM ──► Answer + Citations
-
-
-## Features
-
-- **Local-first PDF retrieval** — Documents stay on your machine; only the query and retrieved chunks are sent to the LLM provider.
-- **Page-level citations** — Every answer includes the source document name and page number so claims are verifiable.
-- **Modular ingestion pipeline** — Swappable PDF loaders, chunkers, and embedders without touching downstream code.
-- **Evaluation harness** — A golden-question set and scoring script to measure retrieval recall and answer faithfulness before adding complexity.
-- **Extensible retrieval** — Pre-wired interfaces for adding a re-ranker and a web-search tool as a fallback retriever.
-- **FastAPI backend** — A single `/ask` endpoint ready for integration with any frontend or agent.
-- **Streamlit UI** — A minimal chat interface for non-technical users to query the document base.
-
-## Tech Stack
-
-| Layer | Technology | Purpose |
-| :--- | :--- | :--- |
-| **Language** | ![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white) | Core implementation for ingestion, retrieval, and generation |
-| **PDF Parsing** | ![pypdf](https://img.shields.io/badge/pypdf-Text_Extraction-2C3E50?style=flat-square&logo=adobeacrobatreader&logoColor=white) | Extract text from standard PDFs; Docling for complex layouts |
-| **Embeddings** | ![OpenAI](https://img.shields.io/badge/OpenAI_Embeddings-412991?style=flat-square&logo=openai&logoColor=white) | Convert chunks and queries into dense vectors |
-| **Vector Store** | ![Chroma](https://img.shields.io/badge/Chroma-Vector_DB-FF6B4A?style=flat-square&logo=databricks&logoColor=white) | Local, persistent storage for embeddings and metadata |
-| **Orchestration** | ![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=flat-square&logo=chainlink&logoColor=white) | Chunking, retrieval chains, and prompt templates |
-| **LLM** | ![OpenAI](https://img.shields.io/badge/OpenAI_GPT-412991?style=flat-square&logo=openai&logoColor=white) | Generate grounded answers from retrieved context |
-| **Backend** | ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white) | REST API for question-answering |
-| **Frontend** | ![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=flat-square&logo=streamlit&logoColor=white) | Minimal chat interface |
-| **Deployment** | ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white) | Containerized deployment for reproducibility |
-
-## Quick Start
-
-### 1. Clone and install
+Use Python 3.11 and Node.js 20, matching the project's container images. From a terminal on macOS or Linux:
 
 ```bash
-git clone https://github.com/your-username/rag-assistant.git
-cd rag-assistant
-python -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-### 2. Configure environment
-
-Create a `.env` file from the template:
-
-```bash
+git clone https://github.com/rriyansh/RAG-Assistant.git
+cd RAG-Assistant
 cp .env.example .env
-```
-
-Set your API key and model preferences:
-
-```env
-NVIDIA_API_KEY=
-EMBEDDING_MODEL=text-embedding-3-small
-LLM_MODEL=gpt-4o-mini
-CHROMA_PERSIST_DIR=./data/chroma
-```
-
-Set `NVIDIA_API_KEY` on the backend to enable hosted NVIDIA chat for users without a personal key. Keep the value in the server environment or an uncommitted `.env` file; never expose it through frontend configuration. Users can also configure their own provider keys in Settings.
-
-### 3. Add documents and build the index
-
-Place your PDFs in `data/pdfs/`, then run:
-
-```bash
-python scripts/ingest.py
-```
-
-This extracts text, chunks each document, generates embeddings, and persists the vector store locally.
-
-### 4. Ask a question
-
-**Option A — CLI**
-
-```bash
-python scripts/query.py "What does the policy say about data retention?"
-```
-
-**Option B — API**
-
-```bash
-uvicorn src.api.main:app --reload
-```
-
-```bash
-curl -X POST http://localhost:8000/ask \
-  -H "Content-Type: application/json" \
-  -d '{"question": "What does the policy say about data retention?"}'
-```
-
-**Option C — Streamlit UI**
-
-```bash
-streamlit run ui/app.py
-```
-
-### Run the full local preview (macOS)
-
-Install the backend and frontend dependencies once, then start both servers and open the browser:
-
-```bash
-uv venv .venv --python 3.11
-uv pip install --python .venv/bin/python -r requirements.txt
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 npm --prefix frontend install
-bash scripts/dev.sh
 ```
 
-The preview opens at `http://127.0.0.1:3000`; the API health check is at `http://127.0.0.1:8000/health`. Press `Ctrl+C` to stop both servers. Web search uses free public metasearch with a Wikipedia fallback and needs no search API key.
+On Windows, create the environment with `py -3.11 -m venv .venv` and activate it in PowerShell with `.\.venv\Scripts\Activate.ps1`.
 
-## Project Structure
+For hosted NVIDIA chat, put your `NVIDIA_API_KEY` in the root `.env` and keep `LLM_PROVIDER=nvidia`. This lets visitors use the backend operator's key, subject to its quota and billing. For a personal provider key, start the app and open **Settings → API Keys**.
 
-```text
-rag-assistant/
-├── data/
-│   ├── pdfs/                  # Source documents
-│   ├── processed/             # Extracted text and chunks
-│   └── eval/golden_questions.json
-├── src/
-│   ├── ingestion/             # pdf_loader, cleaner, chunker
-│   ├── embeddings/            # embedder, vector_store
-│   ├── retrieval/             # retriever, reranker, web_search
-│   ├── generation/            # prompt_builder, llm_client
-│   ├── agent/                 # router (web-search decision)
-│   └── api/                   # FastAPI application
-├── scripts/
-│   ├── ingest.py              # Build the vector index
-│   ├── query.py               # CLI query interface
-│   └── evaluate.py            # Score against golden questions
-├── ui/app.py                  # Streamlit chat frontend
-├── tests/
-├── .env.example
-├── requirements.txt
-└── docker-compose.yml
+Start the API in the activated Python environment:
+
+```bash
+uvicorn src.api.main:app --reload --port 8000
 ```
 
-## Evaluation
+In a second terminal, from the repository root:
 
-A RAG system without measurement is guesswork. Before tuning chunk size, retrieval depth, or model choice, establish a baseline:
+```bash
+npm --prefix frontend run dev
+```
 
-1. Write 30–50 questions whose answers exist in your PDFs. Record the correct document and page for each.
-2. Run `python scripts/evaluate.py`.
-3. Track two metrics:
-   - **Retrieval recall** — did the correct chunk appear in the top-k results?
-   - **Answer faithfulness** — does the generated answer stay within the retrieved context?
+Open the [workspace](http://localhost:3000), complete onboarding, and send a message. Check [API health](http://localhost:8000/health) or browse the [interactive API docs](http://localhost:8000/docs) if the frontend cannot reach the backend.
 
-Tune chunking and top-k first. Only add a re-ranker if retrieval recall is already high but answer quality remains low.
+**Docker alternative.** After configuring `.env`, run `docker compose up --build api frontend`. The web app uses port 3000 and the API uses port 8000. Compose mounts the host's `data/` directory into the API container so its files survive container replacement.
 
-## Roadmap
+## Working with Reso
 
-- [x] PDF ingestion and chunking pipeline
-- [x] Local Chroma vector store with metadata
-- [x] Citation-aware answer generation
-- [x] FastAPI endpoint and Streamlit UI
-- [ ] Cross-encoder re-ranking for higher precision
-- [ ] Web-search tool as a fallback retriever
-- [ ] LLM-driven router for PDF-vs-web decision
-- [ ] Docker Compose deployment profile
+| Task | Where to go | What happens |
+| --- | --- | --- |
+| Choose an identity | Onboarding or Settings → Profile | Pick a user portrait, name your assistant, and choose an agent mascot or upload an image. |
+| Set up a model | Settings → API Keys and Model | Configure Chat and Agent separately. Recognizable key prefixes select a provider automatically, and you can select a provider yourself. |
+| Connect an app | Settings → Connectors | Search the directory and choose **Connect**. Connected services appear first with controls to disconnect or use them in Agent mode. |
+| Review agent work | Agent conversation | Follow tool activity, inspect proposed GitHub changes, and respond to approval prompts for actions that require consent. |
+| Keep a response | Actions under an assistant message | Copy text, export a response, or download code extracted from fenced code blocks. |
+
+The connector directory includes **35 entries across five categories**, including two built-in knowledge tools. Each entry describes the operations it exposes. For example, Vercel lists recent deployments, Linear reads assigned issues, and GitHub supports repository search, file reads, issues, and commits. A provider key enables model inference. Each external connector uses separate credentials for its service.
+
+## Ask questions about your documents
+
+1. Put your PDFs in `data/pdfs/`. You can also list source URLs in `data/urls.txt`.
+2. Choose an embedding provider in `.env`. The default is Ollama with `nomic-embed-text`. With Ollama running locally, download the model using `ollama pull nomic-embed-text`. Alternatively, set `EMBEDDING_PROVIDER=openai` and supply `OPENAI_API_KEY`.
+3. From the activated Python environment, run `python scripts/ingest.py`. The script reads the sources, splits their text into overlapping chunks, computes embeddings, and rebuilds the configured Chroma collection. Keep all sources you want indexed in the input set before rerunning it.
+4. In Agent mode, try **“Search my PDFs for the cancellation policy and cite the relevant pages.”** Use the document names and page references to check the result.
+
+Use the same embedding provider and model for indexing and retrieval. If the API runs in Docker and Ollama runs on the host, set `OLLAMA_BASE_URL` to an address reachable **from the container**.
+
+## Technology stack
+
+![Next.js](https://img.shields.io/badge/Next.js-141417?logo=nextdotjs&logoColor=white)
+![React](https://img.shields.io/badge/React-20232a?logo=react&logoColor=61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-0f172a?logo=tailwindcss&logoColor=38BDF8)
+![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-007E70?logo=fastapi&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-086DD7?logo=docker&logoColor=white)
+
+| Layer | Implementation |
+| --- | --- |
+| Web workspace | Next.js App Router, React, TypeScript, Tailwind CSS, and Lucide icons |
+| HTTP API | Python, FastAPI, Pydantic, and Uvicorn |
+| Document search | pypdf extraction, configurable chunking, OpenAI or Ollama embeddings, and persistent Chroma storage |
+| Agent tools | Python tool registry, service-specific connector handlers, and GitHub change review |
+| Model access | Hosted NVIDIA, user-configured providers, Ollama, and custom OpenAI-compatible endpoints |
+| Deployment | Separate API and frontend containers, with shared application data persisted on the backend |
+
+## Configuration and source guide
+
+| Setting | Where to set it | Purpose |
+| --- | --- | --- |
+| `LLM_PROVIDER`, `NVIDIA_API_KEY`, `NVIDIA_MODEL` | Backend environment | Select the hosted inference provider and model. Keep the operator's key server-side. |
+| `EMBEDDING_PROVIDER`, `CHROMA_PERSIST_DIR` | Backend and ingestion environment | Choose the embedding service and local index location. |
+| `RAG_BACKEND_URL` | Frontend server environment | Point Next.js API requests at the FastAPI service when deploying separately. |
+| `SITE_URL` | Frontend server environment | Set the public origin used in sharing metadata, robots.txt, and sitemap.xml when a canonical deployment URL is needed. |
+
+See the [configuration template](.env.example) for model, retrieval, and chunking settings. The [web workspace](frontend/), [API routes](src/api/), [agent tools](src/agent/), and [ingestion script](scripts/ingest.py) are the main entry points for development. Run `npm --prefix frontend run build` to check the production frontend build.
 
 ## License
 
-MIT
+Released under the [MIT License](LICENSE).
