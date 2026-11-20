@@ -48,6 +48,7 @@ export interface SettingsModalProps {
   isOpen?: boolean;
   open?: boolean;
   onClose: () => void;
+  onOpenOnboarding: () => void;
   onUseConnector: (prompt: string) => void;
   profileState: ReturnType<typeof useProfile>;
 }
@@ -86,9 +87,10 @@ const DEFAULT_MODELS: Record<string, string> = {
 
 const CONNECTOR_CATEGORIES: Array<{ id: string; title: string }> = [
   { id: "developer", title: "Developers & Tools" },
-  { id: "workspace", title: "Cloud, Email & Workspace" },
-  { id: "operations", title: "Data, CRM & Operations" },
-  { id: "built_in", title: "Built-in Knowledge Engines" },
+  { id: "workspace", title: "Productivity & Workspace" },
+  { id: "communication", title: "Communication & Meetings" },
+  { id: "operations", title: "Sales, Marketing & Billing" },
+  { id: "built_in", title: "Search & Knowledge" },
   { id: "custom", title: "Custom Web Connectors" },
 ];
 
@@ -139,7 +141,7 @@ function connectorPrompt(connector: ConnectorInfo): string {
   };
   return examples[connector.id] ?? (connector.category === "custom"
     ? `Use the ${connector.name} connector to `
-    : connector.description);
+    : `Use ${connector.name}. ${connector.description}`);
 }
 
 function ConnectorBrandLogo({ id }: { id: string }) {
@@ -156,7 +158,7 @@ function ProviderBrandLogo({ provider }: { provider: string }) {
   return <img src={`/providers/${icon}.svg`} alt="" className="h-6 w-6 shrink-0 rounded bg-white p-0.5 object-contain" />;
 }
 
-export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnector }: SettingsModalProps) {
+export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnector, onOpenOnboarding }: SettingsModalProps) {
   const modalVisible = Boolean(isOpen ?? open);
   const [activeTab, setActiveTab] = useState<TabKey>("profile");
   const {
@@ -187,6 +189,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
     top_p: 0.9,
   });
 
+  const [catalogUnavailable, setCatalogUnavailable] = useState(false);
   const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
   const [activeConnectorFormId, setActiveConnectorFormId] = useState<string | null>(null);
   const [connectorCredentials, setConnectorCredentials] = useState<Record<string, string>>({});
@@ -221,7 +224,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
           max_tokens: 1024,
           top_p: 0.9,
         })),
-        fetchConnectors().catch(() => []),
+        fetchConnectors().catch(() => null),
       ]);
       if (version !== loadVersion.current) return;
       setKeys(kData.keys);
@@ -230,7 +233,8 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
         cData.provider || kData.active_provider || Object.keys(kData.keys)[0] || "nvidia";
       setSelectedProvider(activeProvider);
       setConfig({ ...cData, provider: activeProvider });
-      setConnectors(connData);
+      setCatalogUnavailable(connData === null);
+      if (connData) setConnectors(connData);
     } catch {}
   }
 
@@ -466,6 +470,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
         <div className="settings-content min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
           {activeTab === "profile" && (
             <div className="mx-auto max-w-3xl space-y-6">
+              <button type="button" onClick={onOpenOnboarding} className="text-sm underline underline-offset-4">Open onboarding</button>
               {profileError && (
                 <p className="rounded-xl border border-[#e6e4f0]/20 bg-[#1c1c21] px-4 py-2 text-xs text-[#f4f3f8]">
                   {profileError}
@@ -675,14 +680,14 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
           )}
 
           {activeTab === "connectors" && (
-            <div className="space-y-6">
+            <div className="connector-catalog space-y-6">
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#e6e4f0]/12 bg-[#0c0c0e] px-5 py-3.5">
                 <div>
                   <h3 className="text-sm font-semibold text-[#f4f3f8]">
-                    Workspace & Developer Connectors ({connectors.length})
+                    Connectors{connectors.length > 0 && ` (${connectors.length})`}
                   </h3>
                   <p className="text-xs text-[#e6e4f0]/65">
-                    Connect developer platforms, cloud drives, databases, and custom endpoints.
+                    Connect a service to use its tools in Agent mode.
                   </p>
                 </div>
                 <button
@@ -694,6 +699,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
                 </button>
               </div>
 
+              {catalogUnavailable && <p role="status">Could not reach the connector service. <button type="button" onClick={loadAllData} className="underline">Retry</button></p>}
               {connectorError && (
                 <div className="rounded-xl border border-[#e6e4f0]/20 bg-[#1c1c21] px-4 py-2.5 text-xs text-[#f4f3f8]">
                   {connectorError}
@@ -793,17 +799,21 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
                 const catItems = connectors.filter(
                   (c) =>
                     c.category === cat.id ||
-                    (cat.id === "workspace" && c.category === "google") ||
-                    (cat.id === "workspace" && c.category === "productivity")
+                    (cat.id === "workspace" && ["google", "productivity"].includes(c.category))
                 );
+                if (cat.id === "developer") {
+                  const order = ["vercel", "cloudflare", "github"];
+                  const rank = (id: string) => order.includes(id) ? order.indexOf(id) : order.length;
+                  catItems.sort((a, b) => rank(a.id) - rank(b.id) || a.name.localeCompare(b.name));
+                }
                 if (catItems.length === 0) return null;
 
                 return (
                   <div key={cat.id} className="space-y-3">
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-[#e6e4f0]/65 px-1">
+                    <h4 className="text-lg font-semibold tracking-tight text-[#f4f3f8]">
                       {cat.title}
                     </h4>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="connector-grid">
                       {catItems.map((conn) => {
                         const isConfiguring = activeConnectorFormId === conn.id;
                         const isBusy = connectorBusyId === conn.id;
@@ -813,16 +823,16 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
                             key={conn.id}
                             className="flex flex-col justify-between rounded-2xl border border-[#e6e4f0]/12 bg-[#0c0c0e] p-4 transition hover:border-[#e6e4f0]/25"
                           >
-                            <div className="connector-row flex items-start justify-between gap-3">
+                            <div className="catalog-entry">
                               <div className="flex items-start gap-3.5 min-w-0">
                                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#e6e4f0]/15 bg-[#141417] p-2">
                                   <ConnectorBrandLogo id={conn.id} />
                                 </div>
                                 <div className="space-y-1 min-w-0">
-                                  <h5 className="break-words text-sm font-semibold text-[#f4f3f8]">
+                                  <h5 className="break-words text-base font-semibold text-[#f4f3f8]">
                                     {conn.name}
                                   </h5>
-                                  <p className="text-xs leading-relaxed text-[#e6e4f0]/70">
+                                  <p className="mt-1 text-sm leading-relaxed text-[#e6e4f0]/80">
                                     {conn.description}
                                   </p>
                                 </div>

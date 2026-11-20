@@ -420,3 +420,11 @@ html[data-font="source-sans-3"] { --font-body: "Source Sans 3", system-ui, sans-
   .setup-sheet { max-height: 100dvh; }
   .setup-header, .setup-footer { padding-block: .25rem; }
 }
+
+.chat-welcome { width: 100%; text-align: center; padding: 1rem .25rem; overflow-wrap: break-word; }
+.chat-welcome h1 { font-size: clamp(1.5rem, 4.3vw, 2.6rem); line-height: 1.2; letter-spacing: -.04em; font-weight: 650; }
+.chat-welcome p { margin-top: .5rem; color: #e6e4f0b8; font-size: clamp(1rem, 2vw, 1.25rem); line-height: 1.45; }
+.connector-catalog { container-type: inline-size; }
+.connector-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); gap: .75rem; }
+.catalog-entry { display: flex; flex-direction: column; align-items: flex-start; gap: .8rem; }
+.catalog-entry > .shrink-0 { padding-inline-start: 3.625rem; }

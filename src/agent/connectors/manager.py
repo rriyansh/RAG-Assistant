@@ -75,7 +75,7 @@ CONNECTOR_CATALOG: list[ConnectorCatalogItem] = [
     ConnectorCatalogItem(
         id="gmail",
         name="Gmail",
-        category="google",
+        category="communication",
         description="Search inbox messages, read threads, and send emails via Gmail API or App Password.",
         auth_type="app_password",
         fields=[
@@ -159,7 +159,7 @@ CONNECTOR_CATALOG: list[ConnectorCatalogItem] = [
     ConnectorCatalogItem(
         id="slack",
         name="Slack",
-        category="productivity",
+        category="communication",
         description="Post messages and alerts to Slack channels via Bot Token or Incoming Webhook.",
         auth_type="api_key",
         fields=[
@@ -186,7 +186,7 @@ CONNECTOR_CATALOG: list[ConnectorCatalogItem] = [
 for service_id, service in SERVICES.items():
     CONNECTOR_CATALOG.append(ConnectorCatalogItem(
         id=service_id, name=service.name, category=service.category,
-        description=f"Read {service.resource} from {service.name}.",
+        description=service.description,
         auth_type="api_key", fields=[ConnectorFieldSpec("token", "Access token", "password", "Paste your access token")],
         tool_names=[f"{service_id}_read"],
     ))
@@ -568,7 +568,7 @@ class ConnectorManager:
         if connector_id in SERVICES:
             service = SERVICES[connector_id]
             self._registry.register(ToolSpec(
-                name=f"{connector_id}_read", description=f"Read {service.resource} from {service.name}.",
+                name=f"{connector_id}_read", description=service.description,
                 input_schema={"type": "object", "properties": {}, "additionalProperties": False},
                 handler=lambda: service.read(creds["token"]), requires_consent=False,
                 source="connector", server_id=connector_id, enabled=enabled,
