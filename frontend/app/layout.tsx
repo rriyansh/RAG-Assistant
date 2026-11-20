@@ -1,10 +1,18 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { siteOrigin } from "@/lib/site-origin";
 
-export const metadata: Metadata = {
-  title: "RAG Assistant",
-  description: "Ask questions about your PDFs with page-level citations.",
-};
+export function generateMetadata(): Metadata {
+  const title = "Reso Agent";
+  const description = "Find answers in your documents, write code, and work with your connected apps in one conversation.";
+  const image = { url: "/reso-preview.jpg", width: 1200, height: 630, alt: "Reso Agent" };
+  return {
+    metadataBase: siteOrigin(),
+    title, description,
+    openGraph: { type: "website", siteName: title, title, description, images: [image] },
+    twitter: { card: "summary_large_image", title, description, images: [image] },
+  };
+}
 
 const fontScript = `
 try {
