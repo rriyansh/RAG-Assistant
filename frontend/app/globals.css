@@ -476,3 +476,15 @@ html[data-font="source-sans-3"] { --font-body: "Source Sans 3", system-ui, sans-
 @container (max-width: 340px) {
   .connector-catalog .catalog-entry { flex-wrap: wrap; }
 }
+
+.connector-catalog .connector-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.settings-content .connector-catalog .connector-grid > div { min-width: 0; padding: 10px; border-radius: 12px; }
+.connector-catalog .catalog-entry { gap: 8px; }
+.connector-catalog .catalog-entry h5 { font-size: 13px; overflow-wrap: anywhere; }
+.connector-catalog .catalog-entry p { font-size: 12px; overflow-wrap: anywhere; }
+@container (max-width: 660px) {
+  .connector-catalog .catalog-entry, .connector-catalog .catalog-entry > div:first-child { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .connector-grid form input { min-width: 0; }
+  .connector-grid form .flex { flex-wrap: wrap; }
+  .connector-catalog .provider-tile, .connector-catalog .catalog-entry .h-11 { width: 32px; height: 32px; padding: 3px; }
+}

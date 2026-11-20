@@ -1,6 +1,7 @@
 "use client";
 
 
+import directory from "../lib/connectorDirectory.json";
 import { WorkspacePolicy } from "./WorkspacePolicy";
 import { FONT_OPTIONS } from "../lib/fonts";
 import React, { useEffect, useState } from "react";
@@ -18,7 +19,6 @@ import {
 } from "lucide-react";
 import {
   connectService,
-  createCustomConnector,
   deleteProviderKey,
   disconnectService,
   fetchConfig,
@@ -91,7 +91,7 @@ const CONNECTOR_CATEGORIES: Array<{ id: string; title: string }> = [
   { id: "communication", title: "Communication & Meetings" },
   { id: "operations", title: "Sales, Marketing & Billing" },
   { id: "built_in", title: "Search & Knowledge" },
-  { id: "custom", title: "Custom Web Connectors" },
+
 ];
 
 const brandedConnectors = new Set([
@@ -191,19 +191,16 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
 
   useEffect(() => { if (!modalVisible) setActiveTab(null); }, [modalVisible]);
   const [catalogUnavailable, setCatalogUnavailable] = useState(false);
-  const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
+  const [connectors, setConnectors] = useState<ConnectorInfo[]>(() => directory.map(([id, name, category, description]) => ({
+    id: id!, name: name!, category: category!, description: description!, auth_type: "", built_in: false,
+    connected: false, enabled: false, status: "unavailable", account_label: "", tool_count: 0, tools: [], fields: [],
+  })));
   const [activeConnectorFormId, setActiveConnectorFormId] = useState<string | null>(null);
   const [connectorCredentials, setConnectorCredentials] = useState<Record<string, string>>({});
   const [connectorBusyId, setConnectorBusyId] = useState<string | null>(null);
   const [connectorError, setConnectorError] = useState<string | null>(null);
 
-  const [showCustomForm, setShowCustomForm] = useState<boolean>(false);
-  const [customId, setCustomId] = useState<string>("");
-  const [customName, setCustomName] = useState<string>("");
-  const [customDesc, setCustomDesc] = useState<string>("");
-  const [customUrl, setCustomUrl] = useState<string>("");
-  const [customMethod, setCustomMethod] = useState<"POST" | "GET">("POST");
-  const [customApiKey, setCustomApiKey] = useState<string>("");
+
 
   const [securitySection, setSecuritySection] = useState<"overview" | "privacy" | "terms">("overview");
 
@@ -285,34 +282,6 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
       await loadAllData();
     } catch (err) {
       setConnectorError(err instanceof Error ? err.message : "Disconnect failed.");
-    } finally {
-      setConnectorBusyId(null);
-    }
-  }
-
-  async function handleCreateCustomConnector(e: React.FormEvent) {
-    e.preventDefault();
-    if (!customId.trim() || !customName.trim() || !customUrl.trim()) return;
-    setConnectorError(null);
-    setConnectorBusyId("custom_new");
-    try {
-      await createCustomConnector({
-        id: customId.trim(),
-        name: customName.trim(),
-        description: customDesc.trim() || `Custom REST endpoint (${customUrl.trim()})`,
-        endpoint_url: customUrl.trim(),
-        method: customMethod,
-        api_key: customApiKey.trim(),
-      });
-      setCustomId("");
-      setCustomName("");
-      setCustomDesc("");
-      setCustomUrl("");
-      setCustomApiKey("");
-      setShowCustomForm(false);
-      await loadAllData();
-    } catch (err) {
-      setConnectorError(err instanceof Error ? err.message : "Could not add custom connector.");
     } finally {
       setConnectorBusyId(null);
     }
@@ -425,9 +394,10 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
         className="settings-dialog flex h-[min(94dvh,820px)] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-[#e6e4f0]/15 bg-[#141417] text-[#f4f3f8] shadow-2xl"
       >
         <div className="flex items-center justify-between border-b border-[#e6e4f0]/10 px-5 py-4 sm:px-6">
-          <h2 id="workspace-settings-title" className="text-base font-semibold tracking-tight text-[#f4f3f8]">
+          <h2 id="workspace-settings-title" className={activeTab === "connectors" ? "sr-only" : "text-base font-semibold tracking-tight text-[#f4f3f8]"}>
             Workspace settings
           </h2>
+          {activeTab === "connectors" && <button type="button" aria-label="Back to settings" onClick={() => setActiveTab(null)}>←</button>}
           <button
             type="button" aria-label="Close settings"
             onClick={onClose}
@@ -449,7 +419,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
             ] as const).map(([id, title, Icon]) => <button key={id} type="button" onClick={() => setActiveTab(id)}>
               <Icon size={19} />{title}<span aria-hidden="true" className="ml-auto">›</span>
             </button>)}
-          </nav> : <button className="mb-4 text-sm text-gray-300" type="button" onClick={() => setActiveTab(null)}>← Settings</button>}
+          </nav> : activeTab !== "connectors" && <button className="mb-4 text-sm text-gray-300" type="button" onClick={() => setActiveTab(null)}>← Settings</button>}
           {activeTab === "profile" && (
             <div className="mx-auto max-w-3xl space-y-6">
               <button type="button" onClick={onOpenOnboarding} className="text-sm underline underline-offset-4">Open onboarding</button>
@@ -671,130 +641,22 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
                     onClick={() => {
                       setConnectorCredentials({});
                       setConnectorError(null);
-                      setActiveConnectorFormId(service.connected ? null : id);
+                      setActiveConnectorFormId(service.connected || service.status === "unavailable" || catalogUnavailable ? null : id);
                       document.getElementById(`connector-card-${id}`)?.focus();
                     }}><ConnectorBrandLogo id={id} /></button>;
                 })}
               </nav>}
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#e6e4f0]/12 bg-[#0c0c0e] px-5 py-3.5">
-                <div>
-                  <h3 className="text-sm font-semibold text-[#f4f3f8]">
-                    Connectors{connectors.length > 0 && ` (${connectors.length})`}
-                  </h3>
-                  <p className="text-xs text-[#e6e4f0]/65">
-                    Connect a service to use its tools in Agent mode.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowCustomForm((prev) => !prev)}
-                  className="rounded-xl bg-[#f4f3f8] px-3.5 py-1.5 text-xs font-semibold text-[#0c0c0e] shadow-[0_3px_0_0_#bdb9ce] transition active:translate-y-[1px]"
-                >
-                  {showCustomForm ? "Close" : "Custom Web Connector"}
-                </button>
-              </div>
-
-              {catalogUnavailable && <p role="status">Could not reach the connector service. <button type="button" onClick={loadAllData} className="underline">Retry</button></p>}
               {connectorError && (
                 <div className="rounded-xl border border-[#e6e4f0]/20 bg-[#1c1c21] px-4 py-2.5 text-xs text-[#f4f3f8]">
                   {connectorError}
                 </div>
               )}
 
-              <details className="text-sm">
-                <summary className="cursor-pointer font-medium">Connect a service through your own REST gateway</summary>
-                <p className="my-2 text-xs text-gray-400">Choose a service, then enter the URL and credentials for its configured gateway.</p>
-                <div className="flex flex-wrap gap-2">
-                  {["Jira", "Docker", "Discord", "Dropbox", "Confluence", "Salesforce", "Postgres", "MongoDB", "Snowflake", "Trello"].map((service) => (
-                    <button key={service} type="button" className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-3 py-1"
-                      onClick={() => {
-                        setCustomId(service.toLowerCase());
-                        setCustomName(service);
-                        setCustomUrl("");
-                        setCustomApiKey("");
-                        setCustomDesc(`Query the configured ${service} gateway.`);
-                        setShowCustomForm(true);
-                      }}><ConnectorBrandLogo id={service.toLowerCase()} />{service}</button>
-                  ))}
-                </div>
-              </details>
-
-              {showCustomForm && (
-                <form
-                  onSubmit={handleCreateCustomConnector}
-                  className="rounded-2xl border border-[#e6e4f0]/15 bg-[#0c0c0e] p-4 space-y-3"
-                >
-                  <div className="text-xs font-semibold text-[#f4f3f8]">
-                    Custom Web Connector
-                  </div>
-                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-4">
-                    <input
-                      type="text"
-                      required
-                      placeholder="ID (e.g. crm_api)"
-                      value={customId}
-                      onChange={(e) => setCustomId(e.target.value)}
-                      className="rounded-xl border border-[#e6e4f0]/15 bg-[#141417] px-3 py-1.5 text-xs text-[#f4f3f8] outline-none"
-                    />
-                    <input
-                      type="text"
-                      required
-                      placeholder="Name (e.g. CRM)"
-                      value={customName}
-                      onChange={(e) => setCustomName(e.target.value)}
-                      className="rounded-xl border border-[#e6e4f0]/15 bg-[#141417] px-3 py-1.5 text-xs text-[#f4f3f8] outline-none"
-                    />
-                    <select
-                      value={customMethod}
-                      onChange={(e) =>
-                        setCustomMethod(e.target.value as "POST" | "GET")
-                      }
-                      className="rounded-xl border border-[#e6e4f0]/15 bg-[#141417] px-3 py-1.5 text-xs text-[#f4f3f8] outline-none"
-                    >
-                      <option value="POST">POST</option>
-                      <option value="GET">GET</option>
-                    </select>
-                    <input
-                      type="password"
-                      placeholder="Bearer Key (Optional)"
-                      value={customApiKey}
-                      onChange={(e) => setCustomApiKey(e.target.value)}
-                      className="rounded-xl border border-[#e6e4f0]/15 bg-[#141417] px-3 py-1.5 text-xs text-[#f4f3f8] outline-none"
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-[1.2fr_1.5fr_auto]">
-                    <input
-                      type="url"
-                      required
-                      placeholder="https://api.example.com/webhook"
-                      value={customUrl}
-                      onChange={(e) => setCustomUrl(e.target.value)}
-                      className="rounded-xl border border-[#e6e4f0]/15 bg-[#141417] px-3 py-1.5 text-xs text-[#f4f3f8] outline-none"
-                    />
-                    <input
-                      type="text"
-                      required
-                      placeholder="What does this connector do?"
-                      value={customDesc}
-                      onChange={(e) => setCustomDesc(e.target.value)}
-                      className="rounded-xl border border-[#e6e4f0]/15 bg-[#141417] px-3 py-1.5 text-xs text-[#f4f3f8] outline-none"
-                    />
-                    <button
-                      type="submit"
-                      disabled={connectorBusyId === "custom_new"}
-                      className="rounded-xl bg-[#f4f3f8] px-4 py-1.5 text-xs font-semibold text-[#0c0c0e] shadow-[0_3px_0_0_#bdb9ce] active:translate-y-[1px]"
-                    >
-                      Connect
-                    </button>
-                  </div>
-                </form>
-              )}
-
               {CONNECTOR_CATEGORIES.map((cat) => {
                 const catItems = connectors.filter(
                   (c) =>
                     c.category === cat.id ||
-                    (cat.id === "workspace" && ["google", "productivity"].includes(c.category))
+                    (cat.id === "workspace" && ["google", "productivity", "custom"].includes(c.category))
                 );
                 if (cat.id === "developer") {
                   const order = ["vercel", "cloudflare", "github"];
@@ -835,7 +697,9 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
                               </div>
 
                               <div className="shrink-0">
-                                {conn.built_in ? (
+                                {catalogUnavailable || conn.status === "unavailable" ? (
+                                  <span className="text-xs text-gray-400">{catalogUnavailable ? "Offline" : "Loading…"}</span>
+                                ) : conn.built_in ? (
                                   <button
                                     type="button"
                                     onClick={() =>
