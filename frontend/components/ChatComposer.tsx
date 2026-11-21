@@ -10,8 +10,6 @@ export type ComposerAccent = "ice" | "ember" | "lime";
 export interface ChatComposerProps {
   onSubmit: (question: string) => void | Promise<void>;
   disabled?: boolean;
-  prompts?: string[];
-  placeholder?: string;
   mode?: "agent" | "chat";
   draft?: { text: string };
   models?: string[];
@@ -20,13 +18,6 @@ export interface ChatComposerProps {
   accent?: ComposerAccent;
   className?: string;
 }
-
-const DEFAULT_PROMPTS = [
-  "What does the document say about data retention?",
-  "Summarize the key recommendations.",
-  "List every action item in section 3.",
-  "Compare the two policy versions.",
-];
 
 const ACCENTS: Record<ComposerAccent, { a1: string; a2: string; a3: string; glow: string; ink: string }> = {
   ice: { a1: "#e8f6ff", a2: "#a9dcff", a3: "#5fb2f2", glow: "rgba(95,178,242,.42)", ink: "#06233a" },
@@ -70,8 +61,6 @@ function useReducedMotion(): boolean {
 export default function ChatComposer({
   onSubmit,
   disabled = false,
-  prompts = DEFAULT_PROMPTS,
-  placeholder = "Ask about your documents...",
   draft,
   mode = "agent",
   models = ["Turbo", "Studio", "Deep"],
@@ -98,8 +87,6 @@ export default function ChatComposer({
   }, [draft]);
   const [model, setModel] = React.useState(0);
   const [menuOpen, setMenuOpen] = React.useState(false);
-  const [typed, setTyped] = React.useState("");
-  const [focused, setFocused] = React.useState(false);
   const [nudge, setNudge] = React.useState(false);
   const [enhancing, setEnhancing] = React.useState(false);
 
@@ -142,44 +129,6 @@ export default function ChatComposer({
       setEnhancing(false);
     }
   };
-
-  const promptKey = prompts.join("|");
-  React.useEffect(() => {
-    if (!prompts.length) return;
-    if (reduced) {
-      setTyped(prompts[0] ?? "");
-      return;
-    }
-    let i = 0;
-    let n = 0;
-    let back = false;
-    let id = 0;
-    const tick = (): void => {
-      const full = prompts[i % prompts.length] ?? "";
-      if (!back) {
-        n += 1;
-        setTyped(full.slice(0, n));
-        if (n >= full.length) {
-          back = true;
-          id = window.setTimeout(tick, 2400);
-          return;
-        }
-        id = window.setTimeout(tick, 28 + Math.random() * 42);
-      } else {
-        n = Math.max(0, n - 3);
-        setTyped(full.slice(0, n));
-        if (n === 0) {
-          back = false;
-          i += 1;
-          id = window.setTimeout(tick, 420);
-          return;
-        }
-        id = window.setTimeout(tick, 16);
-      }
-    };
-    id = window.setTimeout(tick, 900);
-    return () => window.clearTimeout(id);
-  }, [promptKey, reduced]);
 
   React.useEffect(() => {
     if (!menuOpen) return;
@@ -257,8 +206,6 @@ export default function ChatComposer({
             value={value}
             disabled={disabled}
             onChange={(e) => setValue(e.target.value)}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
@@ -266,12 +213,6 @@ export default function ChatComposer({
               }
             }}
           />
-          {empty && (
-            <span className="ppc-ph" aria-hidden="true">
-              {focused ? placeholder : typed}
-              {!focused && <i className="ppc-caret" />}
-            </span>
-          )}
         </div>
         <div className="ppc-tools ppc-enter">
           <div className="ppc-right">

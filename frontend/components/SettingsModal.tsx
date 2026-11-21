@@ -161,7 +161,7 @@ function ConnectorBrandLogo({ id }: { id: string }) {
 function ProviderBrandLogo({ provider }: { provider: string }) {
   if (provider === "custom") return <Plug aria-hidden className="h-5 w-5 shrink-0" />;
   const icon = provider === "anthropic" ? "claude" : provider;
-  return <img src={`/providers/${icon}.svg`} alt="" className="h-6 w-6 shrink-0 rounded bg-white p-0.5 object-contain" />;
+  return <img src={`/providers/${icon}.svg`} alt="" className="h-7 w-7 shrink-0 rounded-md bg-white p-1 object-contain" />;
 }
 
 export function SettingsModal({ startInConnectors, connectorNotice, conversationMode, isOpen, open, onClose, profileState, onUseConnector, onOpenOnboarding }: SettingsModalProps) {
@@ -177,6 +177,12 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
     setAvatarFromFile,
     setAssistantLogoFromFile,
   } = profileState;
+  const scrollPositions = React.useRef(new Map<string, number>());
+  const contentRef = React.useRef<HTMLDivElement>(null);
+  React.useLayoutEffect(() => {
+    if (!modalVisible) scrollPositions.current.clear();
+    else if (contentRef.current) contentRef.current.scrollTop = scrollPositions.current.get(activeTab ?? "menu") ?? 0;
+  }, [activeTab, modalVisible]);
   const labels = ui(profile.locale);
   const [profileError, setProfileError] = useState<string | null>(null);
 
@@ -491,7 +497,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
           </button>
         </div>
 
-        <div key={activeTab ?? "menu"} className="settings-content min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
+        <div key={activeTab ?? "menu"} ref={contentRef} onScroll={event => scrollPositions.current.set(activeTab ?? "menu", event.currentTarget.scrollTop)} className="settings-content min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
           {activeTab === null ? <nav aria-label="Workspace settings" className="space-y-5">
             {!settingsQuery && <div className="settings-group"><button type="button" onClick={() => setActiveTab("profile")}>
               <img src={currentAvatar} alt="" width={44} height={44} className="my-3 rounded-full" />
@@ -519,7 +525,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
           {activeTab === "language" && <><h3>{labels.appLanguage}</h3><label>{labels.appLanguage}<select value={languages.some(({id}) => id === profile.locale) || !profile.locale ? profile.locale ?? "en" : "custom"} onChange={e => { if (e.target.value !== "custom") updateProfile({locale:e.target.value}); }}>{languages.map(({id,label}) => <option key={id} value={id} lang={id}>{label}</option>)}{profile.locale && !languages.some(({id}) => id === profile.locale) && <option value="custom">{profile.locale}</option>}</select></label>
           <form className="flex flex-wrap items-end gap-2" onSubmit={e => { e.preventDefault(); const code = normalizeLocale(localeCode); if (!code) { setLocaleError("Enter a valid language tag, such as fr, pt-BR or zh-Hant."); return; } updateProfile({locale:code}); setLocaleError(""); }}>
             <label>Other reply language<input maxLength={40} placeholder="e.g. pt-BR" value={localeCode} onChange={e => setLocaleCode(e.target.value)} /></label><button type="submit">Apply</button>
-          </form>{localeError && <p role="alert">{localeError}</p>}<p>Core UI labels are translated in the listed languages. Other language tags apply to assistant replies, subject to model support.</p></>}
+          </form>{localeError && <p role="alert">{localeError}</p>}<p>Your selection sets the assistant’s reply language. Core labels are available in English, Hindi, Arabic, Urdu, Japanese, French and Spanish.</p></>}
           {activeTab === "customize" && <><h3>Customize Assistant</h3><button onClick={() => setActiveTab("profile")}>Assistant Name &amp; Avatar</button><label>Persona &amp; Tone<select value={profile.tone ?? "formal"} onChange={e => updateProfile({tone:e.target.value as typeof profile.tone})}><option value="formal">Formal</option><option value="casual">Casual</option><option value="technical">Technical</option></select></label><label>System Instructions<textarea rows={5} maxLength={2000} value={profile.instructions ?? ""} onChange={e => updateProfile({instructions:e.target.value})} /></label></>}
           {activeTab === "tools" && <><h3>Connectors &amp; Tools</h3><button onClick={() => setActiveTab("connectors")}>Manage connectors and Web Search availability</button><label><input type="checkbox" checked={!!profile.webSearchDefault} onChange={e => updateProfile({webSearchDefault:e.target.checked})} /> Start new sessions with Web Search enabled</label><p>Code execution and device file access are unavailable in this deployment. Connected services have their own access controls.</p></>}
           {activeTab === "behavior" && <><h3>Behavior &amp; Autonomy</h3><p>Agent can use available read tools. External write tools require human approval.</p><p>Full automation and daily action caps are unavailable.</p></>}
@@ -1005,7 +1011,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+              <div aria-label="API providers" className="grid gap-2 sm:grid-cols-2">
                 {PROVIDERS.map((p) => {
                   const isSelected =
                     (detectedProvider || selectedProvider) === p.id;
@@ -1014,6 +1020,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
                   return (
                     <button
                       key={p.id}
+                      aria-pressed={isSelected}
                       type="button"
                       onClick={() => {
                         setDetectedProvider(null);
@@ -1027,7 +1034,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         <ProviderBrandLogo provider={p.id} />
-                        <span className="truncate text-xs font-semibold text-[#f4f3f8]">
+                        <span className="text-sm font-semibold text-[#f4f3f8]">
                           {p.label}
                         </span>
                       </div>
