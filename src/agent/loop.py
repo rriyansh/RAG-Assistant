@@ -88,10 +88,16 @@ async def run_agent(
     consent: list[str] | None = None,
     on_activity=None,
     history: list[dict[str, str]] | None = None,
+    allowed_tools: set[str] | None = None,
 ) -> dict[str, Any]:
     approved_set = set(consent or [])
     llm = create_llm()
     tools_payload = registry.list_for_llm()
+
+    if allowed_tools is not None:
+        tools_payload = [tool for tool in tools_payload if tool["function"]["name"] in allowed_tools]
+        if not tools_payload:
+            raise ToolNotSupportedError("No enabled connector tools available.")
 
     system_prompt = (
         f"You are {assistant_name}, an accurate and helpful AI assistant. "
@@ -117,6 +123,7 @@ async def run_agent(
                 llm.chat,
                 messages,
                 tools_payload if tools_payload else None,
+                **({"require_tool": True} if allowed_tools and _turn == 0 else {}),
             )
         except Exception as exc:
             if tools_payload and _is_tools_unsupported_error(exc):
@@ -149,7 +156,7 @@ async def run_agent(
         pending_consent_details: list[dict[str, Any]] = []
 
         for tc in chat_resp.tool_calls:
-            spec = registry.get(tc.name)
+            spec = registry.get(tc.name) if allowed_tools is None or tc.name in allowed_tools else None
             if spec and spec.enabled and spec.requires_consent and tc.name not in approved_set:
                 if tc.name not in unapproved_tools:
                     unapproved_tools.append(tc.name)
@@ -185,7 +192,7 @@ async def run_agent(
             if on_activity:
                 on_activity(f"Running {tc.name}")
             start_ts = time.perf_counter()
-            spec = registry.get(tc.name)
+            spec = registry.get(tc.name) if allowed_tools is None or tc.name in allowed_tools else None
             error_msg: str | None = None
             serialized_output = ""
             raw_result: Any = None
@@ -217,8 +224,8 @@ async def run_agent(
                     error_msg = f"Validation error: {val_err}"
                     serialized_output = json.dumps({"error": error_msg})
                 except Exception as exec_err:
-                    logger.warning("Error executing tool '%s': %s", tc.name, exec_err)
-                    error_msg = str(exec_err)
+                    logger.warning("Tool %s failed (%s)", tc.name, type(exec_err).__name__)
+                    error_msg = "The service request failed. Check connector access and try again."
                     serialized_output = json.dumps({"error": error_msg})
 
             if on_activity:

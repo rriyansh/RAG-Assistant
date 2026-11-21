@@ -50,7 +50,8 @@ export interface SettingsModalProps {
   open?: boolean;
   onClose: () => void;
   onOpenOnboarding: () => void;
-  onUseConnector: (prompt: string) => void;
+  startInConnectors: boolean;
+  onUseConnector: (prompt: string, connector: ConnectorInfo) => void;
   profileState: ReturnType<typeof useProfile>;
 }
 
@@ -159,7 +160,7 @@ function ProviderBrandLogo({ provider }: { provider: string }) {
   return <img src={`/providers/${icon}.svg`} alt="" className="h-6 w-6 shrink-0 rounded bg-white p-0.5 object-contain" />;
 }
 
-export function SettingsModal({ conversationMode, isOpen, open, onClose, profileState, onUseConnector, onOpenOnboarding }: SettingsModalProps) {
+export function SettingsModal({ startInConnectors, conversationMode, isOpen, open, onClose, profileState, onUseConnector, onOpenOnboarding }: SettingsModalProps) {
   const modalVisible = Boolean(isOpen ?? open);
   const [activeTab, setActiveTab] = useState<TabKey | null>(null);
   const {
@@ -193,7 +194,7 @@ export function SettingsModal({ conversationMode, isOpen, open, onClose, profile
     top_p: 0.9,
   });
 
-  useEffect(() => { if (!modalVisible) setActiveTab(null); }, [modalVisible]);
+  useEffect(() => { setActiveTab(modalVisible && startInConnectors ? "connectors" : null); }, [modalVisible, startInConnectors]);
   const [connectorSearch, setConnectorSearch] = useState("");
   const [catalogUnavailable, setCatalogUnavailable] = useState(false);
   const [connectors, setConnectors] = useState<ConnectorInfo[]>(() => directory.map(([id, name, category, description]) => ({
@@ -770,7 +771,7 @@ export function SettingsModal({ conversationMode, isOpen, open, onClose, profile
 
                             {conn.connected && conn.enabled && <button type="button"
                               className="mt-3 self-start text-sm font-semibold underline underline-offset-4"
-                              onClick={() => onUseConnector(connectorPrompt(conn))}>
+                              onClick={() => onUseConnector(connectorPrompt(conn), conn)}>
                               Use in Agent
                             </button>}
                             {isConfiguring && (

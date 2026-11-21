@@ -15,7 +15,7 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
     async (
       question: string,
       consent: string[] = [],
-      replaceMessageId?: string
+      replaceMessageId?: string, connectorId?: string, webSearch = false
     ) => {
       const trimmed = question.trim();
       if (!trimmed) return;
@@ -43,7 +43,7 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
         }));
         const response = await askQuestion(
           trimmed, assistantName, consent, replaceMessageId ? "agent" : mode,
-          label => setActivity(prev => [...prev, label]), history,
+          label => setActivity(prev => [...prev, label]), history, connectorId, webSearch,
         );
         const toolCalls: ToolCall[] = response.tool_calls || [];
         const pendingNames: string[] = response.pending_consent || [];
@@ -72,7 +72,7 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
           sourceType: response.source_type || "hybrid",
           toolCalls,
           pendingConsent: pendingConsentList,
-          originalQuestion: trimmed,
+          originalQuestion: trimmed, connectorId, webSearch,
           approvedConsent: consent,
         };
 
@@ -117,7 +117,7 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
       const updatedConsent = Array.from(
         new Set([...(target.approvedConsent || []), toolName])
       );
-      await sendMessage(target.originalQuestion, updatedConsent, messageId);
+      await sendMessage(target.originalQuestion, updatedConsent, messageId, target.connectorId, target.webSearch);
     },
     [messages, sendMessage]
   );

@@ -22,6 +22,8 @@ class ConversationTurn(BaseModel):
 
 
 class AskRequest(BaseModel):
+    connector_id: str | None = Field(default=None, max_length=100)
+    web_search: bool = False
     history: list[ConversationTurn] = Field(default_factory=list, max_length=6)
     question: str = Field(..., min_length=1)
     assistant_name: str = Field(default="Assistant")

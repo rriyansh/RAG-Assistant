@@ -11,7 +11,10 @@ import { FONT_OPTIONS } from "../lib/fonts";
 import { useProfile } from "../hooks/useProfile";
 
 export default function HomePage() {
-  const [mode, setMode] = useState<"chat" | "agent">("agent");
+  const [mode, setMode] = useState<"chat" | "agent">("chat");
+  const [startInConnectors, openConnectors] = useState(false);
+  const [attachment, attach] = useState<{id:string; name:string}>();
+  const [search, setSearch] = useState({chat:false, agent:false});
   const [connectorDraft, setConnectorDraft] = useState<{text: string}>();
   const profileState = useProfile();
   const {
@@ -25,6 +28,8 @@ export default function HomePage() {
     reopenOnboarding,
   } = profileState;
 
+  const chat = useChat(assistantName, "chat");
+  const agent = useChat(assistantName, "agent");
   const {
     messages, activity,
     isLoading,
@@ -32,7 +37,7 @@ export default function HomePage() {
     approveToolConsent,
     denyToolConsent,
     clearMessages,
-  } = useChat(assistantName, mode);
+  } = mode === "chat" ? chat : agent;
 
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
 
@@ -40,7 +45,7 @@ export default function HomePage() {
   const handleSend = (text: string) => {
     const query = text.trim();
     if (!query) return;
-    sendMessage(query);
+    sendMessage(query, [], undefined, mode === "agent" ? attachment?.id : undefined, search[mode]);
   };
 
   const showOnboarding = hydrated && !isOnboarded;
@@ -71,7 +76,7 @@ export default function HomePage() {
       >
         <Header
             canClear={messages.length > 0}
-            onOpenSettings={() => setSettingsOpen(true)}
+            onOpenSettings={() => { openConnectors(false); setSettingsOpen(true); }}
             onClear={clearMessages}
           />
 
@@ -105,7 +110,7 @@ export default function HomePage() {
           <div className="mx-auto w-full max-w-3xl">
             <div className="mb-2 flex flex-wrap items-center gap-1" aria-label="Conversation mode">
               {(["chat", "agent"] as const).map(item => <button key={item} type="button"
-                aria-pressed={mode === item} disabled={isLoading} onClick={() => setMode(item)}
+                aria-pressed={mode === item} disabled={isLoading} onClick={() => { setMode(item); if (item === "agent" && mode !== item) { openConnectors(true); setSettingsOpen(true); } }}
                 className={`rounded-full px-3 py-1.5 text-xs font-semibold ${mode === item ? "bg-[#f4f3f8] text-[#141417]" : "text-[#e6e4f0]/70"}`}>
                 {item === "agent" ? "Agent" : "Chat"}
               </button>)}
@@ -113,7 +118,12 @@ export default function HomePage() {
             {isLoading && <div role="status" className="mb-2 max-h-24 overflow-auto text-xs leading-5 text-[#e6e4f0]/80">
               {activity.slice(-3).map((line, index) => <p key={index}>{line}</p>)}
             </div>}
-            <ChatComposer draft={connectorDraft} models={[]} mode={mode} onSubmit={handleSend} disabled={isLoading} />
+            <div className="mb-1 flex items-center gap-3 text-xs">
+              {mode === "agent" && <button aria-label="Add connector" title="Add connector" disabled={isLoading} onClick={() => { openConnectors(true); setSettingsOpen(true); }} className="px-3 py-2 text-xl">+</button>}
+              {mode === "agent" && attachment && <button disabled={isLoading} onClick={() => attach(undefined)} aria-label={`Remove ${attachment.name}`}>{attachment.name} ×</button>}
+              <button disabled={isLoading} aria-pressed={search[mode]} onClick={() => setSearch({...search,[mode]:!search[mode]})} className="rounded-full px-3 py-2 aria-pressed:bg-white aria-pressed:text-black">Web search</button>
+            </div>
+            <ChatComposer key={mode} draft={mode === "agent" ? connectorDraft : undefined} models={[]} mode={mode} onSubmit={handleSend} disabled={isLoading} />
           </div>
         </div>
       </div>
@@ -128,7 +138,8 @@ export default function HomePage() {
 
       <SettingsModal
           conversationMode={mode}
-          onUseConnector={text => { setMode("agent"); setConnectorDraft({text}); setSettingsOpen(false); }}
+          startInConnectors={startInConnectors}
+          onUseConnector={(text, conn) => { attach(conn); setMode("agent"); setConnectorDraft({text}); setSettingsOpen(false); }}
           onOpenOnboarding={() => { setSettingsOpen(false); reopenOnboarding(); }}
           profileState={profileState}
           isOpen={settingsOpen}

@@ -103,6 +103,8 @@ export interface ChatMessageItem {
   toolCalls?: ToolCall[];
   pendingConsent?: PendingConsent[];
   originalQuestion?: string;
+  connectorId?: string;
+  webSearch?: boolean;
   approvedConsent?: string[];
 }
 

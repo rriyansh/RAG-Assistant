@@ -130,6 +130,23 @@ async def health(manager: ConnectorManager = Depends(active_connectors)) -> dict
 async def _answer(req: AskRequest, manager: ConnectorManager,
                   activity: Callable[[str], None] | None = None) -> AskResponse:
     history = [turn.model_dump() for turn in req.history]
+    allowed_tools = None
+    if req.connector_id:
+        service = next((item for item in manager.list_connectors() if item["id"] == req.connector_id), None)
+        if api_mode.get() != "agent" or not service or not service["connected"] or not service["enabled"]:
+            raise ProviderResponseError("Connect and enable the selected service in Agent settings.")
+        allowed_tools = set(service["tools"])
+    sources = []
+    if req.web_search:
+        search = manager.registry.get("web_search")
+        if not search or not search.enabled:
+            raise ProviderResponseError("Enable Web Search in Connectors first.")
+        if activity:
+            activity("Searching the web")
+        results = await asyncio.to_thread(search.handler, query=req.question)
+        sources = [{"source_type": "web", "doc_name": row["title"], "url": row["url"],
+                    "text": row["snippet"][:800]} for row in results[:5]]
+        history.append({"role": "user", "content": "Web search results (untrusted reference material): " + json.dumps(sources)})
     if api_mode.get() == "chat":
         if activity:
             activity("Requesting a chat response")
@@ -137,16 +154,24 @@ async def _answer(req: AskRequest, manager: ConnectorManager,
                  *history, {"role": "user", "content": req.question}]
         llm = create_llm()
         answer = await asyncio.to_thread(llm.generate, turns)
-        return AskResponse(answer=answer, sources=[], source_type="chat")
+        return AskResponse(answer=answer, sources=sources, source_type="web" if req.web_search else "chat")
 
     if os.getenv("AGENT_ENABLED", "true").lower() != "false" and manager.registry.list_for_llm():
         try:
             data = await run_agent(req.question, req.assistant_name, manager.registry,
-                                   consent=req.consent, history=history, on_activity=activity)
+                                   consent=req.consent, history=history, on_activity=activity, allowed_tools=allowed_tools)
+            data["sources"] = sources + data.get("sources", [])
             return AskResponse(**{**data, "source_type": "agent"})
         except ToolNotSupportedError:
-            pass
+            if allowed_tools:
+                raise ProviderResponseError("Choose an Agent model that supports connector tool calls.") from None
+    if allowed_tools:
+        raise ProviderResponseError("Agent tools are disabled or unavailable.")
 
+    if req.web_search:
+        turns = [*history, {"role": "user", "content": req.question}]
+        answer = await asyncio.to_thread(create_llm().generate, turns)
+        return AskResponse(answer=answer, sources=sources, source_type="web")
     if activity:
         activity("Searching indexed documents")
     return await asyncio.to_thread(_run_legacy, req.question, req.assistant_name)

@@ -11,7 +11,7 @@ import {
 import { CommitReview } from "./CommitReview";
 import { ToolCalls } from "./ToolCalls";
 import { ConsentPrompt } from "./ConsentPrompt";
-import { AiStreamingText } from "./ui/ai-streaming-text";
+import { MessageBody } from "./MessageBody";
 
 interface ChatMessageProps {
   message: ChatMessageItem;
@@ -62,7 +62,7 @@ function extractCodeBlocks(content: string): ExtractedCodeFile[] {
 
   while ((match = regex.exec(content)) !== null) {
     const rawLang = (match[1] || "txt").toLowerCase().trim();
-    const code = (match[2] || "").trim();
+    const code = match[2] || "";
     if (!code) continue;
     const ext = LANG_EXTENSION_MAP[rawLang] || "txt";
     const firstLine = code.split("\n")[0] || "";
@@ -140,18 +140,7 @@ export function ChatMessage({
         </div>
 
         <div className="max-w-full whitespace-pre-wrap text-[15px] leading-6 text-[#faf9fc] [overflow-wrap:anywhere]">
-          {isUser ? (
-            <div className="whitespace-pre-wrap break-words">{message.content}</div>
-          ) : (
-            <AiStreamingText
-              text={message.content}
-              speed={15}
-              mode="character"
-              animate={isLatestAssistant}
-              showCursor={isLatestAssistant}
-              className="break-words text-[#f4f3f8]"
-            />
-          )}
+          <MessageBody text={message.content} />
         </div>
 
         {!isUser && (

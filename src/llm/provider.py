@@ -169,6 +169,7 @@ class LLMProvider:
         tools: list[dict[str, Any]] | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        require_tool: bool = False,
     ) -> ChatResponse:
         kwargs: dict[str, Any] = {
             "model": self.model,
@@ -179,7 +180,7 @@ class LLMProvider:
         }
         if tools:
             kwargs["tools"] = tools
-            kwargs["tool_choice"] = "auto"
+            kwargs["tool_choice"] = "required" if require_tool else "auto"
 
         response = self._completion(**kwargs)
         msg = response.choices[0].message
