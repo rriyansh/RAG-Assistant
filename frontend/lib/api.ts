@@ -33,7 +33,8 @@ export async function askQuestion(
     method: "POST", headers: { "Content-Type": "application/json", "X-Reso-Mode": mode },
     body: JSON.stringify({question, assistant_name: assistantName, consent, history, stream: true}),
   });
-  if (!res.ok || !res.body) throw new Error("Could not reach the workspace backend.");
+  if (!res.ok) await handleJson(res);
+  if (!res.body) throw new Error("The workspace backend returned no response.");
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
   let buffer = "";
   try {

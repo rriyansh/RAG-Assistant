@@ -387,7 +387,12 @@ class ConnectorManager:
                 raise ConnectorError(f"Field '{field_spec.label}' is required.")
             cleaned_creds[field_spec.key] = val
 
-        account_label = self._verify_credentials(connector_id, cleaned_creds)
+        try:
+            account_label = self._verify_credentials(connector_id, cleaned_creds)
+        except ConnectorError:
+            raise
+        except (requests.RequestException, OSError, imaplib.IMAP4.error, ValueError):
+            raise ConnectorError(f"{catalog_item.name} verification failed. Check connectivity and credential permissions.") from None
 
         self._registry.unregister_by_server(connector_id)
         self._register_connector_tools(connector_id, cleaned_creds, enabled=True)
@@ -485,7 +490,9 @@ class ConnectorManager:
             service = SERVICES[connector_id]
             try:
                 service.read(creds["token"])
-            except (ValueError, requests.RequestException) as exc:
+            except requests.RequestException:
+                raise ConnectorError(f"Could not reach {service.name}. Check connectivity and retry.") from None
+            except ValueError as exc:
                 raise ConnectorError(f"Could not connect to {service.name}: {exc}") from exc
             return service.name
         if connector_id == "gmail":

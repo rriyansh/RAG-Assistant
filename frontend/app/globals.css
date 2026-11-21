@@ -523,3 +523,6 @@ html[data-font="source-sans-3"] { --font-body: "Source Sans 3", system-ui, sans-
 @media (prefers-color-scheme: dark) {
   [data-connector-sheet] :is(img[src="/connectors/github.svg"],img[src="/connectors/vercel.svg"],img[src="/connectors/notion.svg"],img[src="/providers/openai.svg"],img[src="/providers/grok.svg"]) { filter: invert(1); }
 }
+
+/* The original dark Dino needs a light silhouette on the dark workspace. */
+img[src="/icon.svg"] { filter: invert(1); }

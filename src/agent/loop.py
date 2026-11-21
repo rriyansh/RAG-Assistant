@@ -10,6 +10,7 @@ from typing import Any
 
 from src.agent.registry import ToolRegistry, ToolValidationError, validate_against_schema
 from src.llm.factory import create_llm
+from src.llm.provider import ProviderResponseError
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +125,8 @@ async def run_agent(
                     exc,
                 )
                 raise ToolNotSupportedError(str(exc)) from exc
+            if isinstance(exc, ProviderResponseError):
+                raise
             logger.warning("Provider request failed (%s)", type(exc).__name__)
             return {
                 "answer": "The provider could not complete this request. Check the active key, model, and available quota.",

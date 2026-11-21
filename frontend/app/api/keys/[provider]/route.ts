@@ -1,7 +1,7 @@
 import { backendFetch } from "@/lib/backend";
 import { NextRequest, NextResponse } from "next/server";
 
-const BACKEND = process.env.RAG_BACKEND_URL ?? "http://127.0.0.1:8000";
+const BACKEND = process.env.RAG_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 const UPSTREAM_TIMEOUT_MS = 5000;
 const PROVIDER_SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/i;
 

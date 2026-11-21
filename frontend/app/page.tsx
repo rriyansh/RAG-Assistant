@@ -127,6 +127,7 @@ export default function HomePage() {
       />}
 
       <SettingsModal
+          conversationMode={mode}
           onUseConnector={text => { setMode("agent"); setConnectorDraft({text}); setSettingsOpen(false); }}
           onOpenOnboarding={() => { setSettingsOpen(false); reopenOnboarding(); }}
           profileState={profileState}

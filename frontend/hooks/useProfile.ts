@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { FontId, UserProfile } from "../lib/types";
-import { DEFAULT_RAG_ASSISTANT_LOGO, INBUILT_USER_PFPS } from "../lib/utils";
+import { DEFAULT_RAG_ASSISTANT_LOGO, LEGACY_ASSISTANT_LOGO, INBUILT_USER_PFPS } from "../lib/utils";
 
 const PROFILE_STORAGE_KEY = "rag_assistant_user_profile_v4";
 const LEGACY_KEYS = [
@@ -51,7 +51,7 @@ export function useProfile() {
         if (raw) {
           const parsed = JSON.parse(raw) as Partial<UserProfile>;
           if (parsed.assistantLogo !== undefined && savedLogo === undefined) {
-            savedLogo = parsed.assistantLogo;
+            savedLogo = parsed.assistantLogo === LEGACY_ASSISTANT_LOGO ? DEFAULT_RAG_ASSISTANT_LOGO : parsed.assistantLogo;
           }
           if (parsed.avatarDataUrl && !savedAvatar) {
             savedAvatar = parsed.avatarDataUrl;
@@ -68,12 +68,7 @@ export function useProfile() {
           assistantName: parsed.assistantName || "Reso Agent",
           font: (parsed.font as FontId) || "plus-jakarta-sans",
           avatarDataUrl: parsed.avatarDataUrl || savedAvatar || INBUILT_USER_PFPS[0]!.url,
-          assistantLogo:
-            parsed.assistantLogo !== undefined
-              ? parsed.assistantLogo
-              : savedLogo !== undefined
-              ? savedLogo
-              : DEFAULT_RAG_ASSISTANT_LOGO,
+          assistantLogo: savedLogo ?? DEFAULT_RAG_ASSISTANT_LOGO,
         });
       } else if (savedLogo !== undefined || savedAvatar) {
         setProfile((prev) => ({

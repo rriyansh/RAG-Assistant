@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from src.utils.workspace import workspace_path, session_id
-from src.llm.provider import LLMProvider
+from src.llm.provider import LLMProvider, custom_endpoint
 
 KEYS_PATH = Path("data/keys.json")
 CONFIG_PATH = Path("data/config.json")
@@ -92,7 +92,7 @@ def create_llm() -> LLMProvider:
 
     return LLMProvider(
         api_key=user_key or "ollama",
-        base_url=base_url,
+        base_url=custom_endpoint(base_url) if provider == "custom" else base_url,
         model=model,
         temperature=temperature,
         max_tokens=max_tokens,

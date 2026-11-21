@@ -2,7 +2,7 @@ export function cn(...inputs: Array<string | undefined | null | false>): string 
   return inputs.filter(Boolean).join(" ");
 }
 
-export const CODES_ICON_SVG_PATH = "/codes%20icon.svg";
+export const CODES_ICON_SVG_PATH = "/icon.svg";
 
 export const CODES_ICON_FALLBACK_DATA_URL =
   "data:image/svg+xml;utf8," +
@@ -10,7 +10,8 @@ export const CODES_ICON_FALLBACK_DATA_URL =
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none"><rect width="120" height="120" rx="28" fill="#141417"/><rect x="3" y="3" width="114" height="114" rx="25" stroke="#f4f3f8" stroke-opacity="0.22" stroke-width="2"/><path d="M44 42L26 60L44 78" stroke="#f4f3f8" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M76 42L94 60L76 78" stroke="#f4f3f8" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M66 34L54 86" stroke="#e6e4f0" stroke-width="5.5" stroke-linecap="round"/></svg>`
   );
 
-export const DEFAULT_RAG_ASSISTANT_LOGO =
+export const DEFAULT_RAG_ASSISTANT_LOGO = CODES_ICON_SVG_PATH;
+export const LEGACY_ASSISTANT_LOGO =
   "data:image/svg+xml;utf8," +
   encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none"><rect width="120" height="120" rx="28" fill="#141417"/><rect x="3" y="3" width="114" height="114" rx="25" stroke="#f4f3f8" stroke-opacity="0.22" stroke-width="2"/><path d="M60 18C42 18 28 32 28 50C28 63 36 74 47 79L42 98L60 88L78 98L73 79C84 74 92 63 92 50C92 32 78 18 60 18Z" fill="#f4f3f8"/><path d="M46 48L55 54L46 60V48Z" fill="#0c0c0e"/><path d="M74 48L65 54L74 60V48Z" fill="#0c0c0e"/><path d="M52 68H68L60 75L52 68Z" fill="#0c0c0e"/></svg>`
@@ -65,6 +66,11 @@ export const INBUILT_ASSISTANT_LOGOS: Array<{
   label: string;
   url: string;
 }> = [
+  {
+    id: "dino",
+    label: "Dino",
+    url: CODES_ICON_SVG_PATH,
+  },
   {
     id: "reso- emblem",
     label: "Reso Core",

@@ -45,6 +45,7 @@ import {
 import { useProfile } from "../hooks/useProfile";
 
 export interface SettingsModalProps {
+  conversationMode: "chat" | "agent";
   isOpen?: boolean;
   open?: boolean;
   onClose: () => void;
@@ -158,7 +159,7 @@ function ProviderBrandLogo({ provider }: { provider: string }) {
   return <img src={`/providers/${icon}.svg`} alt="" className="h-6 w-6 shrink-0 rounded bg-white p-0.5 object-contain" />;
 }
 
-export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnector, onOpenOnboarding }: SettingsModalProps) {
+export function SettingsModal({ conversationMode, isOpen, open, onClose, profileState, onUseConnector, onOpenOnboarding }: SettingsModalProps) {
   const modalVisible = Boolean(isOpen ?? open);
   const [activeTab, setActiveTab] = useState<TabKey | null>(null);
   const {
@@ -171,11 +172,14 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
   const [profileError, setProfileError] = useState<string | null>(null);
 
   const [hostedReady, setHostedReady] = useState(false);
-  const [keyMode, setKeyMode] = useState<"agent" | "chat">("agent");
+  const [keyMode, setKeyMode] = useState<"agent" | "chat">(conversationMode);
+  useEffect(() => { if (modalVisible) setKeyMode(conversationMode); }, [modalVisible, conversationMode]);
   const loadVersion = React.useRef(0);
   const [keys, setKeys] = useState<KeyStatusMap>({});
   const [selectedProvider, setSelectedProvider] = useState<string>("nvidia");
   const [detectedProvider, setDetectedProvider] = useState<string | null>(null);
+  const [customUrl, setCustomUrl] = useState("");
+  const [customModel, setCustomModel] = useState("");
   const [apiKeyInput, setApiKeyInput] = useState<string>("");
   const [keyStatusMsg, setKeyStatusMsg] = useState<string | null>(null);
   const [keyBusy, setKeyBusy] = useState<boolean>(false);
@@ -231,6 +235,8 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
       const activeProvider =
         cData.provider || kData.active_provider || Object.keys(kData.keys)[0] || "nvidia";
       setSelectedProvider(activeProvider);
+      setCustomUrl(activeProvider === "custom" ? cData.base_url || "" : "");
+      setCustomModel(activeProvider === "custom" ? cData.model : "");
       setConfig({ ...cData, provider: activeProvider });
       setCatalogUnavailable(connData === null);
       if (connData) setConnectors(connData);
@@ -264,7 +270,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
 
   function handleKeyInputChange(raw: string) {
     setApiKeyInput(raw);
-    const autoDetected = detectProviderFromKeyString(raw);
+    const autoDetected = selectedProvider === "custom" ? null : detectProviderFromKeyString(raw);
     setDetectedProvider(autoDetected);
     if (autoDetected) {
       setSelectedProvider(autoDetected);
@@ -313,18 +319,25 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
     }
   }
 
-  async function handleSaveKey() {
+  async function handleSaveKey(verify = true) {
     if (!apiKeyInput.trim()) return;
     const targetProvider = detectedProvider || selectedProvider;
     setKeyBusy(true);
     setKeyStatusMsg(`Verifying ${targetProvider.toUpperCase()} API key...`);
     try {
-      const testRes = await testProviderKey({
+      const endpoint = targetProvider === "custom" ? customUrl.trim() : "";
+      const model = targetProvider === "custom" ? customModel.trim() :
+        config.provider === targetProvider ? config.model : DEFAULT_MODELS[targetProvider];
+      if (targetProvider === "custom" && (!endpoint || !model)) {
+        setKeyStatusMsg("Enter the endpoint URL and the model ID supplied by your provider.");
+        return;
+      }
+      const testRes = verify ? await testProviderKey({
         provider: targetProvider,
         api_key: apiKeyInput.trim(),
-        model: config.provider === targetProvider ? config.model : DEFAULT_MODELS[targetProvider],
-        base_url: config.provider === targetProvider ? config.base_url : undefined,
-      });
+        model,
+        base_url: endpoint,
+      }) : { valid: true, model, error: undefined };
       if (!testRes.valid) {
         setKeyStatusMsg(`Verification failed: ${testRes.error || "Invalid key."}`);
         return;
@@ -336,13 +349,13 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
         provider: targetProvider,
         api_key: apiKeyInput.trim(),
         model: activeModel,
-        base_url: config.provider === targetProvider ? config.base_url : "",
+        base_url: endpoint,
       }, keyMode);
       const nextConfig = {
         ...config,
         provider: targetProvider,
         hosted: false,
-        base_url: config.provider === targetProvider ? config.base_url : "",
+        base_url: endpoint,
         model: activeModel,
       };
       await updateConfig(nextConfig, keyMode);
@@ -352,7 +365,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
       setKeys(updated.keys);
       setApiKeyInput("");
       setDetectedProvider(null);
-      setKeyStatusMsg(`Verified and activated ${targetProvider.toUpperCase()}.`);
+      setKeyStatusMsg(`${verify ? "Verified" : "Saved without verification"} and activated ${targetProvider.toUpperCase()}.`);
     } catch (err) {
       setKeyStatusMsg(err instanceof Error ? err.message : "Failed to save key.");
     } finally {
@@ -905,7 +918,7 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
                   />
                   <button
                     type="button"
-                    onClick={handleSaveKey}
+                    onClick={() => handleSaveKey()}
                     disabled={keyBusy || !apiKeyInput.trim()}
                     className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#f4f3f8] px-5 py-2 text-xs font-semibold text-[#0c0c0e] shadow-[0_3px_0_0_#bdb9ce] disabled:opacity-50"
                   >
@@ -917,6 +930,11 @@ export function SettingsModal({ isOpen, open, onClose, profileState, onUseConnec
                     Verify & Activate
                   </button>
                 </div>
+                {selectedProvider === "custom" && <div className="grid gap-2">
+                  <label>OpenAI-compatible endpoint<input type="url" value={customUrl} onChange={e => setCustomUrl(e.target.value)} placeholder="https://provider.example/v1" className="block w-full rounded bg-[#141417] p-2" /></label>
+                  <label>Model ID<input value={customModel} onChange={e => setCustomModel(e.target.value)} placeholder="Model ID from your provider" className="block w-full rounded bg-[#141417] p-2" /></label>
+                  <button type="button" disabled={keyBusy || !apiKeyInput.trim()} onClick={() => handleSaveKey(false)}>Save without verification</button>
+                </div>}
                 {keyStatusMsg && (
                   <p className="text-xs text-[#e6e4f0]/80">{keyStatusMsg}</p>
                 )}

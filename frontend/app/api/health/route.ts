@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const BACKEND_URL = process.env.RAG_BACKEND_URL ?? "http://127.0.0.1:8000";
+const BACKEND_URL = process.env.RAG_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 const HEALTH_TIMEOUT_MS = 3000;
 
 interface BackendHealthPayload {

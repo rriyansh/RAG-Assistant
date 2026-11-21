@@ -7,6 +7,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import urlsplit
 
 from openai import APIConnectionError, APIStatusError, OpenAI
 
@@ -62,6 +63,16 @@ class ChatResponse:
             return default
 
 
+def custom_endpoint(value: str) -> str:
+    endpoint = value.strip().rstrip("/")
+    parts = urlsplit(endpoint)
+    local = parts.hostname in {"localhost", "127.0.0.1", "::1"}
+    if (not parts.hostname or parts.username or parts.password or parts.query or parts.fragment
+            or not (parts.scheme == "https" or (local and parts.scheme == "http"))):
+        raise ValueError("Enter an HTTPS API base URL, or use HTTP on localhost.")
+    return endpoint.removesuffix("/chat/completions")
+
+
 class ProviderResponseError(RuntimeError):
     """Provider failure with a message safe to display to the caller."""
 
@@ -110,7 +121,7 @@ class LLMProvider:
                     continue
                 messages = {
                     401: "The provider rejected this credential. Check the key and provider.",
-                    403: "The credential lacks access to this model.",
+                    403: "The provider denied access (HTTP 403). Check the endpoint, account access and model permissions.",
                     404: "The provider could not find this model or endpoint.",
                     410: "The provider retired this model or endpoint. Choose an available model in Settings.",
                     429: "The provider rate or quota limit was reached. Check your quota and retry.",

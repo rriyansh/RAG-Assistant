@@ -1,7 +1,7 @@
 import { backendFetch } from "@/lib/backend";
 import { NextRequest, NextResponse } from "next/server";
 
-const BACKEND = process.env.RAG_BACKEND_URL ?? "http://127.0.0.1:8000";
+const BACKEND = process.env.RAG_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 const MAX_BODY_BYTES = 64 * 1024; // 64 KB limit for prompt enhancement payloads
 const UPSTREAM_TIMEOUT_MS = 25_000;
 

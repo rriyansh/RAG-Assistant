@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
@@ -39,7 +40,7 @@ from src.api.schemas import (
     ThinkingGenerateRequest,
 )
 from src.generation.generator import generate_answer
-from src.llm.provider import ProviderResponseError
+from src.llm.provider import ProviderResponseError, custom_endpoint
 from src.llm.factory import (
     PROVIDER_BASE_URLS,
     PROVIDER_DEFAULT_MODELS,
@@ -76,11 +77,13 @@ def _read_json(path: Path) -> dict[str, Any]:
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path = workspace_path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    os.chmod(tmp, 0o600)
-    tmp.replace(path)
-    os.chmod(path, 0o600)
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False) as handle:
+        tmp = Path(handle.name)
+    try:
+        tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def _detect_provider(api_key: str) -> str:
@@ -153,6 +156,8 @@ async def _answer(req: AskRequest, manager: ConnectorManager,
 async def ask(req: AskRequest, manager: ConnectorManager = Depends(active_connectors)) -> AskResponse:
     try:
         return await _answer(req, manager)
+    except ProviderResponseError as exc:
+        raise HTTPException(502, detail=str(exc)) from None
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Check the selected provider, API key and model in Settings.") from exc
 
@@ -178,6 +183,8 @@ async def stream_answer(req: AskRequest, manager: ConnectorManager = Depends(act
         try:
             result = await _answer(req, manager, activity)
             events.put_nowait({"result": result.model_dump()})
+        except ProviderResponseError as exc:
+            events.put_nowait({"error": str(exc)})
         except Exception:
             events.put_nowait({"error": "The request could not finish. Check the selected mode’s key, model and quota."})
         finally:
@@ -270,7 +277,7 @@ async def get_keys() -> dict[str, Any]:
     masked = {
         p: {
             "configured": True,
-            "masked_key": f"{str(v.get('api_key', ''))[:4]}...{str(v.get('api_key', ''))[-3:]}",
+            "masked_key": "••••••••",
         }
         for p, v in raw.items()
         if isinstance(v, dict) and v.get("api_key")
@@ -291,6 +298,11 @@ async def test_key(req: KeyTestRequest) -> dict[str, Any]:
     base_url = PROVIDER_BASE_URLS.get(provider_id) or req.base_url
     if not base_url:
         return {"valid": False, "error": "Set the custom endpoint URL in Model settings."}
+    if provider_id == "custom":
+        try:
+            base_url = custom_endpoint(base_url)
+        except ValueError as exc:
+            return {"valid": False, "error": str(exc)}
     model = req.model or PROVIDER_DEFAULT_MODELS.get(provider_id, "gpt-4o-mini")
     try:
         from src.llm.provider import LLMProvider
@@ -312,10 +324,16 @@ async def test_key(req: KeyTestRequest) -> dict[str, Any]:
 
 @router.post("/keys/set")
 async def set_key(req: KeySetRequest) -> dict[str, Any]:
+    base_url = req.base_url
+    if req.provider.lower() == "custom":
+        try:
+            base_url = custom_endpoint(base_url or "")
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
     data = _read_json(KEYS_PATH)
     data[req.provider.lower()] = {
         "api_key": req.api_key,
-        "base_url": req.base_url,
+        "base_url": base_url,
         "model": req.model,
     }
     _write_json(KEYS_PATH, data)
