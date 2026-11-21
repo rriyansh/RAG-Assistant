@@ -6,9 +6,29 @@ const translations = {
   ja: ["日本語", "設定", "設定を検索", "ResoAgentへようこそ！", "どのようにお手伝いできますか？", "チャット", "エージェント", "ウェブ検索", "アプリの言語"],
 } as const;
 
-export type Locale = keyof typeof translations;
-export const languages = Object.entries(translations).map(([id, values]) => ({ id: id as Locale, label: values[0] }));
+export type Locale = string;
+export const languages = Object.entries(translations).map(([id, values]) => ({ id, label: values[0] }));
+
+export function normalizeLocale(value: string) {
+  try { return Intl.getCanonicalLocales(value.trim())[0] || ""; }
+  catch { return ""; }
+}
+
+export function languageName(locale: Locale) {
+  try {
+    return new Intl.DisplayNames(["en"], { type: "language", fallback: "code" }).of(locale) || locale;
+  } catch { return locale; }
+}
+
+export function localeDirection(locale: Locale) {
+  try {
+    const script = new Intl.Locale(locale).maximize().script;
+    return ["Arab", "Hebr", "Thaa", "Nkoo", "Adlm", "Syrc", "Rohg", "Samr", "Mand"].includes(script || "") ? "rtl" : "ltr";
+  } catch { return "ltr"; }
+}
+
 export function ui(locale: Locale = "en") {
-  const [language, settings, searchSettings, welcome, help, chat, agent, webSearch, appLanguage] = translations[locale] || translations.en;
+  const base = locale.split("-")[0] as keyof typeof translations;
+  const [language, settings, searchSettings, welcome, help, chat, agent, webSearch, appLanguage] = translations[base] || translations.en;
   return {language, settings, searchSettings, welcome, help, chat, agent, webSearch, appLanguage};
 }

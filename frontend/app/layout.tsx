@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { RegisterApp } from "@/components/RegisterApp";
 import { siteOrigin } from "@/lib/site-origin";
 
 export function generateMetadata(): Metadata {
@@ -8,7 +9,9 @@ export function generateMetadata(): Metadata {
   const image = { url: "/reso-preview.jpg", width: 1200, height: 630, alt: "Reso Agent" };
   return {
     metadataBase: siteOrigin(),
-    title, description,
+    title, description, manifest: "/manifest.webmanifest",
+    icons: { icon: "/icon.svg", apple: "/app-icon-192.png" },
+    appleWebApp: { capable: true, title },
     openGraph: { type: "website", siteName: title, title, description, images: [image] },
     twitter: { card: "summary_large_image", title, description, images: [image] },
   };
@@ -39,6 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: fontScript }} />
       </head>
       <body className="min-h-screen bg-surface text-gray-200">{children}</body>
+        <RegisterApp />
     </html>
   );
 }

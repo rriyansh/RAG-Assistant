@@ -1,7 +1,8 @@
 "use client";
 
 
-import { languages, ui, type Locale } from "../lib/locales";
+import { InstallApp } from "./InstallApp";
+import { languages, normalizeLocale, ui } from "../lib/locales";
 import directory from "../lib/connectorDirectory.json";
 import { WorkspacePolicy } from "./WorkspacePolicy";
 import { FONT_OPTIONS } from "../lib/fonts";
@@ -165,6 +166,8 @@ function ProviderBrandLogo({ provider }: { provider: string }) {
 
 export function SettingsModal({ startInConnectors, connectorNotice, conversationMode, isOpen, open, onClose, profileState, onUseConnector, onOpenOnboarding }: SettingsModalProps) {
   const modalVisible = Boolean(isOpen ?? open);
+  const [localeCode, setLocaleCode] = useState("");
+  const [localeError, setLocaleError] = useState("");
   const [settingsQuery, setSettingsQuery] = useState("");
   const [activeTab, showTab] = useState<TabKey | null>(null);
   const {
@@ -507,13 +510,16 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
             <div className="sticky bottom-0 py-2"><Search size={18} aria-hidden="true" className="pointer-events-none absolute left-4 top-6" /><input type="search" aria-label={labels.searchSettings} placeholder={labels.searchSettings} value={settingsQuery} onChange={e => setSettingsQuery(e.target.value)} className="settings-home-search w-full rounded-full border border-current/20 pl-11 pr-5 py-3 shadow" /></div>
           </nav> : null}
           <div className="preferences-panel">
-          {activeTab === "premium" && <><h3>Premium</h3><p>Early access to new features</p><button disabled>Upgrade unavailable</button><p>This deployment has no subscription checkout.</p></>}
+          {activeTab === "premium" && <><h3>Premium</h3><p>Early access to new features</p><a className="underline underline-offset-4" href="/api/billing/checkout">Continue to Stripe checkout</a><p>Pricing and billing terms appear at checkout. Early access is provisioned by the deployment operator.</p></>}
           {activeTab === "appearance" && <><h3>Appearance</h3><label>Theme<select value={profile.theme ?? "system"} onChange={e => updateProfile({theme: e.target.value as typeof profile.theme})}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label><label>Interface font<select value={profile.font} onChange={e => updateProfile({font: e.target.value as typeof profile.font})}>{FONT_OPTIONS.map(font => <option key={font.id} value={font.id}>{font.label}</option>)}</select></label></>}
           {activeTab === "haptics" && <><h3>Haptics</h3><label><input type="checkbox" checked={!!profile.haptics} onChange={e => { updateProfile({haptics:e.target.checked}); if (e.target.checked) navigator.vibrate?.(20); }} /> Vibrate when sending on supported devices</label></>}
           {activeTab === "notifications" && <><h3>Notifications</h3><label><input type="checkbox" checked={!!profile.notifications} onChange={async e => { if (!e.target.checked) return updateProfile({notifications:false}); if (typeof Notification === "undefined") return setProfileError("This browser does not support notifications."); try { const granted = await Notification.requestPermission() === "granted"; updateProfile({notifications:granted}); setProfileError(granted ? null : "Allow notifications in your browser settings."); } catch { setProfileError("Notifications are unavailable in this browser."); } }} /> Notify when a reply is ready in a background tab</label>{profileError && <p role="status">{profileError}</p>}</>}
-          {activeTab === "widget" && <><h3>Widget</h3><label><input type="checkbox" checked={!!profile.workspaceShortcut} onChange={e => updateProfile({workspaceShortcut:e.target.checked})} /> Show the workspace shortcut above the composer</label><p>This is an in-app shortcut.</p></>}
+          {activeTab === "widget" && <><h3>Widget</h3><label><input type="checkbox" checked={!!profile.workspaceShortcut} onChange={e => updateProfile({workspaceShortcut:e.target.checked})} /> Show the workspace shortcut above the composer</label><p>This is an in-app shortcut.</p><h3>Install Reso Agent</h3><InstallApp /></>}
           {activeTab === "action" && <><h3>Configure Action Button</h3><label>Open<select value={profile.actionButton ?? "settings"} onChange={e => updateProfile({actionButton:e.target.value as typeof profile.actionButton})}><option value="settings">Settings</option><option value="connectors">Connectors</option></select></label></>}
-          {activeTab === "language" && <><h3>{labels.appLanguage}</h3><label>{labels.appLanguage}<select value={profile.locale ?? "en"} onChange={e => updateProfile({locale:e.target.value as Locale})}>{languages.map(({id,label}) => <option key={id} value={id} lang={id}>{label}</option>)}</select></label><p>Language applies to core chat labels and assistant replies. Some settings and service messages are shown in English.</p></>}
+          {activeTab === "language" && <><h3>{labels.appLanguage}</h3><label>{labels.appLanguage}<select value={languages.some(({id}) => id === profile.locale) || !profile.locale ? profile.locale ?? "en" : "custom"} onChange={e => { if (e.target.value !== "custom") updateProfile({locale:e.target.value}); }}>{languages.map(({id,label}) => <option key={id} value={id} lang={id}>{label}</option>)}{profile.locale && !languages.some(({id}) => id === profile.locale) && <option value="custom">{profile.locale}</option>}</select></label>
+          <form className="flex flex-wrap items-end gap-2" onSubmit={e => { e.preventDefault(); const code = normalizeLocale(localeCode); if (!code) { setLocaleError("Enter a valid language tag, such as fr, pt-BR or zh-Hant."); return; } updateProfile({locale:code}); setLocaleError(""); }}>
+            <label>Other reply language<input maxLength={40} placeholder="e.g. pt-BR" value={localeCode} onChange={e => setLocaleCode(e.target.value)} /></label><button type="submit">Apply</button>
+          </form>{localeError && <p role="alert">{localeError}</p>}<p>Core UI labels are translated in the listed languages. Other language tags apply to assistant replies, subject to model support.</p></>}
           {activeTab === "customize" && <><h3>Customize Assistant</h3><button onClick={() => setActiveTab("profile")}>Assistant Name &amp; Avatar</button><label>Persona &amp; Tone<select value={profile.tone ?? "formal"} onChange={e => updateProfile({tone:e.target.value as typeof profile.tone})}><option value="formal">Formal</option><option value="casual">Casual</option><option value="technical">Technical</option></select></label><label>System Instructions<textarea rows={5} maxLength={2000} value={profile.instructions ?? ""} onChange={e => updateProfile({instructions:e.target.value})} /></label></>}
           {activeTab === "tools" && <><h3>Connectors &amp; Tools</h3><button onClick={() => setActiveTab("connectors")}>Manage connectors and Web Search availability</button><label><input type="checkbox" checked={!!profile.webSearchDefault} onChange={e => updateProfile({webSearchDefault:e.target.checked})} /> Start new sessions with Web Search enabled</label><p>Code execution and device file access are unavailable in this deployment. Connected services have their own access controls.</p></>}
           {activeTab === "behavior" && <><h3>Behavior &amp; Autonomy</h3><p>Agent can use available read tools. External write tools require human approval.</p><p>Full automation and daily action caps are unavailable.</p></>}

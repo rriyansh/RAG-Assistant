@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { ui } from "../lib/locales";
+import { localeDirection, ui } from "../lib/locales";
 import { Header } from "../components/Header";
 import { ChatMessage } from "../components/ChatMessage";
 import ChatComposer from "../components/ChatComposer";
@@ -32,7 +32,7 @@ export default function HomePage() {
   const labels = ui(profile.locale);
   React.useEffect(() => {
     document.documentElement.lang = profile.locale ?? "en";
-    document.documentElement.dir = profile.locale === "ar" || profile.locale === "ur" ? "rtl" : "ltr";
+    document.documentElement.dir = localeDirection(profile.locale ?? "en");
   }, [profile.locale]);
   const chat = useChat(assistantName, "chat", profile, hydrated);
   const agent = useChat(assistantName, "agent", profile, hydrated);
