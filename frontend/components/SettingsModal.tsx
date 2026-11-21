@@ -6,6 +6,7 @@ import { WorkspacePolicy } from "./WorkspacePolicy";
 import { FONT_OPTIONS } from "../lib/fonts";
 import React, { useEffect, useState } from "react";
 import {
+  Bell, Globe, LayoutGrid, Monitor, Search, Smartphone, Sparkles, Zap, Database, Brain,
   Check,
   ImagePlus,
   Key,
@@ -56,7 +57,7 @@ export interface SettingsModalProps {
   profileState: ReturnType<typeof useProfile>;
 }
 
-type TabKey = "profile" | "connectors" | "keys" | "model" | "security";
+type TabKey = "appearance" | "haptics" | "notifications" | "widget" | "action" | "language" | "customize" | "tools" | "behavior" | "privacy" | "memory" | "premium" | "profile" | "connectors" | "keys" | "model" | "security";
 
 const PROVIDERS = [
   { id: "nvidia", label: "NVIDIA NIM" },
@@ -459,19 +460,35 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
           {activeTab === null ? <nav aria-label="Workspace settings" className="space-y-5">
             {!settingsQuery && <div className="settings-group"><button type="button" onClick={() => setActiveTab("profile")}>
               <img src={currentAvatar} alt="" width={44} height={44} className="my-3 rounded-full" />
-              <span><strong>{profile.name || "Your profile"}</strong><small className="block opacity-75">Edit profile</small></span><span aria-hidden="true" className="ml-auto">›</span>
+              <span><strong>{profile.name || "Your profile"}</strong><small className="block opacity-75">{profile.username ? `@${profile.username}` : "Edit profile"}</small></span><span aria-hidden="true" className="ml-auto">›</span>
             </button></div>}
             {([
-              ["App", [["profile", "Appearance", Sliders], ["security", "Security & Legal", Shield]]],
-              ["Agent", [["profile", "Customize Reso", ImagePlus], ["connectors", "Connectors", Plug], ["keys", "API Keys", Key], ["model", "Model", Sliders]]],
+              ["Subscription", [["premium", "Premium", Sparkles]]],
+              ["App", [["appearance", "Appearance", Monitor], ["haptics", "Haptics", Smartphone], ["notifications", "Notifications", Bell], ["widget", "Widget", LayoutGrid], ["action", "Configure Action Button", Zap], ["language", "App Language", Globe]]],
+              ["AI Assistant", [["customize", "Customize Assistant", Sliders], ["tools", "Connectors & Tools", Plug], ["behavior", "Behavior & Autonomy", Brain], ["privacy", "Privacy & Safety", Shield], ["memory", "Data & Memory", Database], ["keys", "API Keys", Key], ["model", "Model", Sliders]]],
             ] as const).map(([group, rows]) => {
               const matches = rows.filter(([, title]) => title.toLowerCase().includes(settingsQuery.trim().toLowerCase()));
               return matches.length > 0 && <section key={group}><h3 className="mb-2 pl-3 text-sm font-semibold opacity-75">{group}</h3><div className="settings-group">
                 {matches.map(([id, title, Icon]) => <button key={title} type="button" onClick={() => setActiveTab(id)}><Icon size={19} aria-hidden="true" />{title}<span aria-hidden="true" className="ml-auto">›</span></button>)}
               </div></section>;
             })}
-            <div className="sticky bottom-0 py-2"><input type="search" aria-label="Search settings" placeholder="Search settings" value={settingsQuery} onChange={e => setSettingsQuery(e.target.value)} className="settings-home-search w-full rounded-full border border-current/20 px-5 py-3 shadow" /></div>
+            <div className="sticky bottom-0 py-2"><Search size={18} aria-hidden="true" className="pointer-events-none absolute left-4 top-6" /><input type="search" aria-label="Search settings" placeholder="Search settings" value={settingsQuery} onChange={e => setSettingsQuery(e.target.value)} className="settings-home-search w-full rounded-full border border-current/20 pl-11 pr-5 py-3 shadow" /></div>
           </nav> : activeTab !== "connectors" && <button className="mb-4 text-sm text-gray-300" type="button" onClick={() => setActiveTab(null)}>← Settings</button>}
+          <div className="preferences-panel">
+          {activeTab === "premium" && <><h3>Premium</h3><p>Early access to new features</p><button disabled>Upgrade unavailable</button><p>This deployment has no subscription checkout.</p></>}
+          {activeTab === "appearance" && <><h3>Appearance</h3><label>Theme<select value={profile.theme ?? "system"} onChange={e => updateProfile({theme: e.target.value as typeof profile.theme})}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label><label>Interface font<select value={profile.font} onChange={e => updateProfile({font: e.target.value as typeof profile.font})}>{FONT_OPTIONS.map(font => <option key={font.id} value={font.id}>{font.label}</option>)}</select></label></>}
+          {activeTab === "haptics" && <><h3>Haptics</h3><label><input type="checkbox" checked={!!profile.haptics} onChange={e => { updateProfile({haptics:e.target.checked}); if (e.target.checked) navigator.vibrate?.(20); }} /> Vibrate when sending on supported devices</label></>}
+          {activeTab === "notifications" && <><h3>Notifications</h3><label><input type="checkbox" checked={!!profile.notifications} onChange={async e => { if (!e.target.checked) return updateProfile({notifications:false}); if (typeof Notification === "undefined") return setProfileError("This browser does not support notifications."); try { const granted = await Notification.requestPermission() === "granted"; updateProfile({notifications:granted}); setProfileError(granted ? null : "Allow notifications in your browser settings."); } catch { setProfileError("Notifications are unavailable in this browser."); } }} /> Notify when a reply is ready in a background tab</label>{profileError && <p role="status">{profileError}</p>}</>}
+          {activeTab === "widget" && <><h3>Widget</h3><label><input type="checkbox" checked={!!profile.workspaceShortcut} onChange={e => updateProfile({workspaceShortcut:e.target.checked})} /> Show the workspace shortcut above the composer</label><p>This is an in-app shortcut.</p></>}
+          {activeTab === "action" && <><h3>Configure Action Button</h3><label>Open<select value={profile.actionButton ?? "settings"} onChange={e => updateProfile({actionButton:e.target.value as typeof profile.actionButton})}><option value="settings">Settings</option><option value="connectors">Connectors</option></select></label></>}
+          {activeTab === "language" && <><h3>App Language</h3><p>English is the available interface language. Use System Instructions to set the assistant’s reply language.</p></>}
+          {activeTab === "customize" && <><h3>Customize Assistant</h3><button onClick={() => setActiveTab("profile")}>Assistant Name &amp; Avatar</button><label>Persona &amp; Tone<select value={profile.tone ?? "formal"} onChange={e => updateProfile({tone:e.target.value as typeof profile.tone})}><option value="formal">Formal</option><option value="casual">Casual</option><option value="technical">Technical</option></select></label><label>System Instructions<textarea rows={5} maxLength={2000} value={profile.instructions ?? ""} onChange={e => updateProfile({instructions:e.target.value})} /></label></>}
+          {activeTab === "tools" && <><h3>Connectors &amp; Tools</h3><button onClick={() => setActiveTab("connectors")}>Manage connectors and Web Search availability</button><label><input type="checkbox" checked={!!profile.webSearchDefault} onChange={e => updateProfile({webSearchDefault:e.target.checked})} /> Start new sessions with Web Search enabled</label><p>Code execution and device file access are unavailable in this deployment. Connected services have their own access controls.</p></>}
+          {activeTab === "behavior" && <><h3>Behavior &amp; Autonomy</h3><p>Agent can use available read tools. External write tools require human approval.</p><p>Full automation and daily action caps are unavailable.</p></>}
+          {activeTab === "privacy" && <><h3>Privacy &amp; Safety</h3><p>Model provider filters apply. Reso does not offer filter overrides, automatic PII masking, or a configurable prompt-injection filter.</p><button onClick={() => setActiveTab("security")}>Read Security, Privacy &amp; Terms</button></>}
+          {activeTab === "memory" && <><h3>Data &amp; Memory</h3><label><input type="checkbox" checked={!!profile.rememberChats} onChange={e => updateProfile({rememberChats:e.target.checked})} /> Restore Chat and Agent conversations on this browser</label><label>Chat History Retention<select value={profile.retention ?? "30"} onChange={e => updateProfile({retention:e.target.value as typeof profile.retention})}><option value="30">30 days</option><option value="90">90 days</option><option value="forever">Forever</option></select></label><p>Stored on this browser when enabled. Recent turns are used as context when you continue a conversation.</p></>}
+          {activeTab === "profile" && <label>Username<input value={profile.username ?? ""} maxLength={32} onChange={e => updateProfile({username:e.target.value.replace(/[^a-zA-Z0-9_]/g, "")})} /></label>}
+          </div>
           {activeTab === "profile" && (
             <div className="mx-auto max-w-3xl space-y-6">
               <button type="button" onClick={onOpenOnboarding} className="text-sm underline underline-offset-4">Open onboarding</button>

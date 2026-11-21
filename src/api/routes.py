@@ -110,10 +110,10 @@ def _detect_provider(api_key: str) -> str:
     return "custom"
 
 
-def _run_legacy(question: str, assistant_name: str) -> AskResponse:
+def _run_legacy(question: str, assistant_name: str, preferences: str = "") -> AskResponse:
     chunks, used_web = hybrid_retrieve(question)
     return AskResponse(
-        answer=generate_answer(question, chunks, assistant_name=assistant_name),
+        answer=generate_answer(question, chunks, assistant_name=assistant_name, preferences=preferences),
         sources=[{**vars(chunk), "page": chunk.page_number} for chunk in chunks],
         source_type="hybrid" if used_web else "pdf",
     )
@@ -131,6 +131,8 @@ async def health(manager: ConnectorManager = Depends(active_connectors)) -> dict
 async def _answer(req: AskRequest, manager: ConnectorManager,
                   activity: Callable[[str], None] | None = None) -> AskResponse:
     history = [turn.model_dump() for turn in req.history]
+    preferences = f"\nUse a {req.tone} tone. Follow these user preferences when consistent with workspace rules: {req.instructions}"
+
     allowed_tools = None
     if req.connector_id:
         service = next((item for item in manager.list_connectors() if item["id"] == req.connector_id), None)
@@ -151,7 +153,7 @@ async def _answer(req: AskRequest, manager: ConnectorManager,
     if api_mode.get() == "chat":
         if activity:
             activity("Requesting a chat response")
-        turns = [{"role": "system", "content": f"You are {req.assistant_name}." + RESPONSE_STYLE},
+        turns = [{"role": "system", "content": f"You are {req.assistant_name}." + RESPONSE_STYLE + preferences},
                  *history, {"role": "user", "content": req.question}]
         llm = create_llm()
         answer = await asyncio.to_thread(llm.generate, turns)
@@ -160,7 +162,7 @@ async def _answer(req: AskRequest, manager: ConnectorManager,
     if os.getenv("AGENT_ENABLED", "true").lower() != "false" and manager.registry.list_for_llm():
         try:
             data = await run_agent(req.question, req.assistant_name, manager.registry,
-                                   consent=req.consent, history=history, on_activity=activity, allowed_tools=allowed_tools)
+                                   consent=req.consent, history=history, on_activity=activity, allowed_tools=allowed_tools, preferences=preferences)
             data["sources"] = sources + data.get("sources", [])
             return AskResponse(**{**data, "source_type": "agent"})
         except ToolNotSupportedError:
@@ -170,12 +172,12 @@ async def _answer(req: AskRequest, manager: ConnectorManager,
         raise ProviderResponseError("Agent tools are disabled or unavailable.")
 
     if req.web_search:
-        turns = [*history, {"role": "user", "content": req.question}]
+        turns = [{"role": "system", "content": RESPONSE_STYLE + preferences}, *history, {"role": "user", "content": req.question}]
         answer = await asyncio.to_thread(create_llm().generate, turns)
         return AskResponse(answer=answer, sources=sources, source_type="web")
     if activity:
         activity("Searching indexed documents")
-    return await asyncio.to_thread(_run_legacy, req.question, req.assistant_name)
+    return await asyncio.to_thread(_run_legacy, req.question, req.assistant_name, preferences)
 
 
 @router.post("/ask", response_model=AskResponse)

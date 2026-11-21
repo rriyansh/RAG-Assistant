@@ -29,8 +29,8 @@ export default function HomePage() {
     reopenOnboarding,
   } = profileState;
 
-  const chat = useChat(assistantName, "chat");
-  const agent = useChat(assistantName, "agent");
+  const chat = useChat(assistantName, "chat", profile, hydrated);
+  const agent = useChat(assistantName, "agent", profile, hydrated);
   const {
     messages, activity,
     isLoading,
@@ -56,9 +56,27 @@ export default function HomePage() {
   }, []);
 
 
+  React.useEffect(() => {
+    if (!hydrated) return;
+    const scheme = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => {
+      document.documentElement.dataset.theme = !profile.theme || profile.theme === "system"
+        ? (scheme.matches ? "dark" : "light") : profile.theme;
+    };
+    apply();
+    scheme.addEventListener("change", apply);
+    return () => scheme.removeEventListener("change", apply);
+  }, [hydrated, profile.theme]);
+
+  React.useEffect(() => {
+    if (!hydrated) return;
+    const enabled = Boolean(profile.webSearchDefault);
+    setSearch({chat:enabled, agent:enabled});
+  }, [hydrated, profile.webSearchDefault]);
   const handleSend = (text: string) => {
     const query = text.trim();
     if (!query) return;
+    if (profile.haptics) navigator.vibrate?.(20);
     sendMessage(query, [], undefined, mode === "agent" ? attachment?.id : undefined, search[mode]);
   };
 
@@ -79,7 +97,7 @@ export default function HomePage() {
   return (
     <div
       style={{ fontFamily: activeFontFamily, fontSize: 18, fontWeight: 400, fontOpticalSizing: "auto" }}
-      className="relative flex h-[100dvh] flex-col bg-[#0c0c0e] text-[#f4f3f8] antialiased"
+      className="reso-workspace relative flex h-[100dvh] flex-col bg-[#0c0c0e] text-[#f4f3f8] antialiased"
     >
       <div
         className={`flex h-full flex-col transition-all duration-300 ${
@@ -90,7 +108,7 @@ export default function HomePage() {
       >
         <Header
             canClear={messages.length > 0}
-            onOpenSettings={() => { openConnectors(false); setSettingsOpen(true); }}
+            onOpenSettings={() => { openConnectors(profile.actionButton === "connectors"); setSettingsOpen(true); }}
             onClear={clearMessages}
           />
 
@@ -121,7 +139,7 @@ export default function HomePage() {
           </div>
         </main>
 
-        <div className="border-t border-[#e6e4f0]/10 bg-[#0c0c0e] px-3 py-2 sm:px-4">
+        <div className="reso-composer-bar border-t border-[#e6e4f0]/10 bg-[#0c0c0e] px-3 py-2 sm:px-4">
           <div className="mx-auto w-full max-w-3xl">
             <div className="mb-2 flex flex-wrap items-center gap-1" aria-label="Conversation mode">
               {(["chat", "agent"] as const).map(item => <button key={item} type="button"
@@ -138,6 +156,7 @@ export default function HomePage() {
               {mode === "agent" && attachment && <button disabled={isLoading} onClick={() => attach(undefined)} aria-label={`Remove ${attachment.name}`}>{attachment.name} ×</button>}
               <button disabled={isLoading} aria-pressed={search[mode]} onClick={() => setSearch({...search,[mode]:!search[mode]})} className="rounded-full px-3 py-2 aria-pressed:bg-white aria-pressed:text-black">Web search</button>
             </div>
+            {profile.workspaceShortcut && <button type="button" className="mb-2 rounded-full border border-white/20 px-3 py-2 text-xs" onClick={() => { openConnectors(profile.actionButton === "connectors"); setSettingsOpen(true); }}>Workspace shortcut</button>}
             <ChatComposer key={mode} draft={mode === "agent" ? connectorDraft : undefined} models={[]} mode={mode} onSubmit={handleSend} disabled={isLoading} />
           </div>
         </div>

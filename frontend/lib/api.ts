@@ -28,11 +28,11 @@ export async function askQuestion(
   mode: ApiMode = "agent",
   onActivity?: (label: string) => void,
   history: { role: "user" | "assistant"; content: string }[] = [],
-  connectorId?: string, webSearch = false,
+  connectorId?: string, webSearch = false, tone?: string, instructions?: string,
 ): Promise<AskApiResponse> {
   const res = await fetch("/api/ask", {
     method: "POST", headers: { "Content-Type": "application/json", "X-Reso-Mode": mode },
-    body: JSON.stringify({question, assistant_name: assistantName, consent, history, connector_id: connectorId, web_search: webSearch, stream: true}),
+    body: JSON.stringify({question, assistant_name: assistantName, consent, history, connector_id: connectorId, web_search: webSearch, tone, instructions, stream: true}),
   });
   if (!res.ok) await handleJson(res);
   if (!res.body) throw new Error("The workspace backend returned no response.");

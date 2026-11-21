@@ -91,6 +91,7 @@ async def run_agent(
     on_activity=None,
     history: list[dict[str, str]] | None = None,
     allowed_tools: set[str] | None = None,
+    preferences: str = "",
 ) -> dict[str, Any]:
     approved_set = set(consent or [])
     llm = create_llm()
@@ -109,7 +110,7 @@ async def run_agent(
     )
 
     messages: list[dict[str, Any]] = [
-        {"role": "system", "content": system_prompt + RESPONSE_STYLE},
+        {"role": "system", "content": system_prompt + RESPONSE_STYLE + preferences},
         *(history or []),
         {"role": "user", "content": question},
     ]

@@ -8,7 +8,8 @@ def generate_answer(
     chunks: list[RetrievedChunk],
     assistant_name: str = "RAG Assistant",
     temperature: float = 0.2,
+    preferences: str = "",
 ) -> str:
     llm = create_llm()
-    messages = build_prompt(question, chunks, assistant_name)
+    messages = build_prompt(question, chunks, assistant_name, preferences)
     return llm.generate(messages, temperature=temperature)

@@ -551,3 +551,27 @@ img[src="/public.svg"], img[src="/icon.svg"] { filter: invert(1); }
   .settings-overlay:has([data-settings-home]) { align-items:flex-end; padding:0; }
   .settings-dialog[data-settings-home] { height:min(94dvh,820px); border-radius:28px 28px 0 0; padding-bottom:env(safe-area-inset-bottom); }
 }
+
+.preferences-panel { display:grid; gap:14px; max-width:42rem; margin-inline:auto; }
+.preferences-panel:empty { display:none; }
+.preferences-panel h3 { font-size:1.25rem; font-weight:650; }
+.preferences-panel label { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+.preferences-panel :is(input:not([type=checkbox]), select, textarea, button) { border:1px solid #62616d; color:inherit; background:var(--prefs-control,#232329); border-radius:10px; padding:8px 12px; }
+.preferences-panel textarea { width:100%; }
+.preferences-panel button:disabled { opacity:.6; }
+html[data-theme="light"] .settings-dialog[data-settings-home],
+html[data-theme="light"] .settings-dialog[data-connector-sheet] {
+  color-scheme:light; --home-bg:#f0eef4; --home-row:#fcfbfe; --home-ink:#17151c; --home-muted:#56515d;
+  --sheet:#faf9fc; --ink:#19181d; --secondary:#49474f; --line:#ceccd4; --control:#e6e4ec;
+}
+html[data-theme="dark"] .settings-dialog[data-settings-home],
+html[data-theme="dark"] .settings-dialog[data-connector-sheet] {
+  color-scheme:dark; --home-bg:#17171b; --home-row:#232329; --home-ink:#faf9fc; --home-muted:#c8c6cf;
+  --sheet:#17171b; --ink:#faf9fc; --secondary:#cbc9d0; --line:#45444b; --control:#35343d;
+}
+html[data-theme="light"] :is(.reso-workspace,.reso-composer-bar) { background:#f3f0f7; color:#1b1820; }
+html[data-theme="light"] .reso-workspace :is(.chat-welcome,.chat-welcome p,.reso-message) { color:#1b1820; }
+html[data-theme="light"] .reso-workspace .reso-message :is([class*="text-[#f4f3f8]"],[class*="text-[#faf9fc]"],[class*="text-[#c6c4cf]"]) { color:#292331; }
+html[data-theme="light"] .reso-workspace .reso-message :is(pre,code), html[data-theme="light"] .reso-workspace .reso-message details > div { color:#f4f3f8; background:#232029; }
+html[data-theme="light"] .chat-welcome img[src="/public.svg"],
+html[data-theme="light"] .reso-message img[src="/public.svg"] { filter:none; }

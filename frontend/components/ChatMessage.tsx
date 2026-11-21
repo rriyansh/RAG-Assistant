@@ -111,7 +111,7 @@ export function ChatMessage({
 
   return (
     <div
-      className={`flex w-full items-start gap-2.5 py-2 ${
+      className={`reso-message flex w-full items-start gap-2.5 py-2 ${
         isUser ? "justify-end" : "justify-start"
       }`}
     >

@@ -11,6 +11,17 @@ export type FontId =
   | "source-sans-3";
 
 export interface UserProfile {
+  username?: string;
+  theme?: "system" | "light" | "dark";
+  haptics?: boolean;
+  notifications?: boolean;
+  workspaceShortcut?: boolean;
+  actionButton?: "settings" | "connectors";
+  tone?: "formal" | "casual" | "technical";
+  instructions?: string;
+  webSearchDefault?: boolean;
+  retention?: "30" | "90" | "forever";
+  rememberChats?: boolean;
   name: string;
   assistantName: string;
   headline: string;
@@ -100,6 +111,7 @@ export interface ChatMessageItem {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
+  createdAt?: number;
   sources?: SourceItem[];
   sourceType?: string;
   toolCalls?: ToolCall[];

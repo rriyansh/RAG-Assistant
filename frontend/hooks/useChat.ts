@@ -1,15 +1,37 @@
 // hooks/useChat.ts
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { askQuestion } from "../lib/api";
-import { ApiMode, ChatMessageItem, PendingConsent, ToolCall } from "../lib/types";
+import { ApiMode, ChatMessageItem, PendingConsent, ToolCall, UserProfile } from "../lib/types";
 
-export function useChat(assistantName: string = "Assistant", mode: ApiMode = "agent") {
+export function useChat(assistantName: string = "Assistant", mode: ApiMode = "agent", profile?: UserProfile, hydrated = true) {
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [activity, setActivity] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const [storageReady, setStorageReady] = useState(false);
+  const storageKey = `reso-conversation-${mode}`;
+  const retentionMs = profile?.retention === "forever" ? Infinity : Number(profile?.retention ?? 30) * 86400000;
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) ?? "[]") as ChatMessageItem[];
+      if (profile?.rememberChats && Array.isArray(saved)) setMessages(current => current.length ? current :
+        saved.filter(message => message.createdAt && Date.now() - message.createdAt < retentionMs));
+    } catch {}
+    setStorageReady(true);
+  }, [hydrated, storageKey, profile?.rememberChats, retentionMs]);
+  useEffect(() => {
+    if (!storageReady) return;
+    try {
+      if (!profile?.rememberChats) localStorage.removeItem(storageKey);
+      else localStorage.setItem(storageKey, JSON.stringify(messages
+        .filter(message => message.createdAt && Date.now() - message.createdAt < retentionMs)
+        .map(({id, role, content, timestamp, createdAt}) => ({id, role, content, timestamp, createdAt}))));
+    } catch {}
+  }, [storageReady, storageKey, messages, profile?.rememberChats, retentionMs]);
 
   const sendMessage = useCallback(
     async (
@@ -29,6 +51,7 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
           id: `user-${Date.now()}`,
           role: "user",
           content: trimmed,
+          createdAt: Date.now(),
           timestamp: new Date().toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
@@ -44,8 +67,11 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
         }));
         const response = await askQuestion(
           trimmed, assistantName, consent, mode,
-          label => setActivity(prev => [...prev, label]), history, connectorId, webSearch,
+          label => setActivity(prev => [...prev, label]), history, connectorId, webSearch, profile?.tone, profile?.instructions,
         );
+        if (profile?.notifications && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
+          try { new Notification("ResoAgent reply ready"); } catch {}
+        }
         const toolCalls: ToolCall[] = response.tool_calls || [];
         const pendingConsentList: PendingConsent[] = toolCalls.flatMap(call =>
           call.status === "pending" && call.approval
@@ -56,6 +82,7 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
           id: replaceMessageId || `assistant-${Date.now()}`,
           role: "assistant",
           content: response.answer,
+          createdAt: Date.now(),
           timestamp: new Date().toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
@@ -84,6 +111,7 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
           id: replaceMessageId || `assistant-err-${Date.now()}`,
           role: "assistant",
           content: `Error: ${errMsg}`,
+          createdAt: Date.now(),
           timestamp: new Date().toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
@@ -98,7 +126,7 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
         setIsLoading(false);
       }
     },
-    [assistantName, mode, messages]
+    [assistantName, mode, messages, profile?.tone, profile?.instructions, profile?.notifications]
   );
 
   const approveToolConsent = useCallback(

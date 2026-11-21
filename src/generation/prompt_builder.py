@@ -28,6 +28,7 @@ def build_prompt(
     question: str,
     chunks: list[RetrievedChunk],
     assistant_name: str = "RAG Assistant",
+    preferences: str = "",
 ) -> list[dict]:
     if not chunks:
         context = "<context>\n(empty — no relevant sources found)\n</context>"
@@ -47,6 +48,6 @@ def build_prompt(
         "Answer now, citing each fact."
     )
     return [
-        {"role": "system", "content": SYSTEM_TEMPLATE.format(assistant_name=assistant_name) + RESPONSE_STYLE},
+        {"role": "system", "content": SYSTEM_TEMPLATE.format(assistant_name=assistant_name) + RESPONSE_STYLE + preferences},
         {"role": "user", "content": user_message},
     ]
