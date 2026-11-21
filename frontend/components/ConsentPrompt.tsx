@@ -39,7 +39,7 @@ export function ConsentPrompt({
             <button
               type="button"
               disabled={disabled}
-              onClick={() => onApprove(pending.name)}
+              onClick={() => onApprove(pending.approval)}
               className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 font-medium text-white hover:bg-emerald-500 disabled:opacity-50 transition-colors"
             >
               <Check className="h-3.5 w-3.5" />
@@ -48,7 +48,7 @@ export function ConsentPrompt({
             <button
               type="button"
               disabled={disabled}
-              onClick={() => onDeny(pending.name)}
+              onClick={() => onDeny(pending.approval)}
               className="inline-flex items-center gap-1.5 rounded-md bg-slate-800 px-3 py-1.5 font-medium text-slate-200 hover:bg-rose-600 hover:text-white disabled:opacity-50 transition-colors"
             >
               <X className="h-3.5 w-3.5" />

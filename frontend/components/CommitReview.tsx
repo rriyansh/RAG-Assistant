@@ -23,6 +23,8 @@ export function CommitReview({ review }: { review: FileReview }) {
   }
   return <section className="my-3 min-w-0 space-y-2 border-y border-white/15 py-3 text-sm">
     <h3 className="font-semibold">Review GitHub change</h3>
+    <code>POST /api/github/commit</code>
+    <details><summary>Exact commit parameters</summary><pre className="overflow-auto">{JSON.stringify(review, null, 2)}</pre></details>
     <p className="break-all">{review.repo} · {review.branch} · {review.path}</p>
     <p>{review.message}</p>
     <pre className="max-h-64 overflow-auto rounded-lg bg-black/30 p-3 text-xs">{review.diff || review.content}</pre>

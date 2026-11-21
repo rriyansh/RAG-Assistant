@@ -9,6 +9,7 @@ from typing import Any, Callable
 
 from fastapi import APIRouter, HTTPException
 
+from src.llm.style import RESPONSE_STYLE
 from src.agent.connectors import ConnectorError, connector_manager
 from src.agent.loop import ToolNotSupportedError, run_agent
 from src.agent.registry import ToolRegistry
@@ -150,7 +151,7 @@ async def _answer(req: AskRequest, manager: ConnectorManager,
     if api_mode.get() == "chat":
         if activity:
             activity("Requesting a chat response")
-        turns = [{"role": "system", "content": f"You are {req.assistant_name}."},
+        turns = [{"role": "system", "content": f"You are {req.assistant_name}." + RESPONSE_STYLE},
                  *history, {"role": "user", "content": req.question}]
         llm = create_llm()
         answer = await asyncio.to_thread(llm.generate, turns)

@@ -212,7 +212,7 @@ export function ChatMessage({
           message.pendingConsent &&
           message.pendingConsent.length > 0 &&
           message.pendingConsent.map((pending) => (
-            <div key={pending.name} className="w-full">
+            <div key={pending.approval} className="w-full">
               <ConsentPrompt
                 pending={pending}
                 assistantName={resolvedAssistantName}

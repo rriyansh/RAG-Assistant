@@ -1,3 +1,4 @@
+from src.llm.style import RESPONSE_STYLE
 from src.retrieval.retriever import RetrievedChunk
 
 SYSTEM_TEMPLATE = (
@@ -46,6 +47,6 @@ def build_prompt(
         "Answer now, citing each fact."
     )
     return [
-        {"role": "system", "content": SYSTEM_TEMPLATE.format(assistant_name=assistant_name)},
+        {"role": "system", "content": SYSTEM_TEMPLATE.format(assistant_name=assistant_name) + RESPONSE_STYLE},
         {"role": "user", "content": user_message},
     ]

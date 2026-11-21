@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import inspect
 import json
 import logging
 import time
 from typing import Any
 
+from src.llm.style import RESPONSE_STYLE
 from src.agent.registry import ToolRegistry, ToolValidationError, validate_against_schema
 from src.llm.factory import create_llm
 from src.llm.provider import ProviderResponseError
@@ -107,7 +109,7 @@ async def run_agent(
     )
 
     messages: list[dict[str, Any]] = [
-        {"role": "system", "content": system_prompt},
+        {"role": "system", "content": system_prompt + RESPONSE_STYLE},
         *(history or []),
         {"role": "user", "content": question},
     ]
@@ -155,14 +157,22 @@ async def run_agent(
         unapproved_tools: list[str] = []
         pending_consent_details: list[dict[str, Any]] = []
 
+        remaining = approved_set.copy()
         for tc in chat_resp.tool_calls:
             spec = registry.get(tc.name) if allowed_tools is None or tc.name in allowed_tools else None
-            if spec and spec.enabled and spec.requires_consent and tc.name not in approved_set:
+            if not spec or not spec.enabled or not spec.requires_consent:
+                continue
+            approval = hashlib.sha256(json.dumps([spec.server_id, tc.name, tc.arguments],
+                sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            if approval in remaining:
+                remaining.remove(approval)
+            else:
                 if tc.name not in unapproved_tools:
                     unapproved_tools.append(tc.name)
                 pending_consent_details.append({"name": tc.name, "args": tc.arguments})
                 recorded_tool_calls.append(
                     {
+                        "approval": approval,
                         "id": tc.id,
                         "name": tc.name,
                         "args": tc.arguments,
@@ -186,6 +196,7 @@ async def run_agent(
                 "status": "awaiting_consent",
             }
 
+        approved_set = remaining
         messages.append(chat_resp.as_message())
 
         for tc in chat_resp.tool_calls:

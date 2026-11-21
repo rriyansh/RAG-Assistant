@@ -37,6 +37,7 @@ export interface FileReview {
   content: string; diff: string; expected_sha: string;
 }
 export interface ToolCall {
+  approval?: string;
   review?: FileReview;
   id: string;
   name: string;
@@ -48,6 +49,7 @@ export interface ToolCall {
 }
 
 export interface PendingConsent {
+  approval: string;
   name: string;
   args: Record<string, unknown>;
 }

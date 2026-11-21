@@ -46,18 +46,9 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
           label => setActivity(prev => [...prev, label]), history, connectorId, webSearch,
         );
         const toolCalls: ToolCall[] = response.tool_calls || [];
-        const pendingNames: string[] = response.pending_consent || [];
-
-        const pendingConsentList: PendingConsent[] = pendingNames.map(
-          (tName) => {
-            const matchingCall = toolCalls.find(
-              (tc) => tc.name === tName && tc.status === "pending"
-            );
-            return {
-              name: tName,
-              args: matchingCall ? matchingCall.args : {},
-            };
-          }
+        const pendingConsentList: PendingConsent[] = toolCalls.flatMap(call =>
+          call.status === "pending" && call.approval
+            ? [{name: call.name, args: call.args, approval: call.approval}] : []
         );
 
         const assistantMessage: ChatMessageItem = {
@@ -127,14 +118,14 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
       prev.map((m) => {
         if (m.id !== messageId) return m;
         const remaining = (m.pendingConsent || []).filter(
-          (p) => p.name !== toolName
+          (p) => p.approval !== toolName
         );
         return {
           ...m,
-          content: `Tool execution of \`${toolName}\` was denied by the user.`,
+          content: "Tool execution was declined.",
           pendingConsent: remaining,
           toolCalls: (m.toolCalls || []).map((tc) =>
-            tc.name === toolName && tc.status === "pending"
+            tc.approval === toolName && tc.status === "pending"
               ? {
                   ...tc,
                   status: "error",

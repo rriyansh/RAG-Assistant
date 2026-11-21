@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class ToolCallSchema(BaseModel):
+    approval: str | None = None
     review: dict[str, Any] | None = None
     id: str = ""
     name: str

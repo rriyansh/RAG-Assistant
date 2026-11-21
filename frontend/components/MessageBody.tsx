@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Lexer, type Token } from "marked";
 
 function CodeBlock({ language, code }: { language: string; code: string }) {
   const [status, setStatus] = useState("Copy code");
@@ -16,19 +17,53 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
   </figure>;
 }
 
+function Diagram({ code }: { code: string }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    const doc = new DOMParser().parseFromString(code, "image/svg+xml");
+    if (doc.documentElement.localName !== "svg" || doc.querySelector("parsererror")) return;
+    const elements = new Set("svg g title desc rect circle ellipse line polyline polygon path text tspan defs marker".split(" "));
+    const attrs = new Set("xmlns viewBox width height x y x1 x2 y1 y2 dx dy cx cy r rx ry d points fill stroke stroke-width stroke-linecap stroke-linejoin opacity transform font-size font-family font-weight text-anchor dominant-baseline id marker-end marker-start markerWidth markerHeight refX refY orient".split(" "));
+    for (const element of doc.querySelectorAll("*")) {
+      if (!elements.has(element.localName)) return;
+      for (const attr of element.attributes) {
+        if (!attrs.has(attr.name) || (/url\s*\(/i.test(attr.value) && !/^url\(#[\w-]+\)$/.test(attr.value))) return;
+      }
+    }
+    const src = URL.createObjectURL(new Blob([code], { type: "image/svg+xml" }));
+    setUrl(src);
+    return () => URL.revokeObjectURL(src);
+  }, [code]);
+  if (!url) return <CodeBlock language="svg" code={code} />;
+  return <figure className="my-3"><img src={url} alt="Diagram from this response" className="max-h-[75vh] w-full rounded bg-white object-contain" />
+    <a download="diagram.svg" href={url} className="text-xs underline">Download SVG</a>
+    <details><summary className="cursor-pointer text-xs">Diagram source</summary><CodeBlock language="svg" code={code} /></details></figure>;
+}
+
+function render(tokens: Token[] = []): ReactNode {
+  return tokens.map((token, key) => {
+    switch (token.type) {
+      case "space": return null;
+      case "br": return <br key={key} />;
+      case "heading": return <h3 key={key} className="mb-1 mt-4 font-bold">{render(token.tokens)}</h3>;
+      case "strong": case "em": return <strong key={key}>{render(token.tokens)}</strong>;
+      case "codespan": return <code key={key} className="rounded bg-white/10 px-1">{token.text}</code>;
+      case "code": return token.lang === "svg" ? <Diagram key={key} code={token.text} /> : <CodeBlock key={key} language={token.lang || "Code"} code={token.text} />;
+      case "paragraph": return <p key={key} className="my-2">{render(token.tokens)}</p>;
+      case "blockquote": return <blockquote key={key} className="my-2 border-l-2 pl-3">{render(token.tokens)}</blockquote>;
+      case "list": {
+        const items = token.items.map((item: {tokens:Token[]}, i:number) => <li key={i}>{render(item.tokens)}</li>);
+        return token.ordered ? <ol key={key} start={Number(token.start)||1} className="list-decimal pl-6">{items}</ol> : <ul key={key} className="list-disc pl-6">{items}</ul>;
+      }
+      case "table": return <div key={key} className="my-3 overflow-auto"><table className="w-full text-left text-sm"><thead><tr>{token.header.map((cell:{tokens:Token[]}, i:number) => <th key={i} className="border-b p-2">{render(cell.tokens)}</th>)}</tr></thead><tbody>{token.rows.map((row:{tokens:Token[]}[], i:number) => <tr key={i}>{row.map((cell,j) => <td key={j} className="border-b border-white/15 p-2">{render(cell.tokens)}</td>)}</tr>)}</tbody></table></div>;
+      case "link": return /^https?:\/\//i.test(token.href) ? <a key={key} className="underline" href={token.href} target="_blank" rel="noreferrer">{render(token.tokens)}</a> : render(token.tokens);
+      case "hr": return <hr key={key} />;
+      default: return "tokens" in token && Array.isArray(token.tokens) ? render(token.tokens) : ("text" in token ? String(token.text) : token.raw);
+    }
+  });
+}
+
 export function MessageBody({ text }: { text: string }) {
-  const nodes = [];
-  const fences = /^ {0,3}(`{3,}|~{3,})([^\r\n]*)\r?\n([\s\S]*?)^ {0,3}\1[ \t]*(?=\r?$)/gm;
-  let cursor = 0;
-  function prose(value: string) {
-    return value.split(/(\*\*[^*\n]+\*\*|`[^`\n]+`)/g).map((part, i) =>
-      part.startsWith("**") && part.endsWith("**") ? <strong key={i}>{part.slice(2,-2)}</strong> :
-      part.startsWith("`") && part.endsWith("`") ? <code key={i} className="rounded bg-white/10 px-1">{part.slice(1,-1)}</code> : part);
-  }
-  for (const match of text.matchAll(fences)) {
-    nodes.push(<span key={'p'+cursor}>{prose(text.slice(cursor, match.index))}</span>);
-    nodes.push(<CodeBlock key={'c'+match.index} language={(match[2] || "").trim()} code={match[3] || ""} />);
-    cursor = match.index! + match[0].length;
-  }
-  return <div className="min-w-0 max-w-full whitespace-pre-wrap">{nodes}{prose(text.slice(cursor))}</div>;
+  const tokens = useMemo(() => Lexer.lex(text, { gfm: true }), [text]);
+  return <div className="min-w-0 max-w-full whitespace-normal">{render(tokens)}</div>;
 }
