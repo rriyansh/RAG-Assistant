@@ -37,10 +37,23 @@ export default function HomePage() {
     sendMessage,
     approveToolConsent,
     denyToolConsent,
-    clearMessages,
+    clearMessages, regenerate,
   } = mode === "chat" ? chat : agent;
 
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
+  const [connectorNotice, setConnectorNotice] = useState("");
+  React.useEffect(() => {
+    const url = new URL(window.location.href);
+    const result = url.searchParams.get("connector");
+    if (!result?.startsWith("github-")) return;
+    setConnectorNotice(result === "github-connected" ? "GitHub connected." :
+      result === "github-unavailable" ? "GitHub sign-in is not configured for this deployment. You can still connect using a token." :
+      "GitHub authorization could not finish. Try connecting again.");
+    openConnectors(true);
+    setSettingsOpen(true);
+    url.searchParams.delete("connector");
+    window.history.replaceState(window.history.state, "", url);
+  }, []);
 
 
   const handleSend = (text: string) => {
@@ -51,7 +64,7 @@ export default function HomePage() {
 
   const showOnboarding = hydrated && !isOnboarded;
   const activeFontFamily =
-    FONT_OPTIONS.find(option => option.id === profile.font)?.family ?? "'Plus Jakarta Sans', sans-serif";
+    FONT_OPTIONS.find(option => option.id === profile.font)?.family ?? "'DM Sans', sans-serif";
   React.useEffect(() => {
     if (hydrated) document.documentElement.dataset.font = profile.font;
   }, [hydrated, profile.font]);
@@ -65,7 +78,7 @@ export default function HomePage() {
 
   return (
     <div
-      style={{ fontFamily: activeFontFamily }}
+      style={{ fontFamily: activeFontFamily, fontSize: 18, fontWeight: 400, fontOpticalSizing: "auto" }}
       className="relative flex h-[100dvh] flex-col bg-[#0c0c0e] text-[#f4f3f8] antialiased"
     >
       <div
@@ -87,7 +100,7 @@ export default function HomePage() {
             {messages.length === 0 ? (
               <section className="chat-welcome">
                 {(profile.assistantLogo ?? DEFAULT_RAG_ASSISTANT_LOGO) && <img className="mx-auto mb-4 h-16 w-16 object-contain" src={profile.assistantLogo ?? DEFAULT_RAG_ASSISTANT_LOGO} width={64} height={64} alt={assistantName} />}
-                <h1>Welcome to RESO AGENT</h1>
+                <h1>Welcome to ResoAgent!</h1>
                 <p>How can I help you?</p>
               </section>
             ) : (
@@ -99,6 +112,7 @@ export default function HomePage() {
                   assistantName={assistantName}
                   isLatestAssistant={index === lastAssistantIndex}
                   isLoading={isLoading}
+                  onRegenerate={regenerate}
                   onApproveConsent={approveToolConsent}
                   onDenyConsent={denyToolConsent}
                 />
@@ -140,6 +154,7 @@ export default function HomePage() {
       <SettingsModal
           conversationMode={mode}
           startInConnectors={startInConnectors}
+          connectorNotice={connectorNotice}
           onUseConnector={(text, conn) => { attach(conn); setMode("agent"); setConnectorDraft({text}); setSettingsOpen(false); }}
           onOpenOnboarding={() => { setSettingsOpen(false); reopenOnboarding(); }}
           profileState={profileState}

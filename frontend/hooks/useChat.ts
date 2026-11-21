@@ -38,11 +38,12 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
       }
 
       try {
-        const history = replaceMessageId ? [] : messages.slice(-6).map(({role, content}) => ({
+        const prior = replaceMessageId ? messages.slice(0, Math.max(0, messages.findIndex(m => m.id === replaceMessageId) - 1)) : messages;
+        const history = prior.slice(-6).map(({role, content}) => ({
           role, content: content.slice(-4000),
         }));
         const response = await askQuestion(
-          trimmed, assistantName, consent, replaceMessageId ? "agent" : mode,
+          trimmed, assistantName, consent, mode,
           label => setActivity(prev => [...prev, label]), history, connectorId, webSearch,
         );
         const toolCalls: ToolCall[] = response.tool_calls || [];
@@ -149,6 +150,11 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
     isLoading,
     error,
     sendMessage,
+    regenerate: (id: string) => {
+      const last = messages.at(-1);
+      if (last?.id === id && last.originalQuestion && !isLoading)
+        void sendMessage(last.originalQuestion, [], id, last.connectorId, last.webSearch);
+    },
     approveToolConsent,
     denyToolConsent,
     clearMessages,

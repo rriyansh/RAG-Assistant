@@ -51,6 +51,7 @@ export interface SettingsModalProps {
   onClose: () => void;
   onOpenOnboarding: () => void;
   startInConnectors: boolean;
+  connectorNotice?: string;
   onUseConnector: (prompt: string, connector: ConnectorInfo) => void;
   profileState: ReturnType<typeof useProfile>;
 }
@@ -160,8 +161,9 @@ function ProviderBrandLogo({ provider }: { provider: string }) {
   return <img src={`/providers/${icon}.svg`} alt="" className="h-6 w-6 shrink-0 rounded bg-white p-0.5 object-contain" />;
 }
 
-export function SettingsModal({ startInConnectors, conversationMode, isOpen, open, onClose, profileState, onUseConnector, onOpenOnboarding }: SettingsModalProps) {
+export function SettingsModal({ startInConnectors, connectorNotice, conversationMode, isOpen, open, onClose, profileState, onUseConnector, onOpenOnboarding }: SettingsModalProps) {
   const modalVisible = Boolean(isOpen ?? open);
+  const [settingsQuery, setSettingsQuery] = useState("");
   const [activeTab, setActiveTab] = useState<TabKey | null>(null);
   const {
     profile,
@@ -433,15 +435,16 @@ export function SettingsModal({ startInConnectors, conversationMode, isOpen, ope
       }}
     >
       <div
+        data-settings-home={activeTab === null ? "" : undefined}
         data-connector-sheet={activeTab === "connectors" ? "" : undefined}
         role="dialog"
         aria-modal="true" aria-labelledby="workspace-settings-title"
         className="settings-dialog flex h-[min(94dvh,820px)] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-[#e6e4f0]/15 bg-[#141417] text-[#f4f3f8] shadow-2xl"
       >
-        <div className="flex items-center justify-between border-b border-[#e6e4f0]/10 px-5 py-4 sm:px-6">
+        <div className="settings-heading flex items-center justify-between border-b border-[#e6e4f0]/10 px-5 py-4 sm:px-6">
           {activeTab === "connectors" && <button type="button" className="sheet-back" aria-label="Back to settings" onClick={() => setActiveTab(null)}>‹</button>}
           <h2 id="workspace-settings-title" className="text-base font-semibold tracking-tight">
-            {activeTab === "connectors" ? "Add connector" : "Workspace settings"}
+            {activeTab === "connectors" ? "Add connector" : "Settings"}
           </h2>
           <button
             type="button" aria-label="Close settings"
@@ -453,17 +456,21 @@ export function SettingsModal({ startInConnectors, conversationMode, isOpen, ope
         </div>
 
         <div key={activeTab ?? "menu"} className="settings-content min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
-          {activeTab === null ? <nav className="settings-menu" aria-label="Workspace settings">
-            <button type="button" onClick={() => setActiveTab("profile")}>
-              <img src={currentAvatar} alt="" width={44} height={44} className="rounded-full" />
-              <span><strong>{profile.name || "Your profile"}</strong><small>Edit profile</small></span>
-            </button>
+          {activeTab === null ? <nav aria-label="Workspace settings" className="space-y-5">
+            {!settingsQuery && <div className="settings-group"><button type="button" onClick={() => setActiveTab("profile")}>
+              <img src={currentAvatar} alt="" width={44} height={44} className="my-3 rounded-full" />
+              <span><strong>{profile.name || "Your profile"}</strong><small className="block opacity-75">Edit profile</small></span><span aria-hidden="true" className="ml-auto">›</span>
+            </button></div>}
             {([
-              ["connectors", "Connectors", Plug], ["keys", "API Keys", Key],
-              ["model", "Model", Sliders], ["security", "Security & Legal", Shield],
-            ] as const).map(([id, title, Icon]) => <button key={id} type="button" onClick={() => setActiveTab(id)}>
-              <Icon size={19} />{title}<span aria-hidden="true" className="ml-auto">›</span>
-            </button>)}
+              ["App", [["profile", "Appearance", Sliders], ["security", "Security & Legal", Shield]]],
+              ["Agent", [["profile", "Customize Reso", ImagePlus], ["connectors", "Connectors", Plug], ["keys", "API Keys", Key], ["model", "Model", Sliders]]],
+            ] as const).map(([group, rows]) => {
+              const matches = rows.filter(([, title]) => title.toLowerCase().includes(settingsQuery.trim().toLowerCase()));
+              return matches.length > 0 && <section key={group}><h3 className="mb-2 pl-3 text-sm font-semibold opacity-75">{group}</h3><div className="settings-group">
+                {matches.map(([id, title, Icon]) => <button key={title} type="button" onClick={() => setActiveTab(id)}><Icon size={19} aria-hidden="true" />{title}<span aria-hidden="true" className="ml-auto">›</span></button>)}
+              </div></section>;
+            })}
+            <div className="sticky bottom-0 py-2"><input type="search" aria-label="Search settings" placeholder="Search settings" value={settingsQuery} onChange={e => setSettingsQuery(e.target.value)} className="settings-home-search w-full rounded-full border border-current/20 px-5 py-3 shadow" /></div>
           </nav> : activeTab !== "connectors" && <button className="mb-4 text-sm text-gray-300" type="button" onClick={() => setActiveTab(null)}>← Settings</button>}
           {activeTab === "profile" && (
             <div className="mx-auto max-w-3xl space-y-6">
@@ -676,6 +683,7 @@ export function SettingsModal({ startInConnectors, conversationMode, isOpen, ope
             </div>
           )}
 
+          {activeTab === "connectors" && connectorNotice && <p role="status" className="mb-3 text-sm">{connectorNotice}</p>}
           {activeTab === "connectors" && (
             <div className="connector-catalog space-y-6">
               <input type="search" aria-label="Search connectors" placeholder="Search connectors" value={connectorSearch}
@@ -769,6 +777,7 @@ export function SettingsModal({ startInConnectors, conversationMode, isOpen, ope
                               </div>
                             </div>
 
+                            {conn.id === "github" && !conn.connected && <a href="/api/connectors/github/start" className="mt-2 block text-sm underline underline-offset-4">Sign in with GitHub</a>}
                             {conn.connected && conn.enabled && <button type="button"
                               className="mt-3 self-start text-sm font-semibold underline underline-offset-4"
                               onClick={() => onUseConnector(connectorPrompt(conn), conn)}>

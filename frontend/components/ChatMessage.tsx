@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Check, Copy, Download, ExternalLink, FileCode2, FileText, Globe } from "lucide-react";
+import { Check, Copy, RotateCw, Download, ExternalLink, FileText, Globe } from "lucide-react";
 import { ChatMessageItem, UserProfile } from "../lib/types";
 import {
   DEFAULT_RAG_ASSISTANT_LOGO,
@@ -21,6 +21,7 @@ interface ChatMessageProps {
   onApproveConsent?: (messageId: string, toolName: string) => void;
   onDenyConsent?: (messageId: string, toolName: string) => void;
   isLoading?: boolean;
+  onRegenerate?: (id: string) => void;
 }
 
 const LANG_EXTENSION_MAP: Record<string, string> = {
@@ -85,7 +86,7 @@ export function ChatMessage({
   isLatestAssistant = false,
   onApproveConsent,
   onDenyConsent,
-  isLoading = false,
+  isLoading = false, onRegenerate,
 }: ChatMessageProps) {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
@@ -139,65 +140,22 @@ export function ChatMessage({
           </span>
         </div>
 
-        <div className="max-w-full whitespace-pre-wrap text-[15px] leading-6 text-[#faf9fc] [overflow-wrap:anywhere]">
-          <MessageBody text={message.content} />
+        <div className="max-w-full whitespace-pre-wrap text-[18px] leading-[1.7] text-[#faf9fc] [overflow-wrap:anywhere]">
+          <div key={message.content} className={!isUser && isLatestAssistant ? "reply-reveal" : undefined}><MessageBody text={message.content} /></div>
         </div>
 
         {!isUser && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-            <button
-              type="button"
-              onClick={handleCopyText}
-              className="inline-flex items-center gap-1 px-1 py-1 text-[11px] text-[#e6e4f0]/80 transition hover:border-[#f4f3f8]/40 hover:text-[#f4f3f8]"
-            >
-              {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-              {copied ? "Copied" : "Copy"}
+          <div className="flex items-center gap-2 text-[#c6c4cf]">
+            <button type="button" title={copied ? "Copied" : "Copy reply"} aria-label={copied ? "Copied" : "Copy reply"} onClick={handleCopyText} className="p-2">
+              {copied ? <Check size={15} /> : <Copy size={15} />}
             </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                triggerFileDownload(`response_${message.id}.pdf`, message.content, "pdf")
-              }
-              className="inline-flex items-center gap-1 px-1 py-1 text-[11px] text-[#e6e4f0]/80 transition hover:border-[#f4f3f8]/40 hover:text-[#f4f3f8]"
-            >
-              <Download className="h-3 w-3" />
-              PDF
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                triggerFileDownload(`response_${message.id}.doc`, message.content, "doc")
-              }
-              className="inline-flex items-center gap-1 px-1 py-1 text-[11px] text-[#e6e4f0]/80 transition hover:border-[#f4f3f8]/40 hover:text-[#f4f3f8]"
-            >
-              <Download className="h-3 w-3" />
-              DOC
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                triggerFileDownload(`response_${message.id}.txt`, message.content, "raw")
-              }
-              className="inline-flex items-center gap-1 px-1 py-1 text-[11px] text-[#e6e4f0]/80 transition hover:border-[#f4f3f8]/40 hover:text-[#f4f3f8]"
-            >
-              <Download className="h-3 w-3" />
-              TXT
-            </button>
-
-            {extractedFiles.map((file, idx) => (
-              <button
-                key={`${file.filename}-${idx}`}
-                type="button"
-                onClick={() => triggerFileDownload(file.filename, file.code, "raw")}
-                className="inline-flex items-center gap-1 rounded-lg border border-[#f4f3f8]/30 bg-[#1c1c21] px-2.5 py-1 text-[11px] font-medium text-[#f4f3f8] transition hover:bg-[#f4f3f8] hover:text-[#0c0c0e]"
-              >
-                <FileCode2 className="h-3 w-3" />
-                Download {file.filename}
-              </button>
-            ))}
+            {isLatestAssistant && message.originalQuestion && <button type="button" title="Regenerate reply" aria-label="Regenerate reply" disabled={isLoading} className="p-2" onClick={() => onRegenerate?.(message.id)}><RotateCw size={15} /></button>}
+            <details className="relative"><summary aria-label="Download reply" title="Download reply" className="list-none p-2"><Download size={15} /></summary>
+              <div className="absolute bottom-full z-10 min-w-28 rounded-xl border border-white/15 bg-[#17171b] p-2 text-sm">
+              {(["pdf", "doc", "txt"] as const).map(ext => <button key={ext} type="button" className="block px-2 py-1" onClick={() => triggerFileDownload(`response_${message.id}.${ext}`, message.content, ext === "txt" ? "raw" : ext)}>{ext.toUpperCase()}</button>)}
+              {extractedFiles.map((file, idx) => <button key={idx} type="button" className="block px-2 py-1" onClick={() => triggerFileDownload(file.filename, file.code, "raw")}>{file.filename}</button>)}
+              </div>
+            </details>
           </div>
         )}
 

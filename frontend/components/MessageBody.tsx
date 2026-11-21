@@ -49,7 +49,7 @@ function render(tokens: Token[] = []): ReactNode {
       case "strong": case "em": return <strong key={key}>{render(token.tokens)}</strong>;
       case "codespan": return <code key={key} className="rounded bg-white/10 px-1">{token.text}</code>;
       case "code": return token.lang === "svg" ? <Diagram key={key} code={token.text} /> : <CodeBlock key={key} language={token.lang || "Code"} code={token.text} />;
-      case "paragraph": return <p key={key} className="my-2">{render(token.tokens)}</p>;
+      case "paragraph": return <p key={key} className="my-3 first:mt-0 last:mb-0">{render(token.tokens)}</p>;
       case "blockquote": return <blockquote key={key} className="my-2 border-l-2 pl-3">{render(token.tokens)}</blockquote>;
       case "list": {
         const items = token.items.map((item: {tokens:Token[]}, i:number) => <li key={i}>{render(item.tokens)}</li>);
