@@ -1,3 +1,4 @@
+import type { Locale } from "./locales";
 export type FontId =
   | "open-sans"
   | "system"
@@ -11,6 +12,7 @@ export type FontId =
   | "source-sans-3";
 
 export interface UserProfile {
+  locale?: Locale;
   username?: string;
   theme?: "system" | "light" | "dark";
   haptics?: boolean;

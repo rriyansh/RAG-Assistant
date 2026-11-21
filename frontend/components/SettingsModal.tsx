@@ -1,12 +1,13 @@
 "use client";
 
 
+import { languages, ui, type Locale } from "../lib/locales";
 import directory from "../lib/connectorDirectory.json";
 import { WorkspacePolicy } from "./WorkspacePolicy";
 import { FONT_OPTIONS } from "../lib/fonts";
 import React, { useEffect, useState } from "react";
 import {
-  Bell, Globe, LayoutGrid, Monitor, Search, Smartphone, Sparkles, Zap, Database, Brain,
+  ArrowLeft, ChevronRight, Bell, Globe, LayoutGrid, Monitor, Search, Smartphone, Sparkles, Zap, Database, Brain,
   Check,
   ImagePlus,
   Key,
@@ -165,7 +166,7 @@ function ProviderBrandLogo({ provider }: { provider: string }) {
 export function SettingsModal({ startInConnectors, connectorNotice, conversationMode, isOpen, open, onClose, profileState, onUseConnector, onOpenOnboarding }: SettingsModalProps) {
   const modalVisible = Boolean(isOpen ?? open);
   const [settingsQuery, setSettingsQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<TabKey | null>(null);
+  const [activeTab, showTab] = useState<TabKey | null>(null);
   const {
     profile,
     update: updateProfile,
@@ -173,6 +174,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
     setAvatarFromFile,
     setAssistantLogoFromFile,
   } = profileState;
+  const labels = ui(profile.locale);
   const [profileError, setProfileError] = useState<string | null>(null);
 
   const [hostedReady, setHostedReady] = useState(false);
@@ -197,7 +199,37 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
     top_p: 0.9,
   });
 
-  useEffect(() => { setActiveTab(modalVisible && startInConnectors ? "connectors" : null); }, [modalVisible, startInConnectors]);
+  function setActiveTab(tab: TabKey | null) {
+    if (tab === activeTab) return;
+    if (tab === null && history.state?.resoSettingsDepth > 1) { history.back(); return; }
+    const depth = Number(history.state?.resoSettingsDepth || 1) + 1;
+    history.pushState({ ...history.state, resoSettingsDepth: depth, resoSettingsTab: tab }, "");
+    showTab(tab);
+  }
+  function closeSheet() {
+    const depth = Number(history.state?.resoSettingsDepth || 0);
+    if (depth) history.go(-depth);
+    else onClose();
+  }
+  const closeRef = React.useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    if (!modalVisible) {
+      showTab(null);
+      const depth = Number(history.state?.resoSettingsDepth || 0);
+      if (depth) history.go(-depth);
+      return;
+    }
+    if (!history.state?.resoSettingsDepth) history.pushState({ ...history.state, resoSettingsDepth: 1, resoSettingsTab: null }, "");
+    if (startInConnectors && history.state?.resoSettingsDepth === 1) history.pushState({ ...history.state, resoSettingsDepth: 2, resoSettingsTab: "connectors" }, "");
+    showTab(startInConnectors ? "connectors" : null);
+    const pop = (event: PopStateEvent) => {
+      if (!event.state?.resoSettingsDepth) closeRef.current();
+      else showTab(event.state.resoSettingsTab ?? null);
+    };
+    window.addEventListener("popstate", pop);
+    return () => window.removeEventListener("popstate", pop);
+  }, [modalVisible, startInConnectors]);
   const [connectorSearch, setConnectorSearch] = useState("");
   const [catalogUnavailable, setCatalogUnavailable] = useState(false);
   const [connectors, setConnectors] = useState<ConnectorInfo[]>(() => directory.map(([id, name, category, description]) => ({
@@ -432,7 +464,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
     <div
       className="settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-[#0c0c0e]/80 p-2 backdrop-blur-md sm:p-5"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (event.target === event.currentTarget) closeSheet();
       }}
     >
       <div
@@ -443,13 +475,13 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
         className="settings-dialog flex h-[min(94dvh,820px)] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-[#e6e4f0]/15 bg-[#141417] text-[#f4f3f8] shadow-2xl"
       >
         <div className="settings-heading flex items-center justify-between border-b border-[#e6e4f0]/10 px-5 py-4 sm:px-6">
-          {activeTab === "connectors" && <button type="button" className="sheet-back" aria-label="Back to settings" onClick={() => setActiveTab(null)}>‹</button>}
+          {activeTab && <button type="button" className="sheet-back" aria-label="Previous settings page" onClick={() => history.back()}><ArrowLeft size={20} /></button>}
           <h2 id="workspace-settings-title" className="text-base font-semibold tracking-tight">
-            {activeTab === "connectors" ? "Add connector" : "Settings"}
+            {activeTab === "connectors" ? "Add connector" : labels.settings}
           </h2>
           <button
             type="button" aria-label="Close settings"
-            onClick={onClose}
+            onClick={closeSheet}
             className="rounded-xl border border-[#e6e4f0]/15 p-1.5 text-[#e6e4f0]/70 transition hover:bg-[#1c1c21] hover:text-[#f4f3f8]"
           >
             <X className="h-4 w-4" />
@@ -460,20 +492,20 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
           {activeTab === null ? <nav aria-label="Workspace settings" className="space-y-5">
             {!settingsQuery && <div className="settings-group"><button type="button" onClick={() => setActiveTab("profile")}>
               <img src={currentAvatar} alt="" width={44} height={44} className="my-3 rounded-full" />
-              <span><strong>{profile.name || "Your profile"}</strong><small className="block opacity-75">{profile.username ? `@${profile.username}` : "Edit profile"}</small></span><span aria-hidden="true" className="ml-auto">›</span>
+              <span><strong>{profile.name || "Your profile"}</strong><small className="block opacity-75">{profile.username ? `@${profile.username}` : "Edit profile"}</small></span><ChevronRight aria-hidden size={17} className="ml-auto" />
             </button></div>}
             {([
               ["Subscription", [["premium", "Premium", Sparkles]]],
-              ["App", [["appearance", "Appearance", Monitor], ["haptics", "Haptics", Smartphone], ["notifications", "Notifications", Bell], ["widget", "Widget", LayoutGrid], ["action", "Configure Action Button", Zap], ["language", "App Language", Globe]]],
+              ["App", [["appearance", "Appearance", Monitor], ["haptics", "Haptics", Smartphone], ["notifications", "Notifications", Bell], ["widget", "Widget", LayoutGrid], ["action", "Configure Action Button", Zap], ["language", labels.appLanguage, Globe]]],
               ["AI Assistant", [["customize", "Customize Assistant", Sliders], ["tools", "Connectors & Tools", Plug], ["behavior", "Behavior & Autonomy", Brain], ["privacy", "Privacy & Safety", Shield], ["memory", "Data & Memory", Database], ["keys", "API Keys", Key], ["model", "Model", Sliders]]],
             ] as const).map(([group, rows]) => {
               const matches = rows.filter(([, title]) => title.toLowerCase().includes(settingsQuery.trim().toLowerCase()));
               return matches.length > 0 && <section key={group}><h3 className="mb-2 pl-3 text-sm font-semibold opacity-75">{group}</h3><div className="settings-group">
-                {matches.map(([id, title, Icon]) => <button key={title} type="button" onClick={() => setActiveTab(id)}><Icon size={19} aria-hidden="true" />{title}<span aria-hidden="true" className="ml-auto">›</span></button>)}
+                {matches.map(([id, title, Icon]) => <button key={title} type="button" onClick={() => setActiveTab(id)}><Icon size={19} aria-hidden="true" />{title}<ChevronRight aria-hidden size={17} className="ml-auto" /></button>)}
               </div></section>;
             })}
-            <div className="sticky bottom-0 py-2"><Search size={18} aria-hidden="true" className="pointer-events-none absolute left-4 top-6" /><input type="search" aria-label="Search settings" placeholder="Search settings" value={settingsQuery} onChange={e => setSettingsQuery(e.target.value)} className="settings-home-search w-full rounded-full border border-current/20 pl-11 pr-5 py-3 shadow" /></div>
-          </nav> : activeTab !== "connectors" && <button className="mb-4 text-sm text-gray-300" type="button" onClick={() => setActiveTab(null)}>← Settings</button>}
+            <div className="sticky bottom-0 py-2"><Search size={18} aria-hidden="true" className="pointer-events-none absolute left-4 top-6" /><input type="search" aria-label={labels.searchSettings} placeholder={labels.searchSettings} value={settingsQuery} onChange={e => setSettingsQuery(e.target.value)} className="settings-home-search w-full rounded-full border border-current/20 pl-11 pr-5 py-3 shadow" /></div>
+          </nav> : null}
           <div className="preferences-panel">
           {activeTab === "premium" && <><h3>Premium</h3><p>Early access to new features</p><button disabled>Upgrade unavailable</button><p>This deployment has no subscription checkout.</p></>}
           {activeTab === "appearance" && <><h3>Appearance</h3><label>Theme<select value={profile.theme ?? "system"} onChange={e => updateProfile({theme: e.target.value as typeof profile.theme})}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label><label>Interface font<select value={profile.font} onChange={e => updateProfile({font: e.target.value as typeof profile.font})}>{FONT_OPTIONS.map(font => <option key={font.id} value={font.id}>{font.label}</option>)}</select></label></>}
@@ -481,7 +513,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
           {activeTab === "notifications" && <><h3>Notifications</h3><label><input type="checkbox" checked={!!profile.notifications} onChange={async e => { if (!e.target.checked) return updateProfile({notifications:false}); if (typeof Notification === "undefined") return setProfileError("This browser does not support notifications."); try { const granted = await Notification.requestPermission() === "granted"; updateProfile({notifications:granted}); setProfileError(granted ? null : "Allow notifications in your browser settings."); } catch { setProfileError("Notifications are unavailable in this browser."); } }} /> Notify when a reply is ready in a background tab</label>{profileError && <p role="status">{profileError}</p>}</>}
           {activeTab === "widget" && <><h3>Widget</h3><label><input type="checkbox" checked={!!profile.workspaceShortcut} onChange={e => updateProfile({workspaceShortcut:e.target.checked})} /> Show the workspace shortcut above the composer</label><p>This is an in-app shortcut.</p></>}
           {activeTab === "action" && <><h3>Configure Action Button</h3><label>Open<select value={profile.actionButton ?? "settings"} onChange={e => updateProfile({actionButton:e.target.value as typeof profile.actionButton})}><option value="settings">Settings</option><option value="connectors">Connectors</option></select></label></>}
-          {activeTab === "language" && <><h3>App Language</h3><p>English is the available interface language. Use System Instructions to set the assistant’s reply language.</p></>}
+          {activeTab === "language" && <><h3>{labels.appLanguage}</h3><label>{labels.appLanguage}<select value={profile.locale ?? "en"} onChange={e => updateProfile({locale:e.target.value as Locale})}>{languages.map(({id,label}) => <option key={id} value={id} lang={id}>{label}</option>)}</select></label><p>Language applies to core chat labels and assistant replies. Some settings and service messages are shown in English.</p></>}
           {activeTab === "customize" && <><h3>Customize Assistant</h3><button onClick={() => setActiveTab("profile")}>Assistant Name &amp; Avatar</button><label>Persona &amp; Tone<select value={profile.tone ?? "formal"} onChange={e => updateProfile({tone:e.target.value as typeof profile.tone})}><option value="formal">Formal</option><option value="casual">Casual</option><option value="technical">Technical</option></select></label><label>System Instructions<textarea rows={5} maxLength={2000} value={profile.instructions ?? ""} onChange={e => updateProfile({instructions:e.target.value})} /></label></>}
           {activeTab === "tools" && <><h3>Connectors &amp; Tools</h3><button onClick={() => setActiveTab("connectors")}>Manage connectors and Web Search availability</button><label><input type="checkbox" checked={!!profile.webSearchDefault} onChange={e => updateProfile({webSearchDefault:e.target.checked})} /> Start new sessions with Web Search enabled</label><p>Code execution and device file access are unavailable in this deployment. Connected services have their own access controls.</p></>}
           {activeTab === "behavior" && <><h3>Behavior &amp; Autonomy</h3><p>Agent can use available read tools. External write tools require human approval.</p><p>Full automation and daily action caps are unavailable.</p></>}

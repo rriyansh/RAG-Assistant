@@ -2,6 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { ui } from "../lib/locales";
 import { askQuestion } from "../lib/api";
 import { ApiMode, ChatMessageItem, PendingConsent, ToolCall, UserProfile } from "../lib/types";
 
@@ -67,7 +68,7 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
         }));
         const response = await askQuestion(
           trimmed, assistantName, consent, mode,
-          label => setActivity(prev => [...prev, label]), history, connectorId, webSearch, profile?.tone, profile?.instructions,
+          label => setActivity(prev => [...prev, label]), history, connectorId, webSearch, profile?.tone, [profile?.locale && profile.locale !== "en" ? `Reply in ${ui(profile.locale).language}.` : "", profile?.instructions].filter(Boolean).join(" ").slice(0, 2000),
         );
         if (profile?.notifications && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
           try { new Notification("ResoAgent reply ready"); } catch {}
@@ -126,7 +127,7 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
         setIsLoading(false);
       }
     },
-    [assistantName, mode, messages, profile?.tone, profile?.instructions, profile?.notifications]
+    [assistantName, mode, messages, profile?.tone, profile?.instructions, profile?.notifications, profile?.locale]
   );
 
   const approveToolConsent = useCallback(

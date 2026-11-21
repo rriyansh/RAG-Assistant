@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { ui } from "../lib/locales";
 import { Header } from "../components/Header";
 import { ChatMessage } from "../components/ChatMessage";
 import ChatComposer from "../components/ChatComposer";
@@ -24,11 +25,15 @@ export default function HomePage() {
     isOnboarded,
     hydrated,
     update: updateProfile,
-    setAvatarFromFile,
     completeOnboarding,
     reopenOnboarding,
   } = profileState;
 
+  const labels = ui(profile.locale);
+  React.useEffect(() => {
+    document.documentElement.lang = profile.locale ?? "en";
+    document.documentElement.dir = profile.locale === "ar" || profile.locale === "ur" ? "rtl" : "ltr";
+  }, [profile.locale]);
   const chat = useChat(assistantName, "chat", profile, hydrated);
   const agent = useChat(assistantName, "agent", profile, hydrated);
   const {
@@ -118,8 +123,8 @@ export default function HomePage() {
             {messages.length === 0 ? (
               <section className="chat-welcome">
                 {(profile.assistantLogo ?? DEFAULT_RAG_ASSISTANT_LOGO) && <img className="mx-auto mb-4 h-16 w-16 object-contain" src={profile.assistantLogo ?? DEFAULT_RAG_ASSISTANT_LOGO} width={64} height={64} alt={assistantName} />}
-                <h1>Welcome to ResoAgent!</h1>
-                <p>How can I help you?</p>
+                <h1>{labels.welcome}</h1>
+                <p>{labels.help}</p>
               </section>
             ) : (
               messages.map((msg, index) => (
@@ -145,7 +150,7 @@ export default function HomePage() {
               {(["chat", "agent"] as const).map(item => <button key={item} type="button"
                 aria-pressed={mode === item} disabled={isLoading} onClick={() => { setMode(item); if (item === "agent" && mode !== item) { openConnectors(true); setSettingsOpen(true); } }}
                 className={`rounded-full px-3 py-1.5 text-xs font-semibold ${mode === item ? "bg-[#f4f3f8] text-[#141417]" : "text-[#e6e4f0]/70"}`}>
-                {item === "agent" ? "Agent" : "Chat"}
+                {item === "agent" ? labels.agent : labels.chat}
               </button>)}
             </div>
             {isLoading && <div role="status" className="mb-2 max-h-24 overflow-auto text-xs leading-5 text-[#e6e4f0]/80">
@@ -154,7 +159,7 @@ export default function HomePage() {
             <div className="mb-1 flex items-center gap-3 text-xs">
               {mode === "agent" && <button aria-label="Add connector" title="Add connector" disabled={isLoading} onClick={() => { openConnectors(true); setSettingsOpen(true); }} className="px-3 py-2 text-xl">+</button>}
               {mode === "agent" && attachment && <button disabled={isLoading} onClick={() => attach(undefined)} aria-label={`Remove ${attachment.name}`}>{attachment.name} ×</button>}
-              <button disabled={isLoading} aria-pressed={search[mode]} onClick={() => setSearch({...search,[mode]:!search[mode]})} className="rounded-full px-3 py-2 aria-pressed:bg-white aria-pressed:text-black">Web search</button>
+              <button disabled={isLoading} aria-pressed={search[mode]} onClick={() => setSearch({...search,[mode]:!search[mode]})} className="rounded-full px-3 py-2 aria-pressed:bg-white aria-pressed:text-black">{labels.webSearch}</button>
             </div>
             {profile.workspaceShortcut && <button type="button" className="mb-2 rounded-full border border-white/20 px-3 py-2 text-xs" onClick={() => { openConnectors(profile.actionButton === "connectors"); setSettingsOpen(true); }}>Workspace shortcut</button>}
             <ChatComposer key={mode} draft={mode === "agent" ? connectorDraft : undefined} models={[]} mode={mode} onSubmit={handleSend} disabled={isLoading} />
@@ -166,7 +171,6 @@ export default function HomePage() {
         isOpen={showOnboarding}
         profile={profile}
         onUpdateProfile={updateProfile}
-        onUploadUserAvatar={setAvatarFromFile}
         onComplete={completeOnboarding}
       />}
 
