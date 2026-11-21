@@ -16,6 +16,7 @@ interface Props {
 export function OnboardingModal({ isOpen, profile, onUpdateProfile, onComplete }: Props) {
   const [page, setPage] = useState(0);
   const pointer = useRef(0);
+  const [dragging, setDragging] = useState(false);
   const [angle, setAngle] = useState(0);
   const [key, setKey] = useState("");
   const [provider, setProvider] = useState("nvidia");
@@ -33,12 +34,13 @@ export function OnboardingModal({ isOpen, profile, onUpdateProfile, onComplete }
     if (!key.trim() || busy) return;
     setBusy(true);
     setError("");
+    const mode = profile.defaultMode ?? "chat";
     const payload = { provider, api_key: key.trim() };
     try {
       const result = await testProviderKey(payload);
       if (!result.valid || !result.model) throw new Error(result.error || "Could not verify this key.");
-      await saveProviderKey({ ...payload, model: result.model }, "chat");
-      await updateConfig({ provider, model: result.model, base_url: "", hosted: false }, "chat");
+      await saveProviderKey({ ...payload, model: result.model }, mode);
+      await updateConfig({ provider, model: result.model, base_url: "", hosted: false }, mode);
       setKey("");
       onComplete();
     } catch (err) {
@@ -50,18 +52,20 @@ export function OnboardingModal({ isOpen, profile, onUpdateProfile, onComplete }
 
   if (!isOpen) return null;
   return <div className="reso-intro" role="dialog" aria-modal="true" aria-label="Reso Agent setup">
-    <div className={`reso-intro-sheet ${page === 0 ? "reso-splash" : ""}`}>
+    <div key={page} className={`reso-intro-sheet ${page === 0 ? "reso-splash" : ""}`}>
       {page > 1 && <button className="intro-back" disabled={busy} type="button" aria-label="Back" onClick={() => setPage(page - 1)}><ArrowLeft size={20} /></button>}
       <div className="intro-brand"><img src={DEFAULT_RAG_ASSISTANT_LOGO} alt="" />Reso Agent</div>
       {page === 1 && <>
         <div className="intro-stage">
-          <button className="intro-dino" type="button" aria-label="Rotate Dino. Drag, or use arrow keys." onClick={e => { if (e.detail === 0) setAngle(a => a + 45); }}
+          <div className="intro-dino-frame" style={{transform: `rotateY(${angle}deg)`}}>
+          <button className="intro-dino" data-dragging={dragging || undefined} type="button" aria-label="Rotate Dino. Drag, or use arrow keys." onClick={e => { if (e.detail === 0) setAngle(a => a + 45); }}
             onKeyDown={e => { if (["ArrowLeft", "ArrowRight"].includes(e.key)) { e.preventDefault(); setAngle(a => a + (e.key === "ArrowLeft" ? -30 : 30)); } }}
-            onPointerDown={e => { pointer.current = e.clientX; e.currentTarget.setPointerCapture(e.pointerId); }}
+            onPointerDown={e => { setDragging(true); pointer.current = e.clientX; e.currentTarget.setPointerCapture(e.pointerId); }}
             onPointerMove={e => { if (e.currentTarget.hasPointerCapture(e.pointerId)) { const delta = e.clientX - pointer.current; pointer.current = e.clientX; setAngle(a => a + delta * 1.5); } }}
-            style={{transform: `rotateY(${angle}deg)`}}>
+            onLostPointerCapture={() => setDragging(false)}>
             {[-10,-6,-2,2,6,10].map(depth => <img key={depth} draggable={false} src={DEFAULT_RAG_ASSISTANT_LOGO} alt="" style={{transform:`translateZ(${depth}px)`}} />)}
           </button>
+          </div>
         </div>
         <h1>Meet Reso Agent</h1>
         <p>Chat, research, and work with your connected tools in one workspace.</p>
@@ -73,7 +77,20 @@ export function OnboardingModal({ isOpen, profile, onUpdateProfile, onComplete }
         <label>Your name<input required maxLength={60} autoComplete="given-name" value={profile.name} onChange={e => onUpdateProfile({name:e.target.value})} /></label>
         <button className="intro-primary" disabled={!profile.name.trim()}>Continue</button>
       </form>}
-      {page === 3 && <form onSubmit={save}>
+      {page === 3 && <div className="intro-mode">
+        <h1>Choose how to start</h1>
+        <p>You can switch modes any time from the composer.</p>
+        <fieldset>
+          <legend className="sr-only">Default workspace mode</legend>
+          {(["chat", "agent"] as const).map(mode => <label key={mode} className="intro-mode-option">
+            <input type="radio" name="default-mode" checked={(profile.defaultMode ?? "chat") === mode} onChange={() => onUpdateProfile({defaultMode:mode})} />
+            <span><strong>{mode === "chat" ? "Chat" : "Agent"}</strong>
+            <small>{mode === "chat" ? "Ask questions, write and brainstorm." : "Work with connected tools and sources."}</small></span>
+          </label>)}
+        </fieldset>
+        <button className="intro-primary" onClick={() => setPage(4)}>Continue</button>
+      </div>}
+      {page === 4 && <form onSubmit={save}>
         <h1>Make Reso yours</h1>
         <label>Agent name<input maxLength={60} value={profile.assistantName} onChange={e => onUpdateProfile({assistantName:e.target.value})} /></label>
         <label>Provider<select value={provider} onChange={e => setProvider(e.target.value)}>

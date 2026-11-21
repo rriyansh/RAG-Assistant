@@ -30,6 +30,7 @@ export default function HomePage() {
   } = profileState;
 
   const labels = ui(profile.locale);
+  React.useEffect(() => { if (hydrated) setMode(profile.defaultMode ?? "chat"); }, [hydrated, profile.defaultMode]);
   React.useEffect(() => {
     document.documentElement.lang = profile.locale ?? "en";
     document.documentElement.dir = localeDirection(profile.locale ?? "en");

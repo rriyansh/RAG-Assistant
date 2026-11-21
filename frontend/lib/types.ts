@@ -13,6 +13,7 @@ export type FontId =
 
 export interface UserProfile {
   locale?: Locale;
+  defaultMode?: ApiMode;
   username?: string;
   theme?: "system" | "light" | "dark";
   haptics?: boolean;
