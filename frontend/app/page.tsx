@@ -7,6 +7,7 @@ import ChatComposer from "../components/ChatComposer";
 import { SettingsModal } from "../components/SettingsModal";
 import { OnboardingModal } from "../components/OnboardingModal";
 import { useChat } from "../hooks/useChat";
+import { DEFAULT_RAG_ASSISTANT_LOGO } from "../lib/utils";
 import { FONT_OPTIONS } from "../lib/fonts";
 import { useProfile } from "../hooks/useProfile";
 
@@ -85,7 +86,7 @@ export default function HomePage() {
             {messages[0]?.timestamp && <p className="text-center text-xs text-[#c6c4cf]">{messages[0].timestamp}</p>}
             {messages.length === 0 ? (
               <section className="chat-welcome">
-                <img className="mx-auto mb-4 h-16 w-16 object-contain" src="/icon.svg" width={64} height={64} alt="RAG Assistant" />
+                {(profile.assistantLogo ?? DEFAULT_RAG_ASSISTANT_LOGO) && <img className="mx-auto mb-4 h-16 w-16 object-contain" src={profile.assistantLogo ?? DEFAULT_RAG_ASSISTANT_LOGO} width={64} height={64} alt={assistantName} />}
                 <h1>Welcome to RESO AGENT</h1>
                 <p>How can I help you?</p>
               </section>

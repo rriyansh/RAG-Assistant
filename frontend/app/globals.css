@@ -525,4 +525,4 @@ html[data-font="source-sans-3"] { --font-body: "Source Sans 3", system-ui, sans-
 }
 
 /* The original dark Dino needs a light silhouette on the dark workspace. */
-img[src="/icon.svg"] { filter: invert(1); }
+img[src="/public.svg"], img[src="/icon.svg"] { filter: invert(1); }

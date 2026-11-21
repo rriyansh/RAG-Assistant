@@ -51,7 +51,7 @@ export function useProfile() {
         if (raw) {
           const parsed = JSON.parse(raw) as Partial<UserProfile>;
           if (parsed.assistantLogo !== undefined && savedLogo === undefined) {
-            savedLogo = parsed.assistantLogo === LEGACY_ASSISTANT_LOGO ? DEFAULT_RAG_ASSISTANT_LOGO : parsed.assistantLogo;
+            savedLogo = (parsed.assistantLogo === LEGACY_ASSISTANT_LOGO || parsed.assistantLogo === "/icon.svg") ? DEFAULT_RAG_ASSISTANT_LOGO : parsed.assistantLogo;
           }
           if (parsed.avatarDataUrl && !savedAvatar) {
             savedAvatar = parsed.avatarDataUrl;

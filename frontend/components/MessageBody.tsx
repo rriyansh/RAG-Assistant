@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Lexer, type Token } from "marked";
+import { Lexer, type Token } from "../lib/vendor/marked";
 
 function CodeBlock({ language, code }: { language: string; code: string }) {
   const [status, setStatus] = useState("Copy code");
