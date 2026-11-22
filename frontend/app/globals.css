@@ -621,10 +621,23 @@ html[data-theme="light"] .reso-composer-bar :is(button,textarea) { color:#282132
 html[data-theme="light"] .reso-composer-bar textarea { background:#fff; }
 html[data-theme="light"] .reso-composer-bar textarea::placeholder { color:#665c72; }
 
-.settings-overlay:has(.settings-dialog) { padding:0; background:var(--surface,#141417); }
-.settings-overlay .settings-dialog { width:100%; max-width:none; height:100dvh; max-height:none; border:0; border-radius:0; box-shadow:none; }
-.settings-dialog .settings-content { padding-inline:max(16px,calc((100% - 820px)/2)); }
-.settings-dialog .settings-heading { padding-inline:max(16px,calc((100% - 820px)/2)); }
+.glass-button { border-radius:999px; background:color-mix(in srgb,var(--home-row,#242329) 78%,transparent); border:1px solid color-mix(in srgb,currentColor 22%,transparent); backdrop-filter:blur(18px) saturate(135%); -webkit-backdrop-filter:blur(18px) saturate(135%); box-shadow:0 1px 2px #0002; transition:transform .16s ease,background .16s ease,box-shadow .16s ease; }
+.glass-button:hover { background:color-mix(in srgb,var(--home-row,#242329) 92%,transparent); box-shadow:0 4px 12px #0003; }
+.glass-button:active { transform:scale(.97); }
+.glass-button.destructive { color:#d92f45; }
+.settings-group a { min-height:54px; display:flex; align-items:center; gap:14px; width:100%; text-align:left; color:inherit; text-decoration:none; }
+.settings-builtins { display:grid; gap:0; margin-top:18px; border-radius:22px; background:var(--home-row,#242329); padding:0 16px; }
+.settings-builtins > div { display:grid; grid-template-columns:24px 1fr; gap:10px; align-items:center; min-height:62px; border-bottom:1px solid color-mix(in srgb,var(--home-muted) 22%,transparent); }
+.settings-builtins > div:last-child { border-bottom:0; }
+.settings-builtins small { grid-column:2; margin-top:-18px; color:var(--home-muted); }
+.usage-card { display:grid; gap:14px; padding:20px; margin-top:16px; border-radius:24px; background:var(--home-row,#242329); }
+.usage-card > div:first-child { display:flex; justify-content:space-between; gap:12px; }
+.usage-card strong { color:var(--home-muted); font-weight:600; }
+.usage-bar { height:9px; overflow:hidden; border-radius:999px; background:color-mix(in srgb,var(--home-muted) 20%,transparent); }
+.usage-bar i { display:block; height:100%; border-radius:inherit; background:#7f69e8; }
+.settings-dialog { border-radius:28px 28px 0 0; }
+@media (min-width:641px) { .settings-dialog { border-radius:32px; } }
+@media (prefers-reduced-transparency: reduce) { .glass-button { backdrop-filter:none; -webkit-backdrop-filter:none; background:var(--home-row,#242329); } }
 
 .reso-policy { text-align:start; line-height:1.75; }
 .reso-policy h1,.reso-policy h2 { text-wrap:balance; line-height:1.25; }

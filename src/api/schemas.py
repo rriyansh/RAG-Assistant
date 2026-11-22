@@ -24,7 +24,7 @@ class ConversationTurn(BaseModel):
 
 class AskRequest(BaseModel):
     connector_id: str | None = Field(default=None, max_length=100)
-    web_search: bool = True
+    web_search: bool = False
     tone: Literal["formal", "casual", "technical"] = "formal"
     instructions: str = Field(default="", max_length=2000)
     history: list[ConversationTurn] = Field(default_factory=list, max_length=6)

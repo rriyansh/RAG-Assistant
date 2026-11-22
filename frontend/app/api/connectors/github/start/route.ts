@@ -7,7 +7,7 @@ export function GET(req: NextRequest) {
   const client = process.env.GITHUB_OAUTH_CLIENT_ID;
   const callback = process.env.GITHUB_OAUTH_CALLBACK_URL;
   if (!client || !callback || !process.env.GITHUB_OAUTH_CLIENT_SECRET) {
-    return NextResponse.redirect(new URL("/connections/github?status=unavailable", req.url));
+    return NextResponse.redirect(new URL("/?connector=github-unavailable", req.url));
   }
   const state = randomBytes(32).toString("base64url");
   const url = new URL("https://github.com/login/oauth/authorize");

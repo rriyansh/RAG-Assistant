@@ -1,7 +1,7 @@
 import ChatWorkspace from "../../../components/ChatWorkspace";
 import { notFound } from "next/navigation";
 
-const sections = new Set(["appearance", "haptics", "notifications", "widget", "action", "language", "customize", "tools", "behavior", "privacy", "memory", "premium", "profile", "connectors", "keys", "model", "security"]);
+const sections = new Set(["appearance", "haptics", "notifications", "widget", "action", "language", "customize", "tools", "behavior", "privacy", "memory", "premium", "profile", "connectors", "keys", "model", "security", "data", "storage", "advanced", "skills", "usage", "shared"]);
 
 export const metadata = { title: "Workspace settings · Reso Agent" };
 

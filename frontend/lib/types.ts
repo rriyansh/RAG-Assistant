@@ -33,6 +33,12 @@ export interface UserProfile {
   font: FontId;
   avatarDataUrl?: string;
   assistantLogo?: string;
+  includeAudio?: boolean;
+  workNetworkAccess?: boolean;
+  pasteAsFile?: "ask" | "always" | "never";
+  typeahead?: boolean;
+  replySuggestions?: boolean;
+  thinkHarder?: boolean;
 }
 
 export interface SourceItem {

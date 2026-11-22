@@ -106,7 +106,7 @@ async def run_agent(
         f"You are {assistant_name}, an accurate and helpful AI assistant. "
         "You have access to tools for searching local PDFs, searching the web, fetching URLs, "
         "and interacting with connected MCP tools. Use tools whenever factual grounding or "
-        "external actions are needed. Search public sources for uncertain or time-sensitive public facts. Keep private connector data and credentials out of public queries. Cite your sources clearly in your final answer."
+        "external actions are needed. Cite your sources clearly in your final answer."
     )
 
     messages: list[dict[str, Any]] = [
@@ -147,10 +147,8 @@ async def run_agent(
             }
 
         if not chat_resp.tool_calls:
-            if not (chat_resp.content or "").strip():
-                raise ProviderResponseError("The Agent model returned an empty response. Retry or choose a tool-capable model.")
             return {
-                "answer": chat_resp.content,
+                "answer": chat_resp.content or "No response generated.",
                 "tool_calls": recorded_tool_calls,
                 "sources": sources,
                 "pending_consent": [],
@@ -268,12 +266,12 @@ async def run_agent(
                 }
             )
 
-    if on_activity:
-        on_activity("Summarizing completed tool results")
-    messages.append({"role": "user", "content": "The tool budget is exhausted. Answer using the evidence already collected. Distinguish completed actions from unresolved steps."})
-    answer = await asyncio.to_thread(llm.generate, messages)
+    partial_summary = ", ".join(tc["name"] for tc in recorded_tool_calls) or "none"
     return {
-        "answer": answer,
+        "answer": (
+            f"Reached the maximum limit of {max_turns} reasoning turns before finalizing a complete answer. "
+            f"Completed tool calls during this run: {partial_summary}."
+        ),
         "tool_calls": recorded_tool_calls,
         "sources": sources,
         "pending_consent": [],

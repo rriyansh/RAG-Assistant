@@ -10,7 +10,8 @@ SYSTEM_TEMPLATE = (
     "  Web source: [Title | https://full-url]\n\n"
     "Style rules:\n"
     "- Every factual sentence ends with a citation.\n"
-    "- Explain each part to the depth the evidence supports. Use examples when helpful.\n"
+    "- Be concise. No preamble. No filler.\n"
+    "- 2-6 sentences unless the user asks for detail.\n"
     "- Bullet lists are fine when the user asks for items.\n"
     "- If the user asks your name, answer with your name only."
 )

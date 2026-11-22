@@ -8,7 +8,6 @@ import { enhancePrompt } from "@/lib/api";
 export type ComposerAccent = "ice" | "ember" | "lime";
 
 export interface ChatComposerProps {
-  modePicker?: React.ReactNode;
   onSubmit: (question: string) => void | Promise<void>;
   disabled?: boolean;
   mode?: "agent" | "chat";
@@ -18,6 +17,7 @@ export interface ChatComposerProps {
   hint?: boolean;
   accent?: ComposerAccent;
   className?: string;
+  modePicker?: React.ReactNode;
 }
 
 const ACCENTS: Record<ComposerAccent, { a1: string; a2: string; a3: string; glow: string; ink: string }> = {
@@ -60,7 +60,6 @@ function useReducedMotion(): boolean {
 }
 
 export default function ChatComposer({
-  modePicker,
   onSubmit,
   disabled = false,
   draft,
@@ -70,6 +69,7 @@ export default function ChatComposer({
   hint = false,
   accent = "ice",
   className,
+  modePicker,
 }: ChatComposerProps): JSX.Element {
   const reduced = useReducedMotion();
   const uid = React.useId().replace(/[^a-zA-Z0-9_-]/g, "");
@@ -218,6 +218,7 @@ export default function ChatComposer({
         </div>
         <div className="ppc-tools ppc-enter">
           <div className="ppc-right">
+            {modePicker}
             <button
               type="button"
               onClick={runEnhance}
@@ -267,7 +268,6 @@ export default function ChatComposer({
                 </div>
               )}
             </div>}
-            {modePicker}
             <button
               type="submit"
               className="ppc-send"

@@ -9,6 +9,7 @@ import { FONT_OPTIONS } from "../lib/fonts";
 import React, { useEffect, useState } from "react";
 import {
   ArrowLeft, ChevronRight, Bell, Globe, LayoutGrid, Monitor, Search, Smartphone, Sparkles, Zap, Database, Brain,
+  Link2, Folder, FileText, LifeBuoy, LogOut, Gauge, SlidersHorizontal, RotateCw,
   Check,
   ImagePlus,
   Key,
@@ -59,7 +60,7 @@ export interface SettingsModalProps {
   profileState: ReturnType<typeof useProfile>;
 }
 
-type TabKey = "appearance" | "haptics" | "notifications" | "widget" | "action" | "language" | "customize" | "tools" | "behavior" | "privacy" | "memory" | "premium" | "profile" | "connectors" | "keys" | "model" | "security";
+type TabKey = "appearance" | "haptics" | "notifications" | "widget" | "action" | "language" | "customize" | "tools" | "behavior" | "privacy" | "memory" | "premium" | "profile" | "connectors" | "keys" | "model" | "security" | "data" | "storage" | "advanced" | "skills" | "usage" | "shared";
 
 const PROVIDERS = [
   { id: "nvidia", label: "NVIDIA NIM" },
@@ -220,9 +221,13 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
 
   function setActiveTab(tab: TabKey | null) {
     if (tab === activeTab) return;
-    if (tab === null && history.state?.resoSettingsDepth > 1) { history.back(); return; }
+    if (tab === null) {
+      history.pushState({ ...history.state, resoSettingsDepth: 1, resoSettingsTab: null }, "", "/settings");
+      showTab(null);
+      return;
+    }
     const depth = Number(history.state?.resoSettingsDepth || 1) + 1;
-    history.pushState({ ...history.state, resoSettingsDepth: depth, resoSettingsTab: tab }, "", tab ? "/settings/"+tab : "/settings");
+    history.pushState({ ...history.state, resoSettingsDepth: depth, resoSettingsTab: tab }, "", "/settings/"+tab);
     showTab(tab);
   }
   function closeSheet() {
@@ -238,11 +243,10 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
       return;
     }
     const slug = location.pathname.split("/")[2];
-    const sections: TabKey[] = ["appearance","haptics","notifications","widget","action","language","customize","tools","behavior","privacy","memory","premium","profile","connectors","keys","model","security"];
+    const sections: TabKey[] = ["appearance","haptics","notifications","widget","action","language","customize","tools","behavior","privacy","memory","premium","profile","connectors","keys","model","security","data","storage","advanced","skills","usage","shared"];
     const target = sections.includes(slug as TabKey) ? slug as TabKey : startInConnectors ? "connectors" : null;
     if (!history.state?.resoSettingsDepth) {
-      if (location.pathname.startsWith("/settings")) history.replaceState(history.state, "", "/");
-      history.pushState({...history.state, resoSettingsDepth:1, resoSettingsTab:null}, "", "/settings");
+      history.replaceState({ ...history.state, resoSettingsDepth: 1, resoSettingsTab: null }, "", "/settings");
       if (target) history.pushState({...history.state, resoSettingsDepth:2, resoSettingsTab:target}, "", "/settings/"+target);
     }
     showTab(target);
@@ -499,14 +503,14 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
         className="settings-dialog flex h-[min(94dvh,820px)] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-[#e6e4f0]/15 bg-[#141417] text-[#f4f3f8] shadow-2xl"
       >
         <div className="settings-heading flex items-center justify-between border-b border-[#e6e4f0]/10 px-5 py-4 sm:px-6">
-          {activeTab && <button type="button" className="sheet-back" aria-label="Previous settings page" onClick={() => history.back()}><ArrowLeft size={20} /></button>}
+          {activeTab && <button type="button" className="sheet-back glass-button" aria-label="Back to settings" onClick={() => setActiveTab(null)}><ArrowLeft size={20} /></button>}
           <h2 id="workspace-settings-title" className="text-base font-semibold tracking-tight">
-            {activeTab === "connectors" ? "Add connector" : labels.settings}
+            {activeTab === "connectors" ? "Connectors" : activeTab ? (String(activeTab)[0]!.toUpperCase() + String(activeTab).slice(1)) : labels.settings}
           </h2>
           <button
             type="button" aria-label="Close settings"
             onClick={closeSheet}
-            className="rounded-xl border border-[#e6e4f0]/15 p-1.5 text-[#e6e4f0]/70 transition hover:bg-[#1c1c21] hover:text-[#f4f3f8]"
+            className="glass-button rounded-xl border border-[#e6e4f0]/15 p-1.5 text-[#e6e4f0]/70 transition hover:bg-[#1c1c21] hover:text-[#f4f3f8]"
           >
             <X className="h-4 w-4" />
           </button>
@@ -522,12 +526,19 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
               ["Subscription", [["premium", "Premium", Sparkles]]],
               ["App", [["appearance", "Appearance", Monitor], ["haptics", "Haptics", Smartphone], ["notifications", "Notifications", Bell], ["widget", "Widget", LayoutGrid], ["action", "Configure Action Button", Zap], ["language", labels.appLanguage, Globe]]],
               ["AI Assistant", [["customize", "Customize Assistant", Sliders], ["connectors", "Connectors & Tools", Plug], ["behavior", "Behavior & Autonomy", Brain], ["privacy", "Privacy & Safety", Shield], ["memory", "Data & Memory", Database], ["keys", "API Keys", Key], ["model", "Model", Sliders]]],
+              ["Data & History", [["shared", "Shared Conversations", Link2], ["data", "Data Controls", Database], ["storage", "Storage", Folder], ["usage", "Usage and Limits", Gauge]]],
+              ["Advanced", [["advanced", "Advanced", SlidersHorizontal], ["skills", "Skills", Sparkles]]],
             ] as const).map(([group, rows]) => {
               const matches = rows.filter(([, title]) => settingLabel(profile.locale,title).toLowerCase().includes(settingsQuery.trim().toLowerCase()));
               return matches.length > 0 && <section key={group}><h3 className="mb-2 pl-3 text-sm font-semibold opacity-75">{settingLabel(profile.locale,group)}</h3><div className="settings-group">
-                {matches.map(([id, title]) => <button key={title} type="button" onClick={() => setActiveTab(id)}>{settingLabel(profile.locale,title)}<ChevronRight aria-hidden size={17} className="ml-auto" /></button>)}
+                {matches.map(([id, title, Icon]) => <button key={title} type="button" onClick={() => setActiveTab(id)}><Icon size={19} aria-hidden="true" />{settingLabel(profile.locale,title)}<ChevronRight aria-hidden size={17} className="ml-auto" /></button>)}
               </div></section>;
             })}
+            <section><h3 className="mb-2 pl-3 text-sm font-semibold opacity-75">About</h3><div className="settings-group">
+              <a href="/terms"><FileText size={19} aria-hidden="true" />Terms of Use<ChevronRight aria-hidden size={17} className="ml-auto" /></a>
+              <a href="/privacy"><Shield size={19} aria-hidden="true" />Privacy Policy<ChevronRight aria-hidden size={17} className="ml-auto" /></a>
+              <a href="mailto:support@resoagent.app?subject=Reso%20Agent%20support"><LifeBuoy size={19} aria-hidden="true" />Report a Problem<ChevronRight aria-hidden size={17} className="ml-auto" /></a>
+            </div></section>
             <div className="sticky bottom-0 py-2"><Search size={18} aria-hidden="true" className="pointer-events-none absolute left-4 top-6" /><input type="search" aria-label={labels.searchSettings} placeholder={labels.searchSettings} value={settingsQuery} onChange={e => setSettingsQuery(e.target.value)} className="settings-home-search w-full rounded-full border border-current/20 pl-11 pr-5 py-3 shadow" /></div>
           </nav> : null}
           <div className="preferences-panel">
@@ -549,6 +560,12 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
           {activeTab === "behavior" && <><h3>Behavior &amp; Autonomy</h3><p>Agent can use available read tools. External write tools require human approval.</p><p>Full automation and daily action caps are unavailable.</p></>}
           {activeTab === "privacy" && <><h3>Privacy &amp; Safety</h3><p>Model provider filters apply. Reso does not offer filter overrides, automatic PII masking, or a configurable prompt-injection filter.</p><button onClick={() => setActiveTab("security")}>Read Security, Privacy &amp; Terms</button></>}
           {activeTab === "memory" && <><h3>Data &amp; Memory</h3><label><input type="checkbox" checked={!!profile.rememberChats} onChange={e => updateProfile({rememberChats:e.target.checked})} /> Restore Chat and Agent conversations on this browser</label><label>Chat History Retention<select value={profile.retention ?? "30"} onChange={e => updateProfile({retention:e.target.value as typeof profile.retention})}><option value="30">30 days</option><option value="90">90 days</option><option value="forever">Forever</option></select></label><p>Stored on this browser when enabled. Recent turns are used as context when you continue a conversation.</p></>}
+          {activeTab === "shared" && <><h3>Shared Conversations</h3><p>Create a shareable read-only link from a conversation when sharing is enabled. Shared links never expose provider API keys.</p><button type="button" className="glass-button" onClick={() => setProfileError("Open a conversation and use its share action to create a link.")}>Learn about sharing</button></>}
+          {activeTab === "data" && <><h3>Data Controls</h3><label><input type="checkbox" checked={!!profile.includeAudio} onChange={e => updateProfile({includeAudio:e.target.checked})} /> Include audio recordings</label><p>Audio is not uploaded unless a voice feature explicitly requests it.</p><label><input type="checkbox" checked={profile.workNetworkAccess !== false} onChange={e => updateProfile({workNetworkAccess:e.target.checked})} /> Work network access</label><button type="button" className="glass-button destructive" onClick={() => { if (window.confirm("Delete locally stored conversations and preferences?")) { localStorage.clear(); window.location.reload(); } }}>Delete local data</button></>}
+          {activeTab === "storage" && <><h3>Storage</h3><p>Reso stores profile preferences and remembered chats in this browser. Provider keys remain on the server-side credential store and are never rendered in the UI.</p><button type="button" className="glass-button destructive" onClick={() => { if (window.confirm("Clear this browser's Reso cache?")) { localStorage.clear(); window.location.reload(); } }}>Clear browser cache</button></>}
+          {activeTab === "advanced" && <><h3>Advanced</h3><label>Paste as file<select value={profile.pasteAsFile ?? "ask"} onChange={e => updateProfile({pasteAsFile:e.target.value as typeof profile.pasteAsFile})}><option value="ask">Always Ask</option><option value="always">Always</option><option value="never">Never</option></select></label><label><input type="checkbox" checked={profile.typeahead !== false} onChange={e => updateProfile({typeahead:e.target.checked})} /> Typeaheads</label><label><input type="checkbox" checked={profile.replySuggestions !== false} onChange={e => updateProfile({replySuggestions:e.target.checked})} /> Reply suggestions</label><label><input type="checkbox" checked={profile.thinkHarder !== false} onChange={e => updateProfile({thinkHarder:e.target.checked})} /> Think harder</label><p>These preferences affect the composer and response workflow for new sessions.</p></>}
+          {activeTab === "skills" && <><h3>Skills</h3><p>Build custom skills from prompts or connected repositories.</p><button type="button" className="glass-button" onClick={() => { closeSheet(); window.location.assign("/studio"); }}>Create a skill</button><div className="settings-builtins"><div><FileText size={19} />Word Documents<small>Create, read, and edit documents</small></div><div><FileText size={19} />PDFs<small>Create, merge, split, and extract</small></div><div><LayoutGrid size={19} />Presentations<small>Create and edit slide decks</small></div><div><Sparkles size={19} />Skill Creator<small>Build a reusable custom workflow</small></div></div></>}
+          {activeTab === "usage" && <><h3>Usage and Limits</h3><div className="usage-card"><div><span>Agentic usage</span><strong>Available</strong></div><div className="usage-bar"><i style={{width:"72%"}} /></div><small>Limits depend on your configured provider and local deployment.</small></div><div className="usage-card"><div><span>Credits remaining</span><strong>Provider managed</strong></div></div></>}
           {activeTab === "profile" && <label>Username<input value={profile.username ?? ""} maxLength={32} onChange={e => updateProfile({username:e.target.value.replace(/[^a-zA-Z0-9_]/g, "")})} /></label>}
           </div>
           {activeTab === "profile" && (

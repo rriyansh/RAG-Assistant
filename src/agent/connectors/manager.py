@@ -263,9 +263,6 @@ class ConnectorManager:
 
     async def startup(self) -> None:
         self._load_state()
-        search = self._registry.get("web_search")
-        if search is not None:
-            search.enabled = True
         for cid, entry in list(self._state["connected"].items()):
             if not isinstance(entry, dict):
                 continue
@@ -385,8 +382,7 @@ class ConnectorManager:
 
         cleaned_creds: dict[str, str] = {}
         for field_spec in catalog_item.fields:
-            raw = credentials.get(field_spec.key)
-            val = raw.strip() if isinstance(raw, str) else ""
+            val = str(credentials.get(field_spec.key, "")).strip()
             if field_spec.required and not val:
                 raise ConnectorError(f"Field '{field_spec.label}' is required.")
             cleaned_creds[field_spec.key] = val
@@ -853,20 +849,6 @@ class ConnectorManager:
             )
         )
 
-    def github_repository(self, repository=None):
-        creds = self._state["connected"].get("github", {}).get("credentials", {})
-        if repository is not None:
-            import re
-            if not creds.get("token") or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository) or any(part in {".", ".."} for part in repository.split("/")):
-                raise ConnectorError("Choose an accessible owner/repository.")
-            response = requests.get("https://api.github.com/repos/" + repository,
-                                    headers={"Authorization": "Bearer " + creds["token"]}, timeout=10)
-            if response.status_code != 200:
-                raise ConnectorError("Repository is unavailable to this connection.")
-            creds["repository"] = response.json()["full_name"]
-            self._save_state()
-        return {"connected": bool(creds.get("token")), "repository": creds.get("repository", "")}
-
     def commit_reviewed_file(self, change):
         entry = self._state["connected"].get("github", {})
         token = entry.get("credentials", {}).get("token")
@@ -886,7 +868,7 @@ class ConnectorManager:
 
         self._registry.register(ToolSpec(
             name="github_review_change", source="connector", server_id="github", enabled=enabled,
-            description=("Default repository: " + creds.get("repository", "ask the user") + ". ") + "Prepare a single file change for human review. Specify the repository, branch, path, commit message and full new content. The user commits the exact reviewed change in the interface.",
+            description="Prepare a single file change for human review. Specify the repository, branch, path, commit message and full new content. The user commits the exact reviewed change in the interface.",
             input_schema=github_changes.FileChange.model_json_schema(), handler=review_change,
         ))
 
