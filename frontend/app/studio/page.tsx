@@ -66,6 +66,7 @@ export default function Studio() {
         <div className="flex flex-wrap gap-2"><button className={button} onClick={()=>void run(async()=>{await save();status("Saved")})}>Save assistant</button>
         <button className={button} onClick={()=>void run(async()=>{const blob=new Blob([JSON.stringify(raw===null?cfg:JSON.parse(raw),null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="assistant.json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)})}>Export JSON</button>
         {id&&<button className={button} onClick={()=>void run(async()=>{if(!confirm("Replace the existing chat API key?"))return;showKey((await api<{key:string}>("/"+id+"/key","POST")).key)})}>Generate chat key</button>}
+        {id&&<button className={button} onClick={()=>void run(async()=>{if(!confirm("Revoke chat API access for this assistant?"))return;await api("/"+id+"/key","DELETE");showKey("");status("Chat key revoked")})}>Revoke chat key</button>}
         {id&&<button className={button} onClick={()=>void run(async()=>{if(!confirm("Delete this assistant and its knowledge?"))return;await api("/"+id,"DELETE");select("");set(initial);code(null);reply("");showKey("");list(await api<Entry[]>(""))})}>Delete assistant</button>}</div>
         {key&&<code className="block break-all">{key}</code>}
       </section>
