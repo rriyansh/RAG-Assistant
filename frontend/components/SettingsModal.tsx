@@ -204,15 +204,25 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
     model: "meta/llama-3.3-70b-instruct",
     base_url: "",
     temperature: 0.3,
-    max_tokens: 1024,
+    max_tokens: 4096,
     top_p: 0.9,
   });
+
+  const [modelList, setModelList] = useState<string[]>([]);
+  useEffect(() => {
+    setModelList([]);
+    if (activeTab !== "model") return;
+    const controller = new AbortController();
+    fetch("/api/models?provider="+encodeURIComponent(config.provider), {signal:controller.signal,headers:{"X-Reso-Mode":keyMode}})
+      .then(r=>r.ok?r.json():null).then(v=>{if (!controller.signal.aborted) setModelList(v?.models || [])}).catch(()=>{});
+    return ()=>controller.abort();
+  }, [activeTab,config.provider,keyMode]);
 
   function setActiveTab(tab: TabKey | null) {
     if (tab === activeTab) return;
     if (tab === null && history.state?.resoSettingsDepth > 1) { history.back(); return; }
     const depth = Number(history.state?.resoSettingsDepth || 1) + 1;
-    history.pushState({ ...history.state, resoSettingsDepth: depth, resoSettingsTab: tab }, "");
+    history.pushState({ ...history.state, resoSettingsDepth: depth, resoSettingsTab: tab }, "", tab ? "/settings/"+tab : "/settings");
     showTab(tab);
   }
   function closeSheet() {
@@ -225,13 +235,17 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
   useEffect(() => {
     if (!modalVisible) {
       showTab(null);
-      const depth = Number(history.state?.resoSettingsDepth || 0);
-      if (depth) history.go(-depth);
       return;
     }
-    if (!history.state?.resoSettingsDepth) history.pushState({ ...history.state, resoSettingsDepth: 1, resoSettingsTab: null }, "");
-    if (startInConnectors && history.state?.resoSettingsDepth === 1) history.pushState({ ...history.state, resoSettingsDepth: 2, resoSettingsTab: "connectors" }, "");
-    showTab(startInConnectors ? "connectors" : null);
+    const slug = location.pathname.split("/")[2];
+    const sections: TabKey[] = ["appearance","haptics","notifications","widget","action","language","customize","tools","behavior","privacy","memory","premium","profile","connectors","keys","model","security"];
+    const target = sections.includes(slug as TabKey) ? slug as TabKey : startInConnectors ? "connectors" : null;
+    if (!history.state?.resoSettingsDepth) {
+      if (location.pathname.startsWith("/settings")) history.replaceState(history.state, "", "/");
+      history.pushState({...history.state, resoSettingsDepth:1, resoSettingsTab:null}, "", "/settings");
+      if (target) history.pushState({...history.state, resoSettingsDepth:2, resoSettingsTab:target}, "", "/settings/"+target);
+    }
+    showTab(target);
     const pop = (event: PopStateEvent) => {
       if (!event.state?.resoSettingsDepth) closeRef.current();
       else showTab(event.state.resoSettingsTab ?? null);
@@ -269,7 +283,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
           model: "meta/llama-3.3-70b-instruct",
           base_url: "",
           temperature: 0.3,
-          max_tokens: 1024,
+          max_tokens: 4096,
           top_p: 0.9,
         })),
         fetchConnectors().catch(() => null),
@@ -462,7 +476,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
   }
 
   const query = connectorSearch.trim().toLowerCase();
-  const matches = connectors.filter(item =>
+  const matches = connectors.filter(item => item.id !== "web_research" &&
     [item.name, item.description, item.id].some(value => value.toLowerCase().includes(query))
   );
   if (!modalVisible) return null;
@@ -507,7 +521,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
             {([
               ["Subscription", [["premium", "Premium", Sparkles]]],
               ["App", [["appearance", "Appearance", Monitor], ["haptics", "Haptics", Smartphone], ["notifications", "Notifications", Bell], ["widget", "Widget", LayoutGrid], ["action", "Configure Action Button", Zap], ["language", labels.appLanguage, Globe]]],
-              ["AI Assistant", [["customize", "Customize Assistant", Sliders], ["tools", "Connectors & Tools", Plug], ["behavior", "Behavior & Autonomy", Brain], ["privacy", "Privacy & Safety", Shield], ["memory", "Data & Memory", Database], ["keys", "API Keys", Key], ["model", "Model", Sliders]]],
+              ["AI Assistant", [["customize", "Customize Assistant", Sliders], ["connectors", "Connectors & Tools", Plug], ["behavior", "Behavior & Autonomy", Brain], ["privacy", "Privacy & Safety", Shield], ["memory", "Data & Memory", Database], ["keys", "API Keys", Key], ["model", "Model", Sliders]]],
             ] as const).map(([group, rows]) => {
               const matches = rows.filter(([, title]) => settingLabel(profile.locale,title).toLowerCase().includes(settingsQuery.trim().toLowerCase()));
               return matches.length > 0 && <section key={group}><h3 className="mb-2 pl-3 text-sm font-semibold opacity-75">{settingLabel(profile.locale,group)}</h3><div className="settings-group">
@@ -531,7 +545,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
             <label>Other reply language<input maxLength={40} placeholder="e.g. pt-BR" value={localeCode} onChange={e => setLocaleCode(e.target.value)} /></label><button type="submit">Apply</button>
           </form>{localeError && <p role="alert">{localeError}</p>}<p>Core interface labels follow the app language. You can choose a different language for assistant replies.</p></>}
           {activeTab === "customize" && <><h3>Customize Assistant</h3><button onClick={() => setActiveTab("profile")}>Assistant Name &amp; Avatar</button><label>Persona &amp; Tone<select value={profile.tone ?? "formal"} onChange={e => updateProfile({tone:e.target.value as typeof profile.tone})}><option value="formal">Formal</option><option value="casual">Casual</option><option value="technical">Technical</option></select></label><label>System Instructions<textarea rows={5} maxLength={2000} value={profile.instructions ?? ""} onChange={e => updateProfile({instructions:e.target.value})} /></label></>}
-          {activeTab === "tools" && <><h3>Connectors &amp; Tools</h3><button onClick={() => setActiveTab("connectors")}>Manage connectors and Web Search availability</button><label><input type="checkbox" checked={!!profile.webSearchDefault} onChange={e => updateProfile({webSearchDefault:e.target.checked})} /> Start new sessions with Web Search enabled</label><p>Code execution and device file access are unavailable in this deployment. Connected services have their own access controls.</p></>}
+          {activeTab === "tools" && <><h3>Connectors &amp; Tools</h3><button onClick={() => setActiveTab("connectors")}>Manage connectors</button><p>Code execution and device file access are unavailable in this deployment. Connected services have their own access controls.</p></>}
           {activeTab === "behavior" && <><h3>Behavior &amp; Autonomy</h3><p>Agent can use available read tools. External write tools require human approval.</p><p>Full automation and daily action caps are unavailable.</p></>}
           {activeTab === "privacy" && <><h3>Privacy &amp; Safety</h3><p>Model provider filters apply. Reso does not offer filter overrides, automatic PII masking, or a configurable prompt-injection filter.</p><button onClick={() => setActiveTab("security")}>Read Security, Privacy &amp; Terms</button></>}
           {activeTab === "memory" && <><h3>Data &amp; Memory</h3><label><input type="checkbox" checked={!!profile.rememberChats} onChange={e => updateProfile({rememberChats:e.target.checked})} /> Restore Chat and Agent conversations on this browser</label><label>Chat History Retention<select value={profile.retention ?? "30"} onChange={e => updateProfile({retention:e.target.value as typeof profile.retention})}><option value="30">30 days</option><option value="90">90 days</option><option value="forever">Forever</option></select></label><p>Stored on this browser when enabled. Recent turns are used as context when you continue a conversation.</p></>}
@@ -539,7 +553,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
           </div>
           {activeTab === "profile" && (
             <div className="mx-auto max-w-3xl space-y-6">
-              <button type="button" onClick={onOpenOnboarding} className="text-sm underline underline-offset-4">Open onboarding</button>
+              <button type="button" onClick={() => { closeSheet(); onOpenOnboarding(); }} className="text-sm underline underline-offset-4">Open onboarding</button>
               {profileError && (
                 <p className="rounded-xl border border-[#e6e4f0]/20 bg-[#1c1c21] px-4 py-2 text-xs text-[#f4f3f8]">
                   {profileError}
@@ -845,7 +859,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
                             {conn.id === "github" && conn.connected && <a className="mt-2 underline" href="/connections/github">Manage repository</a>}
                             {conn.connected && conn.enabled && <button type="button"
                               className="mt-3 self-start text-sm font-semibold underline underline-offset-4"
-                              onClick={() => onUseConnector(connectorPrompt(conn), conn)}>
+                              onClick={() => { closeSheet(); onUseConnector(connectorPrompt(conn), conn); }}>
                               Use in Agent
                             </button>}
                             {isConfiguring && (
@@ -1089,6 +1103,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
             </div>
           )}
 
+          <datalist id="live-provider-models">{modelList.map(id=><option key={id} value={id}/>)}</datalist>
           {activeTab === "model" && (
             <div className="space-y-4 text-xs">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1120,6 +1135,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
                   <label className="mb-1 block text-[#e6e4f0]/75">Model Name</label>
                   <input
                     type="text"
+                    list="live-provider-models"
                     value={config.model}
                     onChange={(e) =>
                       setConfig({ ...config, model: e.target.value })
@@ -1162,7 +1178,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
                     onChange={(e) =>
                       setConfig({
                         ...config,
-                        max_tokens: parseInt(e.target.value, 10) || 1024,
+                        max_tokens: parseInt(e.target.value, 10) || 4096,
                       })
                     }
                     className="w-full rounded-xl border border-[#e6e4f0]/15 bg-[#0c0c0e] px-3 py-2 text-[#f4f3f8]"

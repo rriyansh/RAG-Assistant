@@ -21,3 +21,5 @@ defusedxml>=0.7,<1
 psycopg[binary]>=3.1,<4
 
 Pillow>=10.3
+
+litellm>=1.75,<2

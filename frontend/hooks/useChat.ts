@@ -38,7 +38,7 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
     async (
       question: string,
       consent: string[] = [],
-      replaceMessageId?: string, connectorId?: string, webSearch = false
+      replaceMessageId?: string, connectorId?: string, webSearch = true
     ) => {
       const trimmed = question.trim();
       if (!trimmed) return;

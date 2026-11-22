@@ -22,7 +22,7 @@ PROVIDER_BASE_URLS: dict[str, str] = {
     "openai": "https://api.openai.com/v1",
     "anthropic": "https://api.anthropic.com/v1/",
     "mistral": "https://api.mistral.ai/v1",
-    "ollama": "http://localhost:11434/v1",
+    "ollama": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/").removesuffix("/v1") + "/v1",
 }
 
 PROVIDER_DEFAULT_MODELS: dict[str, str] = {
@@ -74,7 +74,7 @@ def create_llm() -> LLMProvider:
     if hosted:
         user_key = get_builtin_nvidia_key()
         base_url = PROVIDER_BASE_URLS["nvidia"]
-        model = os.getenv("NVIDIA_MODEL") or PROVIDER_DEFAULT_MODELS["nvidia"]
+        model = cfg.get("model") or os.getenv("NVIDIA_MODEL") or PROVIDER_DEFAULT_MODELS["nvidia"]
     else:
         base_url = PROVIDER_BASE_URLS.get(provider) or cfg.get("base_url") or (saved_entry.get("base_url") if isinstance(saved_entry, dict) else None)
         model = cfg.get("model") or (saved_entry.get("model") if isinstance(saved_entry, dict) else None) or PROVIDER_DEFAULT_MODELS.get(provider)
@@ -87,10 +87,10 @@ def create_llm() -> LLMProvider:
         raise ValueError("Configure the provider model and endpoint in Settings.")
 
     temperature = float(cfg.get("temperature", 0.3))
-    max_tokens = int(cfg.get("max_tokens", 1024))
+    max_tokens = int(cfg.get("max_tokens", 4096))
     top_p = float(cfg.get("top_p", 0.9))
 
-    return LLMProvider(
+    llm = LLMProvider(
         api_key=user_key or "ollama",
         base_url=custom_endpoint(base_url) if provider == "custom" else base_url,
         model=model,
@@ -98,3 +98,7 @@ def create_llm() -> LLMProvider:
         max_tokens=max_tokens,
         top_p=top_p,
     )
+    if provider in {"nvidia", "deepseek", "ollama"}:
+        llm.routed = True
+        llm.local_base = PROVIDER_BASE_URLS["ollama"]
+    return llm

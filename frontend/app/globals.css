@@ -620,3 +620,17 @@ html[data-theme="light"] :is(.reso-composer-bar,.reso-workspace main) { color-sc
 html[data-theme="light"] .reso-composer-bar :is(button,textarea) { color:#282132; }
 html[data-theme="light"] .reso-composer-bar textarea { background:#fff; }
 html[data-theme="light"] .reso-composer-bar textarea::placeholder { color:#665c72; }
+
+.settings-overlay:has(.settings-dialog) { padding:0; background:var(--surface,#141417); }
+.settings-overlay .settings-dialog { width:100%; max-width:none; height:100dvh; max-height:none; border:0; border-radius:0; box-shadow:none; }
+.settings-dialog .settings-content { padding-inline:max(16px,calc((100% - 820px)/2)); }
+.settings-dialog .settings-heading { padding-inline:max(16px,calc((100% - 820px)/2)); }
+
+.reso-policy { text-align:start; line-height:1.75; }
+.reso-policy h1,.reso-policy h2 { text-wrap:balance; line-height:1.25; }
+@media (prefers-color-scheme:light) {
+  html:not([data-theme=dark]) .reso-policy, html:not([data-theme=dark]) .reso-policy :is(h1,h2) { color:#201e27; }
+  html:not([data-theme=dark]) main:has(>.reso-policy) { background:#faf9fc; }
+}
+html[data-theme=light] .reso-policy, html[data-theme=light] .reso-policy :is(h1,h2) { color:#201e27; }
+html[data-theme=light] main:has(>.reso-policy) { background:#faf9fc; }

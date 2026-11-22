@@ -28,7 +28,7 @@ export async function askQuestion(
   mode: ApiMode = "agent",
   onActivity?: (label: string) => void,
   history: { role: "user" | "assistant"; content: string }[] = [],
-  connectorId?: string, webSearch = false, tone?: string, instructions?: string,
+  connectorId?: string, webSearch = true, tone?: string, instructions?: string,
 ): Promise<AskApiResponse> {
   const res = await fetch("/api/ask", {
     method: "POST", headers: { "Content-Type": "application/json", "X-Reso-Mode": mode },

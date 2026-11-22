@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlsplit
@@ -90,6 +91,8 @@ class LLMProvider:
         top_p: float = 0.9,
         timeout: float = 45.0,
     ) -> None:
+        self.routed = False
+        self.local_base = ""
         self.api_key = api_key
         self.base_url = base_url
         self.model = model
@@ -102,8 +105,48 @@ class LLMProvider:
             timeout=timeout,
         )
 
+    def _request_completion(self, params: dict[str, Any]) -> Any:
+        # Adapt only to an explicit parameter rejection before a completion exists.
+        params = dict(params)
+        for _ in range(4):
+            try:
+                return self.client.chat.completions.create(**params)
+            except APIStatusError as exc:
+                detail = exc.body if isinstance(exc.body, dict) else {}
+                detail = detail.get("error", detail)
+                if exc.status_code != 400 or not isinstance(detail, dict):
+                    raise
+                name = detail.get("param")
+                message = str(detail.get("message", "")).lower()
+                if name == "max_tokens" and name in params and "max_completion_tokens" in message:
+                    params["max_completion_tokens"] = params.pop(name)
+                elif name in ("temperature", "top_p") and name in params and (
+                    "unsupported" in message or "not supported" in message or "only the default" in message
+                ):
+                    params.pop(name)
+                else:
+                    raise
+
     def _completion(self, **kwargs: Any) -> Any:
         # Retry only a retired NVIDIA model and only on NVIDIA's own endpoint.
+        if self.routed:
+            from litellm import completion
+            def send(base, key, model):
+                payload = dict(kwargs, model="openai/" + model)
+                return completion(**payload, api_base=base, api_key=key, timeout=45, num_retries=0, drop_params=True)
+            try:
+                return send(self.base_url, self.api_key, kwargs["model"])
+            except Exception as exc:
+                code = getattr(exc, "status_code", None)
+                fallback = os.getenv("RESO_OLLAMA_FALLBACK_MODEL")
+                if fallback and self.base_url != self.local_base and code in {408, 410, 429, 500, 502, 503, 504}:
+                    try:
+                        return send(self.local_base, "ollama", fallback)
+                    except Exception:
+                        raise ProviderResponseError("The selected provider and local fallback are unavailable.") from None
+                if code == 400 and kwargs.get("tools") and "tool" in str(exc).lower():
+                    raise ProviderResponseError("The model rejected the tool definitions.") from None
+                raise ProviderResponseError(f"Model request failed (HTTP {code or 'unavailable'}). Check model access and provider quota.") from None
         selected = kwargs["model"]
         candidates = [selected]
         if self.base_url.rstrip("/") == "https://integrate.api.nvidia.com/v1":
@@ -114,7 +157,7 @@ class LLMProvider:
         for candidate in candidates:
             try:
                 kwargs["model"] = candidate
-                response = self.client.chat.completions.create(**kwargs)
+                response = self._request_completion(kwargs)
             except APIStatusError as exc:
                 status = exc.status_code
                 if status == 410 and candidate != candidates[-1]:

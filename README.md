@@ -6,6 +6,20 @@ Find answers in your documents, write code, and work with your connected apps in
 
 Reso Agent pairs a Next.js chat workspace with a Python API. Use **Chat** to talk to your chosen model, or switch to **Agent** when a task needs a tool. For example, you can ask for a summary of an indexed PDF, open the cited page to check the answer, then ask the agent to prepare a GitHub change.
 
+## Answers, sources and connections
+
+Chat answers directly when it has enough information. For missing or time-sensitive public facts, the model can request a search. Reso uses the returned passages to compose an answer and shows the source links. Search failures leave the model a chance to explain what it could verify. Public searches can transmit details from your request to a search provider.
+
+Agent uses the enabled tools in the workspace. Open `/settings/connectors`, select a service and complete its authorization or credential form. Use the connector in Agent to restrict that request to its tools. GitHub has a dedicated authorization page. Other connectors describe their supported operations and required credentials in the catalog. External writes marked for consent pause for approval.
+
+The composer shows **Thinking…** immediately and reports subsequent search and tool activity. New model configurations default to a 4,096-token output budget. To change an existing configuration, open `/settings/model` and set the output limit for the active mode. The selected model and provider must support that budget.
+
+## Multi-model routing
+
+NVIDIA NIM, official DeepSeek and Ollama chat requests use LiteLLM. Open Settings → Model to load model IDs advertised by the selected provider. Some advertised models serve other tasks and do not support chat or tools. A manual model ID is available if discovery fails.
+
+For local inference, select Ollama and an installed model. Set `OLLAMA_BASE_URL` to an Ollama server reachable from the backend. Set `RESO_OLLAMA_FALLBACK_MODEL` to an installed model to retry eligible cloud availability and quota failures locally. Cloud calls use your provider account and can incur charges. For operation without metered cloud inference, select Ollama for both Chat and Agent.
+
 ## Run locally
 
 Use Python 3.11 and Node.js 20, matching the project's container images. From a terminal on macOS or Linux:

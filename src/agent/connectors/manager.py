@@ -263,6 +263,9 @@ class ConnectorManager:
 
     async def startup(self) -> None:
         self._load_state()
+        search = self._registry.get("web_search")
+        if search is not None:
+            search.enabled = True
         for cid, entry in list(self._state["connected"].items()):
             if not isinstance(entry, dict):
                 continue
@@ -382,7 +385,8 @@ class ConnectorManager:
 
         cleaned_creds: dict[str, str] = {}
         for field_spec in catalog_item.fields:
-            val = str(credentials.get(field_spec.key, "")).strip()
+            raw = credentials.get(field_spec.key)
+            val = raw.strip() if isinstance(raw, str) else ""
             if field_spec.required and not val:
                 raise ConnectorError(f"Field '{field_spec.label}' is required.")
             cleaned_creds[field_spec.key] = val

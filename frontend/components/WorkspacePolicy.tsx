@@ -14,6 +14,8 @@ const policies = {
     title: "Privacy policy",
     intro: "This policy explains what Reso processes when you personalize the workspace, search local documents, use an AI provider, or connect an external service.",
     sections: [
+      ["Automatic public search", "Chat can ask for a public web lookup when a question needs current or missing information. Agent can also use search during a task. The backend sends a query to its configured search service and may fall back to Wikipedia. The search provider receives the query and ordinary connection metadata. Reso asks the model to exclude credentials and private workspace material, but a generated query can still contain details from your question. Keep confidential information out of requests for public research."],
+      ["Conversation history and preferences", "When conversation memory is enabled, the browser stores messages for the retention period you select. To remove local copies, clear the conversation or the browser’s site data. Your selected language, persona and instructions can accompany a model request. The thinking indicator displays processing status and tool names while a request is underway."],
       ["Assistant Studio", "Saving an assistant stores its configuration, skill instructions and imported knowledge in the workspace backend. Image imports extract readable text for retrieval. Importing a public GitHub skill contacts GitHub from your browser. Selected reference passages and configured behavior instructions are sent to the model during testing and use."],
       ["Local documents and retrieval", "Documents added to the knowledge base are processed by the workspace backend and indexed for retrieval using ChromaDB. When you ask a question, Reso searches that index and selects relevant passages; the whole document collection is not automatically sent to a model for each question. Document files, indexes, logs, backups, and retention are controlled by the deployment operator and the storage configuration."],
       ["AI provider transmission", "Chat sends up to six recent conversation turns for continuity. Agent mode uses the same bounded history and can call enabled tools. The backend sends your prompt and the context required to answer it—including relevant document passages and, when used, connector results—to the active inference provider. Hosted NVIDIA chat sends those request contents to NVIDIA using the server-side NVIDIA key. A personal provider key routes requests to that provider, and a custom endpoint sends them to the operator of that endpoint. Providers may process or retain requests under their own terms and policies; review those policies before sending sensitive information."],
@@ -38,7 +40,7 @@ const policies = {
 
 export function WorkspacePolicy({ section }: { section: keyof typeof policies }) {
   const policy = policies[section];
-  return <article className="mx-auto max-w-prose space-y-7 break-words text-sm leading-7 text-[#e6e4f0]/80">
+  return <article className="reso-policy mx-auto max-w-prose space-y-7 break-words text-sm leading-7 text-[#e6e4f0]/80">
     <header>
       <h1 className="text-3xl font-semibold tracking-tight text-[#f4f3f8] sm:text-4xl">{policy.title}</h1>
       <p className="mt-3">{policy.intro}</p>
