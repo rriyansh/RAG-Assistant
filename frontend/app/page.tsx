@@ -153,6 +153,7 @@ export default function HomePage() {
                 className={`rounded-full px-3 py-1.5 text-xs font-semibold ${mode === item ? "bg-[#f4f3f8] text-[#141417]" : "text-[#e6e4f0]/70"}`}>
                 {item === "agent" ? labels.agent : labels.chat}
               </button>)}
+              <a href="/studio" className="rounded-full px-3 py-1.5 text-xs font-semibold">Make Your Own Assistant <small>{["Live", "Coming Soon"].includes(process.env.NEXT_PUBLIC_STUDIO_STATUS ?? "") ? process.env.NEXT_PUBLIC_STUDIO_STATUS : "Beta"}</small></a>
             </div>
             {isLoading && <div role="status" className="mb-2 max-h-24 overflow-auto text-xs leading-5 text-[#e6e4f0]/80">
               {activity.slice(-3).map((line, index) => <p key={index}>{line}</p>)}

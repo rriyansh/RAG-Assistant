@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.agent import register_internal_plugins
 from src.agent.connectors import connector_manager
 from src.api.routes import router
+from src.api.studio import router as studio_router
 
 load_dotenv()
 
@@ -69,3 +70,5 @@ async def bind_workspace(request: Request, call_next):
 
 
 app.include_router(router)
+
+app.include_router(studio_router)
