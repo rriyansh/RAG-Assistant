@@ -27,6 +27,21 @@ export default function Studio() {
     const item=await api<{id:string}>(id?"/"+id:"",id?"PUT":"POST",data);
     select(item.id);set(await api<Definition>("/"+item.id));code(null);list(await api<Entry[]>(""));return item.id;
   }
+  async function ingest(files: File[]) {
+    const chunks: Definition["chunks"] = [];
+    for (const file of files) {
+      if (file.size > 2000000) throw Error("Choose files smaller than 2 MB");
+      const content = await new Promise<string>((resolve,reject)=>{
+        const reader=new FileReader();
+        reader.onerror=()=>reject(Error("Unable to read file"));
+        reader.onload=()=>resolve(String(reader.result).split(",")[1]);
+        reader.readAsDataURL(file);
+      });
+      chunks.push(...await api<Definition["chunks"]>("/import","POST",{filename:file.name,content}));
+    }
+    if(cfg.chunks.length+chunks.length>256) throw Error("An assistant can contain up to 256 chunks");
+    update("chunks",[...cfg.chunks,...chunks]);
+  }
   const field="w-full rounded-lg bg-[#1c1c21] p-3 text-sm";
   const button="rounded-lg bg-[#1c1c21] px-3 py-2 text-sm";
   return <main className="min-h-screen bg-[#0c0c0e] p-4 text-[#f4f3f8] sm:p-8" style={{fontFamily:"'Plus Jakarta Sans','Google Sans',sans-serif",fontStyle:"normal"}}>
@@ -41,7 +56,10 @@ export default function Studio() {
           {(["name","welcome","instructions","fallback"] as const).map(k=><label className="block capitalize" key={k}>{k}<textarea className={field} rows={k==="instructions"?3:1} value={cfg[k]} onChange={e=>update(k,e.target.value)}/></label>)}
           <label>Widget accent <input type="color" value={cfg.accent} onChange={e=>update("accent",e.target.value)}/></label>
           <h2>Knowledge</h2>
-          <input type="file" accept=".txt,.md,.csv" multiple onChange={e=>{const files=Array.from(e.target.files??[]);void run(async()=>{const items=await Promise.all(files.map(async file=>{if(file.size>1000000)throw Error("Choose files smaller than 1 MB");const text=await file.text();return (text.match(/[\s\S]{1,8000}/g)??[]).map(body=>({title:file.name,text:body}))}));update("chunks",[...cfg.chunks,...items.flat()])})}}/>
+          <label className="block rounded-lg bg-[#1c1c21] p-4" onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();if(!busy)void run(()=>ingest(Array.from(e.dataTransfer.files)))}}>
+            Drop documents here or choose files
+            <input type="file" accept=".txt,.md,.csv,.xlsx,.pdf,.docx" multiple onChange={e=>{const files=Array.from(e.target.files??[]);e.target.value="";void run(()=>ingest(files))}}/>
+          </label>
           {cfg.chunks.map((c,i)=><div key={i}><strong>{c.title}</strong><textarea className={field} aria-label={c.title} value={c.text} onChange={e=>update("chunks",cfg.chunks.map((x,j)=>j===i?{...c,text:e.target.value}:x))}/>
           <button className={button} disabled={!i} onClick={()=>{const items=[...cfg.chunks];[items[i-1],items[i]]=[items[i],items[i-1]];update("chunks",items)}}>Move up</button> <button className={button} onClick={()=>update("chunks",cfg.chunks.filter((_,j)=>i!==j))}>Remove</button></div>)}
         </>}

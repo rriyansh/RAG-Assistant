@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import json
 import re
@@ -11,6 +12,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.api.studio_import import extract
 from src.llm.factory import create_llm
 from src.utils.workspace import session_id
 
@@ -84,6 +86,26 @@ def create(config: Assistant):
     with database() as db:
         db.execute("INSERT INTO assistants(id, owner, config) VALUES(?,?,?)", (aid, owner(), config.model_dump_json()))
     return {"id": aid}
+
+
+class ImportFile(BaseModel):
+    filename: str = Field(min_length=1, max_length=200)
+    content: str = Field(max_length=2_800_000)
+
+
+@router.post("/import")
+def import_document(file: ImportFile):
+    owner()
+    try:
+        raw = base64.b64decode(file.content, validate=True)
+        if len(raw) > 2_000_000:
+            raise HTTPException(413, "File exceeds 2 MB")
+        text = extract(file.filename, raw)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(422, "Cannot extract this document. Check its format, size and encryption.")
+    return [Chunk(title=file.filename, text=text[i:i+4000]) for i in range(0, len(text), 4000)]
 
 
 @router.get("/{aid}")

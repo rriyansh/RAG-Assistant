@@ -4,7 +4,7 @@ import { NextRequest } from "next/server";
 export const dynamic = "force-dynamic";
 async function forward(req: NextRequest, ctx: { params: { parts?: string[] } }) {
   const parts = ctx.params.parts ?? [];
-  if (parts.length > 2 || (parts[0] && !/^[a-f0-9-]{36}$/.test(parts[0])) ||
+  if (parts.length > 2 || (parts[0] && parts[0] !== "import" && !/^[a-f0-9-]{36}$/.test(parts[0])) ||
       (parts[1] && !["key", "chat"].includes(parts[1]))) {
     return Response.json({detail:"Unknown assistant route"}, {status:404});
   }
