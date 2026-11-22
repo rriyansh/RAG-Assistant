@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   function finish(status: string) {
-    const response = NextResponse.redirect(new URL(`/?connector=github-${status}`, req.url));
+    const response = NextResponse.redirect(new URL(`/connections/github?status=${status}`, req.url));
     response.cookies.set("reso-github-oauth", "", { path: "/api/connectors/github", maxAge: 0 });
     return response;
   }

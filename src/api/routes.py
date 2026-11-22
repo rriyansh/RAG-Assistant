@@ -426,3 +426,15 @@ async def set_params(req: ConfigParamsUpdateRequest) -> dict[str, Any]:
     cfg.update(req.model_dump(exclude_none=True))
     _write_json(CONFIG_PATH, cfg)
     return {"status": "ok"}
+
+@router.get("/connections/github/repository")
+async def get_github_repository(manager: ConnectorManager = Depends(active_connectors)):
+    return manager.github_repository()
+
+
+@router.put("/connections/github/repository")
+async def set_github_repository(body: dict[str, str], manager: ConnectorManager = Depends(active_connectors)):
+    try:
+        return await asyncio.to_thread(manager.github_repository, body.get("repository", ""))
+    except ConnectorError as exc:
+        raise HTTPException(422, str(exc)) from exc

@@ -147,14 +147,6 @@ export default function HomePage() {
 
         <div className="reso-composer-bar border-t border-[#e6e4f0]/10 bg-[#0c0c0e] px-3 py-2 sm:px-4">
           <div className="mx-auto w-full max-w-3xl">
-            <div className="mb-2 flex flex-wrap items-center gap-1" aria-label="Conversation mode">
-              {(["chat", "agent"] as const).map(item => <button key={item} type="button"
-                aria-pressed={mode === item} disabled={isLoading} onClick={() => { setMode(item); if (item === "agent" && mode !== item) { openConnectors(true); setSettingsOpen(true); } }}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold ${mode === item ? "bg-[#f4f3f8] text-[#141417]" : "text-[#e6e4f0]/70"}`}>
-                {item === "agent" ? labels.agent : labels.chat}
-              </button>)}
-              <a href="/studio" className="rounded-full px-3 py-1.5 text-xs font-semibold">Make Your Own Assistant <small>{["Live", "Coming Soon"].includes(process.env.NEXT_PUBLIC_STUDIO_STATUS ?? "") ? process.env.NEXT_PUBLIC_STUDIO_STATUS : "Beta"}</small></a>
-            </div>
             {isLoading && <div role="status" className="mb-2 max-h-24 overflow-auto text-xs leading-5 text-[#e6e4f0]/80">
               {activity.slice(-3).map((line, index) => <p key={index}>{line}</p>)}
             </div>}
@@ -164,7 +156,7 @@ export default function HomePage() {
               <button disabled={isLoading} aria-pressed={search[mode]} onClick={() => setSearch({...search,[mode]:!search[mode]})} className="rounded-full px-3 py-2 aria-pressed:bg-white aria-pressed:text-black">{labels.webSearch}</button>
             </div>
             {profile.workspaceShortcut && <button type="button" className="mb-2 rounded-full border border-white/20 px-3 py-2 text-xs" onClick={() => { openConnectors(profile.actionButton === "connectors"); setSettingsOpen(true); }}>Workspace shortcut</button>}
-            <ChatComposer key={mode} draft={mode === "agent" ? connectorDraft : undefined} models={[]} mode={mode} onSubmit={handleSend} disabled={isLoading} />
+            <ChatComposer modePicker={<details className="relative"><summary aria-label="Choose workspace" title="Choose workspace" className="cursor-pointer list-none px-3 py-2">⌃</summary><div className="absolute bottom-full end-0 z-20 grid w-48 rounded-xl bg-[#242328] p-2 text-sm text-white shadow-lg">{(["chat","agent"] as const).map(item => <button type="button" key={item} disabled={isLoading} aria-pressed={mode === item} className="p-2 text-start" onClick={e => {e.currentTarget.closest("details")?.removeAttribute("open");setMode(item)}}>{item === "chat" ? labels.chat : labels.agent}</button>)}<a className="p-2" href="/studio">Build Your Own RAG-AI</a></div></details>} key={mode} draft={mode === "agent" ? connectorDraft : undefined} models={[]} mode={mode} onSubmit={handleSend} disabled={isLoading} />
           </div>
         </div>
       </div>

@@ -11,6 +11,19 @@ from pypdf import PdfReader
 LIMIT = 2_000_000
 
 
+def image_preview(content: bytes) -> str:
+    import base64
+    from PIL import Image, ImageOps
+    with Image.open(io.BytesIO(content)) as source:
+        if source.format not in {"JPEG", "PNG", "WEBP"} or source.width * source.height > 12000000:
+            raise ValueError("Unsupported image")
+        image = ImageOps.exif_transpose(source).convert("RGB")
+        image.thumbnail((512, 512))
+        output = io.BytesIO()
+        image.save(output, "JPEG", quality=75)
+        return base64.b64encode(output.getvalue()).decode("ascii")
+
+
 def extract(name: str, content: bytes) -> str:
     suffix = PurePath(name).suffix.lower()
     if suffix in {".docx", ".xlsx"}:
@@ -19,7 +32,23 @@ def extract(name: str, content: bytes) -> str:
             if len(entries) > 2048 or sum(item.file_size for item in entries) > 12_000_000:
                 raise ValueError("Office file expands beyond import limits")
     stream = io.BytesIO(content)
-    if suffix == ".pdf":
+    if suffix in {".png", ".jpg", ".jpeg", ".webp"}:
+        from PIL import Image
+        import subprocess
+
+        with Image.open(stream) as image:
+            if image.format not in {"JPEG", "PNG", "WEBP"} or image.width * image.height > 12000000:
+                raise ValueError("Unsupported or oversized image")
+            # Decode before OCR and discard metadata.
+            clean = io.BytesIO()
+            image.convert("RGB").save(clean, format="PNG")
+        try:
+            result = subprocess.run(["tesseract", "stdin", "stdout"], input=clean.getvalue(),
+                                    capture_output=True, check=True, timeout=25)
+        except FileNotFoundError:
+            raise HTTPException(503, "Image imports require Tesseract on the backend")
+        lines = [result.stdout.decode("utf-8").strip() or name]
+    elif suffix == ".pdf":
         pdf = PdfReader(stream)
         if pdf.is_encrypted or len(pdf.pages) > 250:
             raise ValueError("Choose an unencrypted PDF with at most 250 pages")

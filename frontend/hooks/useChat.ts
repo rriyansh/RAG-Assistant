@@ -68,7 +68,7 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
         }));
         const response = await askQuestion(
           trimmed, assistantName, consent, mode,
-          label => setActivity(prev => [...prev, label]), history, connectorId, webSearch, profile?.tone, [profile?.locale && profile.locale !== "en" ? `Reply in ${languageName(profile.locale)}.` : "", profile?.instructions].filter(Boolean).join(" ").slice(0, 2000),
+          label => setActivity(prev => [...prev, label]), history, connectorId, webSearch, profile?.tone, [`Reply in ${languageName(profile?.replyLocale || profile?.locale || "en")}.`, profile?.instructions].filter(Boolean).join(" ").slice(0, 2000),
         );
         if (profile?.notifications && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
           try { new Notification("ResoAgent reply ready"); } catch {}
@@ -127,7 +127,7 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
         setIsLoading(false);
       }
     },
-    [assistantName, mode, messages, profile?.tone, profile?.instructions, profile?.notifications, profile?.locale]
+    [assistantName, mode, messages, profile?.tone, profile?.instructions, profile?.notifications, profile?.locale, profile?.replyLocale]
   );
 
   const approveToolConsent = useCallback(

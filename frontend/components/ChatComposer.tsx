@@ -8,6 +8,7 @@ import { enhancePrompt } from "@/lib/api";
 export type ComposerAccent = "ice" | "ember" | "lime";
 
 export interface ChatComposerProps {
+  modePicker?: React.ReactNode;
   onSubmit: (question: string) => void | Promise<void>;
   disabled?: boolean;
   mode?: "agent" | "chat";
@@ -59,6 +60,7 @@ function useReducedMotion(): boolean {
 }
 
 export default function ChatComposer({
+  modePicker,
   onSubmit,
   disabled = false,
   draft,
@@ -265,6 +267,7 @@ export default function ChatComposer({
                 </div>
               )}
             </div>}
+            {modePicker}
             <button
               type="submit"
               className="ppc-send"

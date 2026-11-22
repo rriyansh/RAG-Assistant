@@ -2,7 +2,7 @@
 
 
 import { InstallApp } from "./InstallApp";
-import { languages, normalizeLocale, ui } from "../lib/locales";
+import { languages, interfaceLanguages, settingLabel, regionOptions, normalizeLocale, ui } from "../lib/locales";
 import directory from "../lib/connectorDirectory.json";
 import { WorkspacePolicy } from "./WorkspacePolicy";
 import { FONT_OPTIONS } from "../lib/fonts";
@@ -289,6 +289,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
   }
 
   async function openConnector(service: ConnectorInfo) {
+    if (service.id === "github") { window.location.assign("/connections/github"); return; }
     setConnectorError(null);
     setConnectorCredentials({});
     setActiveConnectorFormId(null);
@@ -508,9 +509,9 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
               ["App", [["appearance", "Appearance", Monitor], ["haptics", "Haptics", Smartphone], ["notifications", "Notifications", Bell], ["widget", "Widget", LayoutGrid], ["action", "Configure Action Button", Zap], ["language", labels.appLanguage, Globe]]],
               ["AI Assistant", [["customize", "Customize Assistant", Sliders], ["tools", "Connectors & Tools", Plug], ["behavior", "Behavior & Autonomy", Brain], ["privacy", "Privacy & Safety", Shield], ["memory", "Data & Memory", Database], ["keys", "API Keys", Key], ["model", "Model", Sliders]]],
             ] as const).map(([group, rows]) => {
-              const matches = rows.filter(([, title]) => title.toLowerCase().includes(settingsQuery.trim().toLowerCase()));
-              return matches.length > 0 && <section key={group}><h3 className="mb-2 pl-3 text-sm font-semibold opacity-75">{group}</h3><div className="settings-group">
-                {matches.map(([id, title, Icon]) => <button key={title} type="button" onClick={() => setActiveTab(id)}><Icon size={19} aria-hidden="true" />{title}<ChevronRight aria-hidden size={17} className="ml-auto" /></button>)}
+              const matches = rows.filter(([, title]) => settingLabel(profile.locale,title).toLowerCase().includes(settingsQuery.trim().toLowerCase()));
+              return matches.length > 0 && <section key={group}><h3 className="mb-2 pl-3 text-sm font-semibold opacity-75">{settingLabel(profile.locale,group)}</h3><div className="settings-group">
+                {matches.map(([id, title]) => <button key={title} type="button" onClick={() => setActiveTab(id)}>{settingLabel(profile.locale,title)}<ChevronRight aria-hidden size={17} className="ml-auto" /></button>)}
               </div></section>;
             })}
             <div className="sticky bottom-0 py-2"><Search size={18} aria-hidden="true" className="pointer-events-none absolute left-4 top-6" /><input type="search" aria-label={labels.searchSettings} placeholder={labels.searchSettings} value={settingsQuery} onChange={e => setSettingsQuery(e.target.value)} className="settings-home-search w-full rounded-full border border-current/20 pl-11 pr-5 py-3 shadow" /></div>
@@ -522,10 +523,13 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
           {activeTab === "notifications" && <><h3>Notifications</h3><label><input type="checkbox" checked={!!profile.notifications} onChange={async e => { if (!e.target.checked) return updateProfile({notifications:false}); if (typeof Notification === "undefined") return setProfileError("This browser does not support notifications."); try { const granted = await Notification.requestPermission() === "granted"; updateProfile({notifications:granted}); setProfileError(granted ? null : "Allow notifications in your browser settings."); } catch { setProfileError("Notifications are unavailable in this browser."); } }} /> Notify when a reply is ready in a background tab</label>{profileError && <p role="status">{profileError}</p>}</>}
           {activeTab === "widget" && <><h3>Widget</h3><label><input type="checkbox" checked={!!profile.workspaceShortcut} onChange={e => updateProfile({workspaceShortcut:e.target.checked})} /> Show the workspace shortcut above the composer</label><p>This is an in-app shortcut.</p><h3>Install Reso Agent</h3><InstallApp /></>}
           {activeTab === "action" && <><h3>Configure Action Button</h3><label>Open<select value={profile.actionButton ?? "settings"} onChange={e => updateProfile({actionButton:e.target.value as typeof profile.actionButton})}><option value="settings">Settings</option><option value="connectors">Connectors</option></select></label></>}
-          {activeTab === "language" && <><h3>{labels.appLanguage}</h3><label>{labels.appLanguage}<select value={languages.some(({id}) => id === profile.locale) || !profile.locale ? profile.locale ?? "en" : "custom"} onChange={e => { if (e.target.value !== "custom") updateProfile({locale:e.target.value}); }}>{languages.map(({id,label}) => <option key={id} value={id} lang={id}>{label}</option>)}{profile.locale && !languages.some(({id}) => id === profile.locale) && <option value="custom">{profile.locale}</option>}</select></label>
-          <form className="flex flex-wrap items-end gap-2" onSubmit={e => { e.preventDefault(); const code = normalizeLocale(localeCode); if (!code) { setLocaleError("Enter a valid language tag, such as fr, pt-BR or zh-Hant."); return; } updateProfile({locale:code}); setLocaleError(""); }}>
+          {activeTab === "language" && <><h3>{labels.appLanguage}</h3><label>{labels.appLanguage}<select value={interfaceLanguages.some(l => l.id === profile.locale?.split("-")[0]) ? profile.locale!.split("-")[0] : "en"} onChange={e => updateProfile({locale:e.target.value})}>{interfaceLanguages.map(({id,label}) => <option key={id} value={id} lang={id}>{label}</option>)}</select></label>
+          <label>{settingLabel(profile.locale,"Country or region")}<select value={new Intl.Locale(profile.locale || "en").region || ""} onChange={e => {const base=new Intl.Locale(profile.locale || "en");updateProfile({locale:[base.language,base.script,e.target.value].filter(Boolean).join("-")})}}>
+          <option value="">Language default</option>{regionOptions(profile.locale || "en").map(({code,name})=><option key={code} value={code}>{name}</option>)}</select></label>
+          <label>Assistant reply language<select value={profile.replyLocale || ""} onChange={e=>updateProfile({replyLocale:e.target.value})}><option value="">Follow app language</option>{languages.map(({id,label})=><option key={id} value={id}>{label}</option>)}{profile.replyLocale && !languages.some(l=>l.id===profile.replyLocale) && <option>{profile.replyLocale}</option>}</select></label>
+          <form className="flex flex-wrap items-end gap-2" onSubmit={e => { e.preventDefault(); const code = normalizeLocale(localeCode); if (!code) { setLocaleError("Enter a valid language tag, such as fr, pt-BR or zh-Hant."); return; } updateProfile({replyLocale:code}); setLocaleError(""); }}>
             <label>Other reply language<input maxLength={40} placeholder="e.g. pt-BR" value={localeCode} onChange={e => setLocaleCode(e.target.value)} /></label><button type="submit">Apply</button>
-          </form>{localeError && <p role="alert">{localeError}</p>}<p>Your selection sets the assistant’s reply language. Core labels are available in English, Hindi, Arabic, Urdu, Japanese, French and Spanish.</p></>}
+          </form>{localeError && <p role="alert">{localeError}</p>}<p>Core interface labels follow the app language. You can choose a different language for assistant replies.</p></>}
           {activeTab === "customize" && <><h3>Customize Assistant</h3><button onClick={() => setActiveTab("profile")}>Assistant Name &amp; Avatar</button><label>Persona &amp; Tone<select value={profile.tone ?? "formal"} onChange={e => updateProfile({tone:e.target.value as typeof profile.tone})}><option value="formal">Formal</option><option value="casual">Casual</option><option value="technical">Technical</option></select></label><label>System Instructions<textarea rows={5} maxLength={2000} value={profile.instructions ?? ""} onChange={e => updateProfile({instructions:e.target.value})} /></label></>}
           {activeTab === "tools" && <><h3>Connectors &amp; Tools</h3><button onClick={() => setActiveTab("connectors")}>Manage connectors and Web Search availability</button><label><input type="checkbox" checked={!!profile.webSearchDefault} onChange={e => updateProfile({webSearchDefault:e.target.checked})} /> Start new sessions with Web Search enabled</label><p>Code execution and device file access are unavailable in this deployment. Connected services have their own access controls.</p></>}
           {activeTab === "behavior" && <><h3>Behavior &amp; Autonomy</h3><p>Agent can use available read tools. External write tools require human approval.</p><p>Full automation and daily action caps are unavailable.</p></>}
@@ -838,7 +842,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
                               </div>
                             </div>
 
-                            {conn.id === "github" && !conn.connected && <a href="/api/connectors/github/start" className="mt-2 block text-sm underline underline-offset-4">Sign in with GitHub</a>}
+                            {conn.id === "github" && conn.connected && <a className="mt-2 underline" href="/connections/github">Manage repository</a>}
                             {conn.connected && conn.enabled && <button type="button"
                               className="mt-3 self-start text-sm font-semibold underline underline-offset-4"
                               onClick={() => onUseConnector(connectorPrompt(conn), conn)}>
