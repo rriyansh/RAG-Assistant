@@ -1,8 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  async rewrites() {
-    return { beforeFiles: [], afterFiles: [], fallback: [{ source: "/codes%20icon.svg", destination: "/icon.svg" }] };
-  },
+  output: "export",
+  trailingSlash: true,
+  images: { unoptimized: true },
   reactStrictMode: true,
   poweredByHeader: false,
   experimental: {

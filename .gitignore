@@ -1,4 +1,8 @@
 .env
+.env.*
+!.env.example
+!frontend/.env.local.example
+/package-lock.json
 __pycache__/
 *.pyc
 .venv/
@@ -18,3 +22,7 @@ config.json
 
 data/sessions/
 data/connectors.json
+data/studio.sqlite3
+data/*.sqlite3
+cloudflared/credentials.json
+.run/

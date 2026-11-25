@@ -1,0 +1,9 @@
+name = "resso-agent-static"
+compatibility_date = "2026-11-25"
+
+[build]
+command = "cd frontend && npm install && npm run build"
+
+[assets]
+directory = "./frontend/out"
+not_found_handling = "404-page"

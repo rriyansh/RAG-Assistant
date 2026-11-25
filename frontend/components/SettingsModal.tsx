@@ -33,6 +33,8 @@ import {
   toggleConnector,
   updateConfig,
 } from "../lib/api";
+import { apiFetch } from "../lib/api-client";
+import { BackendConnectionSettings } from "./BackendConnectionSettings";
 import type {
   ConnectorInfo,
   FontId,
@@ -60,7 +62,7 @@ export interface SettingsModalProps {
   profileState: ReturnType<typeof useProfile>;
 }
 
-type TabKey = "appearance" | "haptics" | "notifications" | "widget" | "action" | "language" | "customize" | "tools" | "behavior" | "privacy" | "memory" | "premium" | "profile" | "connectors" | "keys" | "model" | "security" | "data" | "storage" | "advanced" | "skills" | "usage" | "shared";
+type TabKey = "appearance" | "haptics" | "notifications" | "widget" | "action" | "language" | "customize" | "tools" | "behavior" | "privacy" | "memory" | "premium" | "profile" | "connectors" | "keys" | "model" | "security" | "data" | "storage" | "advanced" | "skills" | "usage" | "shared" | "backend";
 
 const PROVIDERS = [
   { id: "nvidia", label: "NVIDIA NIM" },
@@ -214,7 +216,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
     setModelList([]);
     if (activeTab !== "model") return;
     const controller = new AbortController();
-    fetch("/api/models?provider="+encodeURIComponent(config.provider), {signal:controller.signal,headers:{"X-Reso-Mode":keyMode}})
+    apiFetch("/api/models?provider="+encodeURIComponent(config.provider), {signal:controller.signal,headers:{"X-Reso-Mode":keyMode}})
       .then(r=>r.ok?r.json():null).then(v=>{if (!controller.signal.aborted) setModelList(v?.models || [])}).catch(()=>{});
     return ()=>controller.abort();
   }, [activeTab,config.provider,keyMode]);
@@ -243,7 +245,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
       return;
     }
     const slug = location.pathname.split("/")[2];
-    const sections: TabKey[] = ["appearance","haptics","notifications","widget","action","language","customize","tools","behavior","privacy","memory","premium","profile","connectors","keys","model","security","data","storage","advanced","skills","usage","shared"];
+    const sections: TabKey[] = ["appearance","haptics","notifications","widget","action","language","customize","tools","behavior","privacy","memory","premium","profile","connectors","keys","model","security","data","storage","advanced","skills","usage","shared","backend"];
     const target = sections.includes(slug as TabKey) ? slug as TabKey : startInConnectors ? "connectors" : null;
     if (!history.state?.resoSettingsDepth) {
       history.replaceState({ ...history.state, resoSettingsDepth: 1, resoSettingsTab: null }, "", "/settings");
@@ -528,6 +530,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
               ["AI Assistant", [["customize", "Customize Assistant", Sliders], ["connectors", "Connectors & Tools", Plug], ["behavior", "Behavior & Autonomy", Brain], ["privacy", "Privacy & Safety", Shield], ["memory", "Data & Memory", Database], ["keys", "API Keys", Key], ["model", "Model", Sliders]]],
               ["Data & History", [["shared", "Shared Conversations", Link2], ["data", "Data Controls", Database], ["storage", "Storage", Folder], ["usage", "Usage and Limits", Gauge]]],
               ["Advanced", [["advanced", "Advanced", SlidersHorizontal], ["skills", "Skills", Sparkles]]],
+              ["Connection", [["backend", "Backend Connection", Link2]]],
             ] as const).map(([group, rows]) => {
               const matches = rows.filter(([, title]) => settingLabel(profile.locale,title).toLowerCase().includes(settingsQuery.trim().toLowerCase()));
               return matches.length > 0 && <section key={group}><h3 className="mb-2 pl-3 text-sm font-semibold opacity-75">{settingLabel(profile.locale,group)}</h3><div className="settings-group">
@@ -542,7 +545,8 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
             <div className="sticky bottom-0 py-2"><Search size={18} aria-hidden="true" className="pointer-events-none absolute left-4 top-6" /><input type="search" aria-label={labels.searchSettings} placeholder={labels.searchSettings} value={settingsQuery} onChange={e => setSettingsQuery(e.target.value)} className="settings-home-search w-full rounded-full border border-current/20 pl-11 pr-5 py-3 shadow" /></div>
           </nav> : null}
           <div className="preferences-panel">
-          {activeTab === "premium" && <><h3>Premium</h3><p>Early access to new features</p><a className="underline underline-offset-4" href="/api/billing/checkout">Continue to Stripe checkout</a><p>Pricing and billing terms appear at checkout. Early access is provisioned by the deployment operator.</p></>}
+          {activeTab === "backend" && <BackendConnectionSettings />}
+          {activeTab === "premium" && <><h3>Premium</h3><p>Early access to new features</p><p>Checkout is unavailable in the standalone mobile build.</p></>}
           {activeTab === "appearance" && <><h3>Appearance</h3><label>Theme<select value={profile.theme ?? "system"} onChange={e => updateProfile({theme: e.target.value as typeof profile.theme})}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label><label>Interface font<select value={profile.font} onChange={e => updateProfile({font: e.target.value as typeof profile.font})}>{FONT_OPTIONS.map(font => <option key={font.id} value={font.id}>{font.label}</option>)}</select></label></>}
           {activeTab === "haptics" && <><h3>Haptics</h3><label><input type="checkbox" checked={!!profile.haptics} onChange={e => { updateProfile({haptics:e.target.checked}); if (e.target.checked) navigator.vibrate?.(20); }} /> Vibrate when sending on supported devices</label></>}
           {activeTab === "notifications" && <><h3>Notifications</h3><label><input type="checkbox" checked={!!profile.notifications} onChange={async e => { if (!e.target.checked) return updateProfile({notifications:false}); if (typeof Notification === "undefined") return setProfileError("This browser does not support notifications."); try { const granted = await Notification.requestPermission() === "granted"; updateProfile({notifications:granted}); setProfileError(granted ? null : "Allow notifications in your browser settings."); } catch { setProfileError("Notifications are unavailable in this browser."); } }} /> Notify when a reply is ready in a background tab</label>{profileError && <p role="status">{profileError}</p>}</>}

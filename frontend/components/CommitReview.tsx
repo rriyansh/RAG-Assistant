@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { FileReview } from "@/lib/types";
+import { apiFetch } from "@/lib/api-client";
 
 export function CommitReview({ review }: { review: FileReview }) {
   const [busy, setBusy] = useState(false);
@@ -11,7 +12,7 @@ export function CommitReview({ review }: { review: FileReview }) {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/github/commit", {
+      const response = await apiFetch("/api/github/commit", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(review),
       });

@@ -6,6 +6,7 @@ import {
   LLMConfig,
   PluginInfo,
 } from "./types";
+import { apiFetch } from "./api-client";
 
 async function handleJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -30,7 +31,7 @@ export async function askQuestion(
   history: { role: "user" | "assistant"; content: string }[] = [],
   connectorId?: string, webSearch = false, tone?: string, instructions?: string,
 ): Promise<AskApiResponse> {
-  const res = await fetch("/api/ask", {
+  const res = await apiFetch("/api/ask", {
     method: "POST", headers: { "Content-Type": "application/json", "X-Reso-Mode": mode },
     body: JSON.stringify({question, assistant_name: assistantName, consent, history, connector_id: connectorId, web_search: webSearch, tone, instructions, stream: true}),
   });
@@ -60,7 +61,7 @@ export async function askQuestion(
 }
 
 export async function fetchConnectors(): Promise<ConnectorInfo[]> {
-  const res = await fetch("/api/connectors", {
+  const res = await apiFetch("/api/connectors", {
     method: "GET",
     cache: "no-store",
   });
@@ -72,7 +73,7 @@ export async function connectService(
   id: string,
   credentials: Record<string, string>
 ): Promise<ConnectorInfo> {
-  const res = await fetch("/api/connectors/connect", {
+  const res = await apiFetch("/api/connectors/connect", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id, credentials }),
@@ -88,7 +89,7 @@ export async function createCustomConnector(payload: {
   method: "GET" | "POST";
   api_key?: string;
 }): Promise<ConnectorInfo> {
-  const res = await fetch("/api/connectors/custom", {
+  const res = await apiFetch("/api/connectors/custom", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -100,7 +101,7 @@ export async function toggleConnector(
   id: string,
   enabled: boolean
 ): Promise<ConnectorInfo> {
-  const res = await fetch("/api/connectors/toggle", {
+  const res = await apiFetch("/api/connectors/toggle", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id, enabled }),
@@ -109,14 +110,14 @@ export async function toggleConnector(
 }
 
 export async function disconnectService(id: string): Promise<void> {
-  const res = await fetch(`/api/connectors/${encodeURIComponent(id)}`, {
+  const res = await apiFetch(`/api/connectors/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
   await handleJson<{ id: string; status: string }>(res);
 }
 
 export async function fetchPlugins(): Promise<PluginInfo[]> {
-  const res = await fetch("/api/plugins", { method: "GET", cache: "no-store" });
+  const res = await apiFetch("/api/plugins", { method: "GET", cache: "no-store" });
   const data = await handleJson<{ plugins: PluginInfo[] }>(res);
   return data.plugins || [];
 }
@@ -125,7 +126,7 @@ export async function togglePlugin(
   name: string,
   enabled: boolean
 ): Promise<{ name: string; enabled: boolean }> {
-  const res = await fetch("/api/plugins/enable", {
+  const res = await apiFetch("/api/plugins/enable", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, enabled }),
@@ -134,7 +135,7 @@ export async function togglePlugin(
 }
 
 export async function fetchThinking(count: number): Promise<{ messages: string[] }> {
-  return handleJson(await fetch(`/api/thinking?count=${count}`));
+  return handleJson(await apiFetch(`/api/thinking?count=${count}`));
 }
 
 export async function fetchThinkingMessages(
@@ -142,7 +143,7 @@ export async function fetchThinkingMessages(
   assistantName: string = "Assistant"
 ): Promise<string[]> {
   if (question) {
-    const res = await fetch("/api/thinking", {
+    const res = await apiFetch("/api/thinking", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question, assistant_name: assistantName }),
@@ -150,13 +151,13 @@ export async function fetchThinkingMessages(
     const data = await handleJson<{ messages: string[] }>(res);
     return data.messages;
   }
-  const res = await fetch("/api/thinking");
+  const res = await apiFetch("/api/thinking");
   const data = await handleJson<{ messages: string[] }>(res);
   return data.messages;
 }
 
 export async function enhancePrompt(prompt: string, mode: ApiMode = "agent"): Promise<string> {
-  const res = await fetch("/api/prompt/enhance", {
+  const res = await apiFetch("/api/prompt/enhance", {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Reso-Mode": mode },
     body: JSON.stringify({ prompt }),
@@ -166,7 +167,7 @@ export async function enhancePrompt(prompt: string, mode: ApiMode = "agent"): Pr
 }
 
 export async function fetchKeys(mode: ApiMode = "agent"): Promise<KeyListResponse> {
-  const res = await fetch("/api/keys", { cache: "no-store", headers: { "X-Reso-Mode": mode } });
+  const res = await apiFetch("/api/keys", { cache: "no-store", headers: { "X-Reso-Mode": mode } });
   const data = await handleJson<KeyListResponse>(res);
   return {
     keys: data.keys || {},
@@ -176,7 +177,7 @@ export async function fetchKeys(mode: ApiMode = "agent"): Promise<KeyListRespons
 }
 
 export async function detectKeyProvider(apiKey: string): Promise<string> {
-  const res = await fetch("/api/keys/detect", {
+  const res = await apiFetch("/api/keys/detect", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ api_key: apiKey }),
@@ -191,7 +192,7 @@ export async function testProviderKey(payload: {
   base_url?: string;
   model?: string;
 }): Promise<{ valid: boolean; model?: string; error?: string }> {
-  const res = await fetch("/api/keys/test", {
+  const res = await apiFetch("/api/keys/test", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -205,7 +206,7 @@ export async function saveProviderKey(payload: {
   base_url?: string;
   model?: string;
 }, mode: ApiMode = "agent"): Promise<void> {
-  const res = await fetch("/api/keys/set", {
+  const res = await apiFetch("/api/keys/set", {
     method: "POST",
     headers: { "X-Reso-Mode": mode, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -214,19 +215,19 @@ export async function saveProviderKey(payload: {
 }
 
 export async function deleteProviderKey(provider: string, mode: ApiMode = "agent"): Promise<void> {
-  const res = await fetch(`/api/keys/${encodeURIComponent(provider)}`, {
+  const res = await apiFetch(`/api/keys/${encodeURIComponent(provider)}`, {
     method: "DELETE", headers: { "X-Reso-Mode": mode },
   });
   await handleJson(res);
 }
 
 export async function fetchConfig(mode: ApiMode = "agent"): Promise<LLMConfig> {
-  const res = await fetch("/api/config", { cache: "no-store", headers: { "X-Reso-Mode": mode } });
+  const res = await apiFetch("/api/config", { cache: "no-store", headers: { "X-Reso-Mode": mode } });
   return handleJson<LLMConfig>(res);
 }
 
 export async function updateConfig(config: Partial<LLMConfig>, mode: ApiMode = "agent"): Promise<void> {
-  const res = await fetch("/api/config", {
+  const res = await apiFetch("/api/config", {
     method: "POST",
     headers: { "X-Reso-Mode": mode, "Content-Type": "application/json" },
     body: JSON.stringify(config),
@@ -239,7 +240,7 @@ export async function updateConfigParams(params: {
   max_tokens?: number;
   top_p?: number;
 }): Promise<void> {
-  const res = await fetch("/api/config/params", {
+  const res = await apiFetch("/api/config/params", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api-client";
 
 interface Definition {
   persona?: "formal" | "casual" | "technical"; name: string; welcome: string; instructions: string; accent: string;
@@ -10,7 +11,7 @@ interface Definition {
 interface Entry { id:string; name:string }
 const initial: Definition = {name:"My assistant", welcome:"How can I help?", instructions:"Answer clearly using the supplied knowledge.", accent:"#e6e4f0", position:"right", fallback:"Please try again or contact support.", temperature:0.3, max_tokens:600, starters:[], rules:[], chunks:[]};
 async function api<T>(path:string, method="GET", value?:unknown): Promise<T> {
-  const response = await fetch("/api/studio"+path, {method, cache:"no-store", headers:{"Content-Type":"application/json"}, body:value === undefined ? undefined : JSON.stringify(value)});
+  const response = await apiFetch("/api/studio"+path, {method, cache:"no-store", headers:{"Content-Type":"application/json"}, body:value === undefined ? undefined : JSON.stringify(value)});
   const data = await response.json();
   if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : "Could not complete the request. Check the configuration.");
   return data as T;

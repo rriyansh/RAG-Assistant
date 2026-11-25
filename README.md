@@ -82,6 +82,22 @@ Use the same embedding provider and model for indexing and retrieval. If the API
 
 ## Configuration and source guide
 
+## Capacitor mobile builds
+
+The mobile workspace is exported as static files from `frontend/` and calls the
+FastAPI service directly. Use `scripts/dev.sh` or `scripts/dev.ps1` to start the
+API with a Cloudflare Quick Tunnel. For changing tunnel URLs across devices,
+configure the optional Gist discovery values in a local, ignored `.env` and set
+`NEXT_PUBLIC_BACKEND_CONFIG_URL` once in Vercel and GitHub Actions. The device
+also accepts a manual URL in Settings → Backend Connection. See
+[docs/mobile-deployment.md](docs/mobile-deployment.md).
+
+GitHub Actions builds an Android debug APK and an unsigned iOS IPA on pushes to
+`main`, publishes GitHub Releases, and uploads Capgo OTA bundles when the
+`CAPGO_TOKEN` repository secret is configured. The iOS IPA needs signing before
+installation. Changes to native plugins or permissions require a new native
+build; OTA applies web assets only.
+
 | Setting | Where to set it | Purpose |
 | --- | --- | --- |
 | `LLM_PROVIDER`, `NVIDIA_API_KEY`, `NVIDIA_MODEL` | Backend environment | Select the hosted inference provider and model. Keep the operator's key server-side. |
