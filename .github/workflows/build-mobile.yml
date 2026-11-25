@@ -25,9 +25,11 @@ jobs:
       - name: Install and export
         working-directory: frontend
         env:
-          NEXT_PUBLIC_BACKEND_URL: ${{ vars.NEXT_PUBLIC_BACKEND_URL }}
-          NEXT_PUBLIC_BACKEND_CONFIG_URL: ${{ vars.NEXT_PUBLIC_BACKEND_CONFIG_URL }}
-        run: npm install && npm run build
+          # These URLs are embedded in the public client bundle; GitHub Secrets
+          # provide the requested centralized build configuration, not secrecy.
+          NEXT_PUBLIC_BACKEND_URL: ${{ secrets.NEXT_PUBLIC_BACKEND_URL }}
+          NEXT_PUBLIC_BACKEND_CONFIG_URL: ${{ secrets.NEXT_PUBLIC_BACKEND_CONFIG_URL }}
+        run: npm ci && npm run build
       - uses: actions/upload-artifact@v4
         with:
           name: web-bundle
@@ -123,4 +125,7 @@ jobs:
         working-directory: frontend
         env:
           CAPGO_TOKEN: ${{ secrets.CAPGO_TOKEN }}
-        run: npx @capgo/cli@latest bundle upload --channel=production --apikey="$CAPGO_TOKEN" --path=out
+        run: npx @capgo/cli@latest bundle upload com.rriyansh.ressoagent --channel=production --apikey="$CAPGO_TOKEN" --path=out --auto-bump patch --comment "$GITHUB_SHA"
+      - name: Skip OTA without Capgo credentials
+        if: ${{ env.CAPGO_TOKEN == '' }}
+        run: echo "CAPGO_TOKEN is unset; native builds and Release publication will continue, but no OTA bundle was uploaded."

@@ -206,6 +206,10 @@ export default function ChatComposer({
             className="ppc-input"
             rows={1}
             value={value}
+            onFocus={(event) => {
+              const input = event.currentTarget;
+              requestAnimationFrame(() => input.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+            }}
             disabled={disabled}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {

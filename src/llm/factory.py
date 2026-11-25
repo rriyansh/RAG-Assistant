@@ -39,6 +39,27 @@ PROVIDER_DEFAULT_MODELS: dict[str, str] = {
     "ollama": "llama3.2",
 }
 
+PROVIDER_KEY_ENV: dict[str, tuple[str, ...]] = {
+    "grok": ("XAI_API_KEY", "GROK_API_KEY"),
+}
+
+
+def get_environment_api_key(provider: str) -> str:
+    names = PROVIDER_KEY_ENV.get(provider, (f"{provider.upper()}_API_KEY",))
+    return next((os.getenv(name, "").strip() for name in names if os.getenv(name, "").strip()), "")
+
+
+def get_default_provider() -> str:
+    configured = os.getenv("LLM_PROVIDER", "").strip().lower()
+    if configured:
+        return configured
+    if get_builtin_nvidia_key():
+        return "nvidia"
+    for provider in ("openai", "groq", "gemini", "openrouter", "grok", "deepseek", "qwen", "anthropic", "mistral"):
+        if get_environment_api_key(provider):
+            return provider
+    return "nvidia"
+
 
 def _read_json(path: Path) -> dict[str, Any]:
     if not path.exists():
@@ -62,7 +83,9 @@ def create_llm() -> LLMProvider:
     cfg = _read_json(workspace_path(CONFIG_PATH))
     keys = _read_json(workspace_path(KEYS_PATH))
 
-    provider = str(cfg.get("provider") or (None if session_id.get() else os.getenv("LLM_PROVIDER")) or "nvidia").lower()
+    # Workspace settings override the service default; environment variables must
+    # still apply to fresh device sessions created by the mobile/web clients.
+    provider = str(cfg.get("provider") or get_default_provider()).lower()
     saved_entry = keys.get(provider, {})
     user_key = ""
     if isinstance(saved_entry, dict):
@@ -78,8 +101,8 @@ def create_llm() -> LLMProvider:
     else:
         base_url = PROVIDER_BASE_URLS.get(provider) or cfg.get("base_url") or (saved_entry.get("base_url") if isinstance(saved_entry, dict) else None)
         model = cfg.get("model") or (saved_entry.get("model") if isinstance(saved_entry, dict) else None) or PROVIDER_DEFAULT_MODELS.get(provider)
-        if not user_key and not session_id.get() and provider in PROVIDER_BASE_URLS:
-            user_key = os.getenv(f"{provider.upper()}_API_KEY", "")
+        if not user_key and provider in PROVIDER_BASE_URLS:
+            user_key = get_environment_api_key(provider)
             base_url = PROVIDER_BASE_URLS[provider]
     if not user_key and provider != "ollama":
         raise ValueError(f"No API key configured for {provider}.")

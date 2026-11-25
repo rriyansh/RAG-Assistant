@@ -12,6 +12,10 @@ if (Test-Path $envFile) {
     }
   }
 }
+$port = if ($env:PORT) { [int]$env:PORT } else { 8000 }
+if ($port -lt 1 -or $port -gt 65535) { throw 'PORT must be an integer from 1 to 65535.' }
+$env:PORT = "$port"
+$localBackendUrl = "http://127.0.0.1:$port"
 
 foreach ($required in @($python, (Join-Path $root 'frontend\node_modules\.bin\next.cmd'))) {
   if (-not (Test-Path $required)) { throw "Missing $required. Follow README.md setup first." }
@@ -22,8 +26,8 @@ $runDir = Join-Path ([IO.Path]::GetTempPath()) ("resso-dev-" + [guid]::NewGuid()
 New-Item -ItemType Directory -Path $runDir | Out-Null
 $backend = $null; $tunnel = $null; $frontend = $null
 try {
-  $backend = Start-Process -FilePath $python -ArgumentList @('-m','uvicorn','src.api.main:app','--host','0.0.0.0','--port','8000') -WorkingDirectory $root -PassThru -NoNewWindow
-  $tunnel = Start-Process -FilePath (Get-Command cloudflared).Source -ArgumentList @('tunnel','--url','http://127.0.0.1:8000','--no-autoupdate') -RedirectStandardOutput (Join-Path $runDir 'tunnel.out') -RedirectStandardError (Join-Path $runDir 'tunnel.err') -PassThru -WindowStyle Hidden
+  $backend = Start-Process -FilePath $python -ArgumentList @('-m','uvicorn','src.api.main:app','--host','0.0.0.0','--port',"$port") -WorkingDirectory $root -PassThru -NoNewWindow
+  $tunnel = Start-Process -FilePath (Get-Command cloudflared).Source -ArgumentList @('tunnel','--url',$localBackendUrl,'--no-autoupdate') -RedirectStandardOutput (Join-Path $runDir 'tunnel.out') -RedirectStandardError (Join-Path $runDir 'tunnel.err') -PassThru -WindowStyle Hidden
 
   $tunnelUrl = $null
   for ($i=0; $i -lt 90 -and -not $tunnelUrl; $i++) {

@@ -4,6 +4,7 @@ from __future__ import annotations
 from dotenv import load_dotenv
 
 import logging
+import os
 import re
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -47,10 +48,25 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+cors_origins = {
+    "capacitor://localhost",
+    "http://localhost",
+    "http://localhost:3000",
+    "http://127.0.0.1",
+    "http://127.0.0.1:3000",
+    "ionic://localhost",
+    *(origin.strip().rstrip("/") for origin in os.getenv("CORS_ALLOW_ORIGINS", "").split(",") if origin.strip()),
+}
+cors_origin_regex = os.getenv(
+    "CORS_ALLOW_ORIGIN_REGEX",
+    r"^https://([a-z0-9-]+\.)*(trycloudflare\.com|vercel\.app|pages\.dev|workers\.dev)$",
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=sorted(cors_origins),
+    allow_origin_regex=cors_origin_regex,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

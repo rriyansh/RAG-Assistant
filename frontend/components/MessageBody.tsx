@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Lexer, type Token } from "../lib/vendor/marked";
+import { triggerBlobDownload } from "../lib/utils";
 
 function CodeBlock({ language, code }: { language: string; code: string }) {
   const [status, setStatus] = useState("Copy code");
@@ -36,7 +37,7 @@ function Diagram({ code }: { code: string }) {
   }, [code]);
   if (!url) return <CodeBlock language="svg" code={code} />;
   return <figure className="my-3"><img src={url} alt="Diagram from this response" className="max-h-[75vh] w-full rounded bg-white object-contain" />
-    <a download="diagram.svg" href={url} className="text-xs underline">Download SVG</a>
+    <button type="button" onClick={() => void triggerBlobDownload("diagram.svg", new Blob([code], { type: "image/svg+xml" }))} className="text-xs underline">Download SVG</button>
     <details><summary className="cursor-pointer text-xs">Diagram source</summary><CodeBlock language="svg" code={code} /></details></figure>;
 }
 

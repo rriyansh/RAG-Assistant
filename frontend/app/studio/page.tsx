@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api-client";
+import { triggerBlobDownload } from "@/lib/utils";
 
 interface Definition {
   persona?: "formal" | "casual" | "technical"; name: string; welcome: string; instructions: string; accent: string;
@@ -49,7 +50,7 @@ export default function Studio() {
   const [skillURL,setSkillURL]=useState("");
   const field="w-full rounded-lg bg-[#1c1c21] p-3 text-sm";
   const button="rounded-lg bg-[#1c1c21] px-3 py-2 text-sm";
-  return <main className="min-h-screen bg-[#0c0c0e] p-4 text-[#f4f3f8] sm:p-8" style={{fontFamily:"'Plus Jakarta Sans','Google Sans',sans-serif",fontStyle:"normal"}}>
+  return <main className="studio-page min-h-0 bg-[#0c0c0e] px-4 pb-4 text-[#f4f3f8] sm:px-8 sm:pb-8" style={{fontFamily:"'Plus Jakarta Sans','Google Sans',sans-serif",fontStyle:"normal"}}>
     <a href="/">← Chat and Agent</a><h1 className="my-5 text-2xl font-semibold">Make Your Own Assistant</h1>
     <fieldset disabled={busy} className="grid gap-4 lg:grid-cols-2">
       <section className="space-y-4 rounded-xl bg-[#141417] p-4">
@@ -85,7 +86,7 @@ export default function Studio() {
           <button className={button} disabled={!i} onClick={()=>{const items=[...cfg.chunks];[items[i-1],items[i]]=[items[i]!,items[i-1]!];update("chunks",items)}}>Move up</button> <button className={button} onClick={()=>update("chunks",cfg.chunks.filter((_,j)=>i!==j))}>Remove</button></div>)}
         </>}
         <div className="flex flex-wrap gap-2"><button className={button} onClick={()=>void run(async()=>{await save();status("Saved")})}>Save assistant</button>
-        <button className={button} onClick={()=>void run(async()=>{const blob=new Blob([JSON.stringify(raw===null?cfg:JSON.parse(raw),null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="assistant.json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)})}>Export JSON</button>
+        <button className={button} onClick={()=>void run(async()=>{const blob=new Blob([JSON.stringify(raw===null?cfg:JSON.parse(raw),null,2)],{type:"application/json"});await triggerBlobDownload("assistant.json",blob)})}>Export JSON</button>
         {id&&<button className={button} onClick={()=>void run(async()=>{if(!confirm("Replace the existing chat API key?"))return;showKey((await api<{key:string}>("/"+id+"/key","POST")).key)})}>Generate chat key</button>}
         {id&&<button className={button} onClick={()=>void run(async()=>{if(!confirm("Revoke chat API access for this assistant?"))return;await api("/"+id+"/key","DELETE");showKey("");status("Chat key revoked")})}>Revoke chat key</button>}
         {id&&<button className={button} onClick={()=>void run(async()=>{if(!confirm("Delete this assistant and its knowledge?"))return;await api("/"+id,"DELETE");select("");set(initial);code(null);reply("");showKey("");list(await api<Entry[]>(""))})}>Delete assistant</button>}</div>

@@ -21,16 +21,17 @@ The root [`vercel.json`](../vercel.json) runs npm only under `frontend/` and
 publishes `frontend/out`. In the Vercel project settings, leave Root Directory at
 the repository root and do not override its install/build/output commands.
 
-Set these build environment variables in Vercel and in GitHub repository
-**Settings → Secrets and variables → Actions → Variables**:
+Set these build configuration values in Vercel and in GitHub repository
+**Settings → Secrets and variables → Actions → Secrets**:
 
 - `NEXT_PUBLIC_BACKEND_CONFIG_URL`: the stable raw URL of a public Gist named
   `reso-backend.json` (recommended for changing Quick Tunnel URLs).
 - `NEXT_PUBLIC_BACKEND_URL`: optional fixed HTTPS backend URL. Leave empty when
   using auto-sync.
 
-These are public frontend configuration values. Never put a token or API key in
-either variable.
+These values are embedded in the public frontend bundle and are not confidential;
+GitHub Secrets are used here only to centralize workflow configuration. Never put
+a token or API key in either URL.
 
 ## Start the backend and a free Quick Tunnel
 
@@ -39,7 +40,8 @@ Install `cloudflared`, install the Python and frontend dependencies, then run
 script starts FastAPI, starts `cloudflared tunnel --url
 http://localhost:8000`, waits for `/health`, prints the ephemeral
 `*.trycloudflare.com` URL, publishes it to the optional Gist, and starts the web
-UI. Quick Tunnel URLs change between runs.
+UI. Set `PORT` to override the local backend port (default `8000`). Quick Tunnel
+URLs change between runs.
 
 For automatic discovery across devices and deployments, create a **public
 Gist** with an empty `reso-backend.json` file and create a GitHub token with Gist
@@ -66,14 +68,35 @@ offline; API features resume when it responds.
 
 ## App branding and OTA
 
-`frontend/assets/icon.png` and `frontend/assets/splash.png` are generated from
-the existing Reso emblem SVG. The build workflow uses `@capacitor/assets` to
-create the Android and iOS native resources, with the Capacitor app name set to
-**Reso Agent**.
+`frontend/assets/icon.png`, `frontend/assets/splash.png`, PWA icons, and the
+in-app logo use the selected Dino image. The build workflow uses
+`@capacitor/assets` to create all Android densities/adaptive icons and the iOS
+AppIcon set. The Capacitor app name is **Reso Agent**.
 
-The `build-mobile` workflow uploads web bundles to Capgo when the Actions secret
-`CAPGO_TOKEN` exists. Capgo updates web assets; native plugin/configuration
-changes still require a new binary. Release assets are published at:
+The `build-mobile` workflow uploads the static bundle to Capgo on every push to
+`main` when the `CAPGO_TOKEN` Actions secret is set. Without it, OTA is skipped
+and native builds/releases continue. The updater checks on app launch; Capgo
+updates web assets, while native plugin/configuration changes still require a
+new binary. Register `com.rriyansh.ressoagent` in Capgo once and create/set the
+default `production` channel before the first upload; the CI upload version is
+automatically incremented for every run.
+
+For a local development setup, keep API provider keys and `GH_GIST_TOKEN` in the
+ignored root `.env`. For cloud hosting, configure provider keys as runtime
+environment variables on the backend host (for example `OPENAI_API_KEY`,
+`NVIDIA_API_KEY`, and `LLM_PROVIDER`). Do not put backend provider keys into the
+frontend build or mobile bundle. New device sessions use the configured hosted
+provider unless the user chooses a provider in Settings.
+
+The API container listens on `0.0.0.0:$PORT` (`8000` by default), exposes
+`/health`, and persists `data/` through the Compose bind mount. Railway/Render
+must provide a persistent volume mounted at `/app/data` if local vector indexes
+and settings need to survive restarts. The static frontend container is served
+by Nginx and does not start Python. Set `CORS_ALLOW_ORIGINS` for custom frontend
+domains; Vercel, Cloudflare Pages/Workers, and Quick Tunnel origins are included
+in the default allowlist pattern.
+
+Release assets are published at:
 
 - `https://github.com/rriyansh/RAG-Assistant/releases/latest/download/resso-agent-android.apk`
 - `https://github.com/rriyansh/RAG-Assistant/releases/latest/download/resso-agent-ios-unsigned.ipa`

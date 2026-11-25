@@ -1,6 +1,6 @@
 {
   "name": "rag-frontend",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -13,7 +13,10 @@
     "@capacitor/android": "^7.4.3",
     "@capacitor/app": "^7.1.2",
     "@capacitor/core": "^7.4.3",
+    "@capacitor/filesystem": "^7.1.9",
     "@capacitor/ios": "^7.4.3",
+    "@capacitor/keyboard": "^7.0.6",
+    "@capacitor/share": "^7.0.4",
     "@capgo/capacitor-updater": "^7.35.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

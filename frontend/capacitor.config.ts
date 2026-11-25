@@ -5,8 +5,13 @@ const config: CapacitorConfig = {
   appName: "Reso Agent",
   webDir: "out",
   plugins: {
+    Keyboard: {
+      resize: "body",
+      resizeOnFullScreen: true,
+    },
     CapacitorUpdater: {
-      autoUpdate: true,
+      autoUpdate: "onLaunch",
+      keepUrlPathAfterReload: true,
       appReadyTimeout: 10000,
       updateUrl: "https://api.capgo.app/updates",
       statsUrl: "https://api.capgo.app/stats",

@@ -1,35 +1,71 @@
-version: "3.9"
-
 services:
   api:
     build: .
     ports:
-      - "8000:8000"
-    env_file:
-      - .env
+      - "${PORT:-8000}:${PORT:-8000}"
+    environment:
+      PORT: ${PORT:-8000}
+      CHROMA_PERSIST_DIR: ${CHROMA_PERSIST_DIR:-/app/data/chroma}
+      LLM_PROVIDER: ${LLM_PROVIDER:-nvidia}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      NVIDIA_MODEL: ${NVIDIA_MODEL:-meta/llama-3.3-70b-instruct}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      XAI_API_KEY: ${XAI_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      QWEN_API_KEY: ${QWEN_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      CUSTOM_LLM_BASE_URL: ${CUSTOM_LLM_BASE_URL:-}
+      CUSTOM_LLM_API_KEY: ${CUSTOM_LLM_API_KEY:-}
+      CUSTOM_LLM_MODEL: ${CUSTOM_LLM_MODEL:-}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-ollama}
+      EMBEDDING_MODEL_OPENAI: ${EMBEDDING_MODEL_OPENAI:-text-embedding-3-small}
+      EMBEDDING_MODEL_OLLAMA: ${EMBEDDING_MODEL_OLLAMA:-nomic-embed-text}
+      CHROMA_COLLECTION: ${CHROMA_COLLECTION:-documents}
+      CHUNK_SIZE: ${CHUNK_SIZE:-400}
+      CHUNK_OVERLAP: ${CHUNK_OVERLAP:-50}
+      TOP_K: ${TOP_K:-8}
+      WEB_SEARCH_ENABLED: ${WEB_SEARCH_ENABLED:-true}
+      WEB_SEARCH_MAX_RESULTS: ${WEB_SEARCH_MAX_RESULTS:-4}
+      WEB_FALLBACK_THRESHOLD: ${WEB_FALLBACK_THRESHOLD:-0.40}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-}
+      CORS_ALLOW_ORIGIN_REGEX: ${CORS_ALLOW_ORIGIN_REGEX:-^https://([a-z0-9-]+\.)*(trycloudflare\.com|vercel\.app|pages\.dev|workers\.dev)$}
+      AGENT_ENABLED: ${AGENT_ENABLED:-true}
+      STUDIO_DATABASE_URL: ${STUDIO_DATABASE_URL:-}
+      RESO_OLLAMA_FALLBACK_MODEL: ${RESO_OLLAMA_FALLBACK_MODEL:-}
     volumes:
       - ./data:/app/data
-    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
 
   ui:
     build: .
     ports:
-      - "8501:8501"
-    env_file:
-      - .env
+      - "${STREAMLIT_PORT:-8501}:8501"
     environment:
-      - API_URL=http://api:8000
+      API_URL: http://api:${PORT:-8000}
     volumes:
       - ./data:/app/data
-    command: streamlit run ui/app.py --server.port 8501 --server.address 0.0.0.0
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      disable: true
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-}
+        NEXT_PUBLIC_BACKEND_CONFIG_URL: ${NEXT_PUBLIC_BACKEND_CONFIG_URL:-}
     ports:
-      - "3000:3000"
-    environment:
-      RAG_BACKEND_URL: http://api:8000
-    depends_on:
-      - api
+      - "${FRONTEND_PORT:-3000}:80"
+    restart: unless-stopped

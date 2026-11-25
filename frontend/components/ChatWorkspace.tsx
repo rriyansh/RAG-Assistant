@@ -29,6 +29,24 @@ export default function ChatWorkspace({initialSettings = false}: {initialSetting
   } = profileState;
 
   const labels = ui(profile.locale);
+  React.useEffect(() => {
+    const viewport = window.visualViewport;
+    const syncViewport = () => {
+      document.documentElement.style.setProperty("--app-viewport-height", `${viewport?.height ?? window.innerHeight}px`);
+      document.documentElement.style.setProperty("--app-viewport-top", `${viewport?.offsetTop ?? 0}px`);
+    };
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+    viewport?.addEventListener("resize", syncViewport);
+    viewport?.addEventListener("scroll", syncViewport);
+    return () => {
+      window.removeEventListener("resize", syncViewport);
+      viewport?.removeEventListener("resize", syncViewport);
+      viewport?.removeEventListener("scroll", syncViewport);
+      document.documentElement.style.removeProperty("--app-viewport-height");
+      document.documentElement.style.removeProperty("--app-viewport-top");
+    };
+  }, []);
   React.useEffect(() => { if (hydrated) setMode(profile.defaultMode ?? "chat"); }, [hydrated, profile.defaultMode]);
   React.useEffect(() => {
     document.documentElement.lang = profile.locale ?? "en";

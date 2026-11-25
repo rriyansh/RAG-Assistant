@@ -47,6 +47,8 @@ from src.llm.factory import (
     PROVIDER_DEFAULT_MODELS,
     create_llm,
     get_builtin_nvidia_key,
+    get_default_provider,
+    get_environment_api_key,
 )
 from src.retrieval.hybrid_retriever import hybrid_retrieve
 
@@ -327,6 +329,10 @@ async def get_keys() -> dict[str, Any]:
         for p, v in raw.items()
         if isinstance(v, dict) and v.get("api_key")
     }
+    for provider in ("nvidia", "openai", "groq", "gemini", "openrouter", "grok", "deepseek", "qwen", "anthropic", "mistral"):
+        hosted_key = get_builtin_nvidia_key() if provider == "nvidia" else get_environment_api_key(provider)
+        if hosted_key:
+            masked.setdefault(provider, {"configured": True, "masked_key": "Hosted by operator"})
     if "nvidia" not in masked and get_builtin_nvidia_key():
         masked["nvidia"] = {"configured": True, "masked_key": "Free Built-in Tier"}
     return {"hosted_ready": bool(get_builtin_nvidia_key()), "keys": masked, "active_provider": cfg.get("provider", "nvidia")}
@@ -420,7 +426,7 @@ async def get_cfg() -> dict[str, Any]:
     cfg = _read_json(CONFIG_PATH)
     return {
         "hosted": cfg.get("hosted", False),
-        "provider": cfg.get("provider", "nvidia"),
+        "provider": cfg.get("provider", get_default_provider()),
         "model": cfg.get("model", "meta/llama-3.3-70b-instruct"),
         "base_url": cfg.get("base_url", ""),
         "temperature": float(cfg.get("temperature", 0.3)),

@@ -1,3 +1,5 @@
+import { Capacitor } from "@capacitor/core";
+
 export function cn(...inputs: Array<string | undefined | null | false>): string {
   return inputs.filter(Boolean).join(" ");
 }
@@ -168,13 +170,51 @@ function buildSimplePdfBytes(title: string, textContent: string): Uint8Array {
   return encoder.encode(pdf);
 }
 
+export async function triggerBlobDownload(filename: string, blob: Blob): Promise<void> {
+  const safeFilename = filename.split(/[\\/]/).pop()?.replace(/[\u0000-\u001f]/g, "") || "download";
+  const webDownload = () => {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = safeFilename;
+    anchor.rel = "noopener";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  };
+
+  if (!Capacitor.isNativePlatform()) {
+    webDownload();
+    return;
+  }
+  try {
+    const { Filesystem, Directory } = await import("@capacitor/filesystem");
+    const { Share } = await import("@capacitor/share");
+    const buffer = new Uint8Array(await blob.arrayBuffer());
+    let binary = "";
+    for (let offset = 0; offset < buffer.length; offset += 0x8000) {
+      binary += String.fromCharCode(...buffer.subarray(offset, offset + 0x8000));
+    }
+    const saved = await Filesystem.writeFile({
+      path: safeFilename,
+      data: btoa(binary),
+      directory: Directory.Cache,
+      recursive: true,
+    });
+    await Share.share({ title: safeFilename, files: [saved.uri], dialogTitle: "Save or share file" });
+  } catch {
+    webDownload();
+  }
+}
+
 export function triggerFileDownload(
   filename: string,
   content: string,
   format?: "raw" | "pdf" | "doc"
 ): void {
   let blob: Blob;
-  let finalName = filename;
+  let finalName = filename.split(/[\\/]/).pop()?.replace(/[\u0000-\u001f]/g, "") || "download";
 
   if (format === "pdf" || filename.endsWith(".pdf")) {
     const bytes = buildSimplePdfBytes(filename, content);
@@ -198,12 +238,5 @@ export function triggerFileDownload(
     blob = new Blob([content], { type: "text/plain;charset=utf-8" });
   }
 
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = finalName;
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  URL.revokeObjectURL(url);
+  void triggerBlobDownload(finalName, blob);
 }

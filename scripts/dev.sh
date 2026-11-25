@@ -16,6 +16,13 @@ if [[ -f "$ROOT_DIR/.env" ]]; then
   source "$ROOT_DIR/.env"
   set +a
 fi
+PORT="${PORT:-8000}"
+if [[ ! "$PORT" =~ ^[0-9]{1,5}$ ]] || (( PORT < 1 || PORT > 65535 )); then
+  echo "PORT must be an integer from 1 to 65535." >&2
+  exit 1
+fi
+export PORT
+LOCAL_BACKEND_URL="http://127.0.0.1:${PORT}"
 
 for binary in "$PYTHON" "$NEXT"; do
   if [[ ! -x "$binary" ]]; then
@@ -49,10 +56,10 @@ trap 'exit 143' TERM
 RUN_DIR="$(mktemp -d)"
 chmod 700 "$RUN_DIR"
 cd "$ROOT_DIR"
-"$PYTHON" -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000 &
+"$PYTHON" -m uvicorn src.api.main:app --host 0.0.0.0 --port "$PORT" &
 BACKEND_PID=$!
 
-cloudflared tunnel --url http://127.0.0.1:8000 --no-autoupdate \
+cloudflared tunnel --url "$LOCAL_BACKEND_URL" --no-autoupdate \
   >"$RUN_DIR/cloudflared.log" 2>&1 &
 TUNNEL_PID=$!
 

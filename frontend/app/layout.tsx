@@ -22,8 +22,11 @@ export function generateMetadata(): Metadata {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
   themeColor: "#0c0c0e",
+  interactiveWidget: "resizes-content",
 };
 
 const fontScript = `
@@ -50,10 +53,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
         <script dangerouslySetInnerHTML={{ __html: fontScript }} />
       </head>
-      <body className="min-h-screen bg-surface text-gray-200">{children}</body>
+      <body className="min-h-screen bg-surface text-gray-200">
+        {children}
         <RegisterApp />
         <UpdaterReady />
         <BackendMonitor />
+      </body>
     </html>
   );
 }
