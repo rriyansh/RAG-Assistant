@@ -11,7 +11,7 @@ export interface LogoProps {
 export function Logo({
   size = 32,
   className = "",
-  src = "/logo.svg",
+  src = "/dino.svg",
   href,
   external = false,
 }: LogoProps): JSX.Element {
@@ -23,7 +23,7 @@ export function Logo({
   };
 
   const img = (
-    <img src={src} alt="Assistant logo" style={imgStyle} className={className} />
+    <img src={src} alt="Reso Agent dinosaur logo" style={imgStyle} className={className} />
   );
 
   if (!href) return img;
@@ -33,7 +33,7 @@ export function Logo({
       href={href}
       target={external ? "_blank" : undefined}
       rel={external ? "noopener noreferrer" : undefined}
-      aria-label="Assistant"
+      aria-label="Reso Agent"
       className="inline-flex items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[#5FB2F2]"
     >
       {img}

@@ -103,10 +103,10 @@ export default function ChatWorkspace({initialSettings = false}: {initialSetting
   return (
     <div
       style={{ fontFamily: activeFontFamily, fontSize: 18, fontWeight: 400, fontOpticalSizing: "auto" }}
-      className="reso-workspace relative flex h-[100dvh] flex-col bg-[#0c0c0e] text-[#f4f3f8] antialiased"
+      className="reso-workspace relative flex min-h-0 flex-col bg-[#0c0c0e] text-[#f4f3f8] antialiased"
     >
       <div
-        className={`flex h-full flex-col transition-all duration-300 ${
+        className={`flex min-h-0 flex-1 flex-col transition-all duration-300 ${
           showOnboarding
             ? "pointer-events-none select-none blur-[6px] brightness-75"
             : ""

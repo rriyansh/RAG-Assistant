@@ -26,3 +26,6 @@ data/studio.sqlite3
 data/*.sqlite3
 cloudflared/credentials.json
 .run/
+
+frontend/android/
+frontend/ios/

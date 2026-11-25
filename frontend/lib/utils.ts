@@ -2,7 +2,7 @@ export function cn(...inputs: Array<string | undefined | null | false>): string 
   return inputs.filter(Boolean).join(" ");
 }
 
-export const CODES_ICON_SVG_PATH = "/public.svg";
+export const CODES_ICON_SVG_PATH = "/dino.svg";
 
 export const CODES_ICON_FALLBACK_DATA_URL =
   "data:image/svg+xml;utf8," +
@@ -74,7 +74,7 @@ export const INBUILT_ASSISTANT_LOGOS: Array<{
   {
     id: "reso- emblem",
     label: "Reso Core",
-    url: "/portraits/reso-emblem.webp",
+    url: CODES_ICON_SVG_PATH,
   },
   {
     id: "dragon-crest",

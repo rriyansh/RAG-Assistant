@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     id: "/", name: "Reso Agent", short_name: "Reso Agent",
     description: "Your AI chat and connected workspace.",
     start_url: "/", scope: "/", display: "standalone",
-    background_color: "#18151e", theme_color: "#18151e",
+    background_color: "#29263a", theme_color: "#29263a",
     icons: [
       { src: "/app-icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/app-icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },

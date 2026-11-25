@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { RegisterApp } from "@/components/RegisterApp";
 import { UpdaterReady } from "@/lib/UpdaterReady";
@@ -12,12 +12,19 @@ export function generateMetadata(): Metadata {
   return {
     metadataBase: siteOrigin(),
     title, description, manifest: "/manifest.webmanifest",
-    icons: { icon: "/icon.svg", apple: "/app-icon-192.png" },
+    icons: { icon: "/dino.svg", apple: "/app-icon-192.png" },
     appleWebApp: { capable: true, title },
     openGraph: { type: "website", siteName: title, title, description, images: [image] },
     twitter: { card: "summary_large_image", title, description, images: [image] },
   };
 }
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0c0c0e",
+};
 
 const fontScript = `
 try {

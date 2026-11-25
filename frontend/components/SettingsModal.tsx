@@ -223,22 +223,18 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
 
   function setActiveTab(tab: TabKey | null) {
     if (tab === activeTab) return;
-    if (tab === null) {
-      history.pushState({ ...history.state, resoSettingsDepth: 1, resoSettingsTab: null }, "", "/settings");
-      showTab(null);
-      return;
-    }
-    const depth = Number(history.state?.resoSettingsDepth || 1) + 1;
-    history.pushState({ ...history.state, resoSettingsDepth: depth, resoSettingsTab: tab }, "", "/settings/"+tab);
+    const entry = { ...(history.state ?? {}), resoSettings: true, resoSettingsTab: tab };
+    history.replaceState(entry, "", tab ? "/settings/"+tab : "/settings");
     showTab(tab);
   }
   function closeSheet() {
-    const depth = Number(history.state?.resoSettingsDepth || 0);
-    if (depth) history.go(-depth);
+    if (history.state?.resoSettings) history.back();
     else onClose();
   }
   const closeRef = React.useRef(onClose);
   closeRef.current = onClose;
+  const activeTabRef = React.useRef(activeTab);
+  activeTabRef.current = activeTab;
   useEffect(() => {
     if (!modalVisible) {
       showTab(null);
@@ -247,17 +243,30 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
     const slug = location.pathname.split("/")[2];
     const sections: TabKey[] = ["appearance","haptics","notifications","widget","action","language","customize","tools","behavior","privacy","memory","premium","profile","connectors","keys","model","security","data","storage","advanced","skills","usage","shared","backend"];
     const target = sections.includes(slug as TabKey) ? slug as TabKey : startInConnectors ? "connectors" : null;
-    if (!history.state?.resoSettingsDepth) {
-      history.replaceState({ ...history.state, resoSettingsDepth: 1, resoSettingsTab: null }, "", "/settings");
-      if (target) history.pushState({...history.state, resoSettingsDepth:2, resoSettingsTab:target}, "", "/settings/"+target);
+    if (!history.state?.resoSettings) {
+      if (/^\/settings(?:\/|$)/.test(location.pathname)) {
+        history.replaceState({ ...(history.state ?? {}), resoSettings: true, resoSettingsTab: target }, "", target ? "/settings/"+target : "/settings");
+      } else {
+        history.pushState({ ...(history.state ?? {}), resoSettingsBase: true }, "", "/");
+        history.pushState({ ...(history.state ?? {}), resoSettings: true, resoSettingsTab: target }, "", target ? "/settings/"+target : "/settings");
+      }
     }
     showTab(target);
     const pop = (event: PopStateEvent) => {
-      if (!event.state?.resoSettingsDepth) closeRef.current();
-      else showTab(event.state.resoSettingsTab ?? null);
+      if (event.state?.resoSettings) showTab(event.state.resoSettingsTab ?? null);
+      else closeRef.current();
     };
     window.addEventListener("popstate", pop);
-    return () => window.removeEventListener("popstate", pop);
+    let backListener: { remove: () => Promise<void> } | undefined;
+    void import("@capacitor/app").then(({ App }) => App.addListener("backButton", () => {
+      if (activeTabRef.current !== null) setActiveTab(null);
+      else if (history.state?.resoSettings) history.back();
+      else closeRef.current();
+    })).then(listener => { backListener = listener; }).catch(() => {});
+    return () => {
+      window.removeEventListener("popstate", pop);
+      void backListener?.remove();
+    };
   }, [modalVisible, startInConnectors]);
   const [connectorSearch, setConnectorSearch] = useState("");
   const [catalogUnavailable, setCatalogUnavailable] = useState(false);

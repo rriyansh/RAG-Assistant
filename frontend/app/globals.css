@@ -72,6 +72,7 @@ html[data-font="plus-jakarta-sans"] {
 
 html, body {
   height: 100%;
+  min-height: 100%;
   margin: 0;
   background-color: #0c0c0e;
   color: #e6e4f0;
@@ -80,6 +81,17 @@ html, body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: font-family 0.15s ease;
+}
+
+body { min-height: 100dvh; }
+.reso-workspace { height: 100vh; height: 100dvh; padding-top: env(safe-area-inset-top); }
+.reso-workspace > div { min-height: 0; }
+.reso-workspace > div > main { min-height: 0; overscroll-behavior: contain; }
+.reso-composer-bar { padding-bottom: max(.5rem, env(safe-area-inset-bottom)); }
+.settings-overlay { padding-top: max(.5rem, env(safe-area-inset-top)); }
+@media (max-width: 767px) {
+  .settings-overlay { padding-top: 0; }
+  .settings-dialog { max-height: calc(100dvh - env(safe-area-inset-top)); }
 }
 
 h1, h2, h3, h4, h5, h6, .font-display {
@@ -524,9 +536,6 @@ html[data-font="source-sans-3"] { --font-body: "Source Sans 3", system-ui, sans-
   [data-connector-sheet] :is(img[src="/connectors/github.svg"],img[src="/connectors/vercel.svg"],img[src="/connectors/notion.svg"],img[src="/providers/openai.svg"],img[src="/providers/grok.svg"]) { filter: invert(1); }
 }
 
-/* The original dark Dino needs a light silhouette on the dark workspace. */
-img[src="/public.svg"], img[src="/icon.svg"] { filter: invert(1); }
-
 @media (prefers-reduced-motion: no-preference) {
   .reply-reveal { animation: reply-reveal .55s ease-out both; }
 }
@@ -573,8 +582,6 @@ html[data-theme="light"] :is(.reso-workspace,.reso-composer-bar) { background:#f
 html[data-theme="light"] .reso-workspace :is(.chat-welcome,.chat-welcome p,.reso-message) { color:#1b1820; }
 html[data-theme="light"] .reso-workspace .reso-message :is([class*="text-[#f4f3f8]"],[class*="text-[#faf9fc]"],[class*="text-[#c6c4cf]"]) { color:#292331; }
 html[data-theme="light"] .reso-workspace .reso-message :is(pre,code), html[data-theme="light"] .reso-workspace .reso-message details > div { color:#f4f3f8; background:#232029; }
-html[data-theme="light"] .chat-welcome img[src="/public.svg"],
-html[data-theme="light"] .reso-message img[src="/public.svg"] { filter:none; }
 
 .reso-intro {
   position:fixed; inset:0; z-index:70; overflow:auto; overscroll-behavior:contain;
