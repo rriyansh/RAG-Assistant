@@ -22,6 +22,39 @@ async function handleJson<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export type AskErrorCode = "network" | "auth" | "rate_limit" | "backend" | "stream" | "unknown";
+
+interface AskError extends Error {
+  code: AskErrorCode;
+  status?: number;
+}
+
+function classifyAskError(err: unknown, status?: number): AskError {
+  const rawMessage = err instanceof Error ? err.message : "Failed to get a response.";
+  const lower = rawMessage.toLowerCase();
+  const code: AskErrorCode = (() => {
+    if (status === 401 || status === 403 || lower.includes("unauthorized") || lower.includes("forbidden") || lower.includes("api key")) return "auth";
+    if (status === 429 || lower.includes("rate limit") || lower.includes("quota") || lower.includes("too many requests")) return "rate_limit";
+    if (status === 502 || status === 503 || lower.includes("unavailable") || lower.includes("backend")) return "backend";
+    if (status && status >= 400 && status < 500) return "backend";
+    if (lower.includes("fetch") || lower.includes("network") || lower.includes("cors") || lower.includes("failed to fetch")) return "network";
+    if (lower.includes("stream") || lower.includes("ended early") || lower.includes("parse")) return "stream";
+    return "unknown";
+  })();
+  const specific: Record<AskErrorCode, string> = {
+    auth: "Authentication failed. Check your API key or sign in again.",
+    rate_limit: "The provider is rate-limited. Please try again shortly.",
+    backend: status ? `The backend returned HTTP ${status}.` : "The backend is temporarily unavailable.",
+    network: "Network error. Check your internet connection and backend URL.",
+    stream: "The response stream was interrupted.",
+    unknown: rawMessage,
+  };
+  const base = new Error(specific[code]) as AskError;
+  base.code = code;
+  base.status = status;
+  return base;
+}
+
 export async function askQuestion(
   question: string,
   assistantName: string = "Assistant",
@@ -30,33 +63,54 @@ export async function askQuestion(
   onActivity?: (label: string) => void,
   history: { role: "user" | "assistant"; content: string }[] = [],
   connectorId?: string, webSearch = false, tone?: string, instructions?: string,
+  signal?: AbortSignal,
 ): Promise<AskApiResponse> {
-  const res = await apiFetch("/api/ask", {
-    method: "POST", headers: { "Content-Type": "application/json", "X-Reso-Mode": mode },
-    body: JSON.stringify({question, assistant_name: assistantName, consent, history, connector_id: connectorId, web_search: webSearch, tone, instructions, stream: true}),
-  });
-  if (!res.ok) await handleJson(res);
-  if (!res.body) throw new Error("The workspace backend returned no response.");
-  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
-  let buffer = "";
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120_000);
+  const abort = () => { controller.abort(); clearTimeout(timeoutId); };
+  if (signal) { signal.addEventListener("abort", abort, { once: true }); }
+
   try {
-    while (true) {
-      const {value, done} = await reader.read();
-      if (done) break;
-      buffer += value;
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        const event = JSON.parse(line);
-        if (event.error) throw new Error(event.error);
-        if (event.activity) onActivity?.(event.activity);
-        if (event.result) return event.result as AskApiResponse;
-      }
+    const res = await apiFetch("/api/ask", {
+      method: "POST", headers: { "Content-Type": "application/json", "X-Reso-Mode": mode },
+      body: JSON.stringify({question, assistant_name: assistantName, consent, history, connector_id: connectorId, web_search: webSearch, tone, instructions, stream: true}),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const status = res.status;
+      await handleJson(res).catch(() => {});
+      throw classifyAskError(new Error(`HTTP ${status}`), status);
     }
-    throw new Error("The response stream ended early.");
+    if (!res.body) throw new Error("The workspace backend returned no response.");
+    const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+    let buffer = "";
+    try {
+      while (true) {
+        const {value, done} = await reader.read();
+        if (done) break;
+        buffer += value;
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line);
+          if (event.error) throw classifyAskError(new Error(event.error));
+          if (event.activity) onActivity?.(event.activity);
+          if (event.result) return event.result as AskApiResponse;
+        }
+      }
+      throw new Error("The response stream ended early.");
+    } finally {
+      reader.releaseLock();
+    }
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw classifyAskError(new Error("The request timed out. Please try again."), 504);
+    }
+    throw classifyAskError(err);
   } finally {
-    reader.releaseLock();
+    clearTimeout(timeoutId);
+    if (signal) { signal.removeEventListener("abort", abort); }
   }
 }
 

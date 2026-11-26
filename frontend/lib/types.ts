@@ -173,3 +173,10 @@ export interface KeySetPayload { provider: string; api_key: string; model?: stri
 export interface KeyTestResponse { valid: boolean; model?: string; error?: string }
 export interface Source { doc_name: string; page_number: number; score: number }
 export interface CannedResponse { id: string; trigger: string; response: string; matchMode: "exact" | "contains" }
+
+export type AskErrorCode = "network" | "auth" | "rate_limit" | "backend" | "stream" | "unknown";
+
+export interface AskError extends Error {
+  code: AskErrorCode;
+  status?: number;
+}

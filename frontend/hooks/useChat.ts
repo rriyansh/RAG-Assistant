@@ -1,10 +1,10 @@
 // hooks/useChat.ts
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { languageName } from "../lib/locales";
 import { askQuestion } from "../lib/api";
-import { ApiMode, ChatMessageItem, PendingConsent, ToolCall, UserProfile } from "../lib/types";
+import { ApiMode, AskError, AskErrorCode, ChatMessageItem, PendingConsent, ToolCall, UserProfile } from "../lib/types";
 
 export function useChat(assistantName: string = "Assistant", mode: ApiMode = "agent", profile?: UserProfile, hydrated = true) {
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
@@ -15,6 +15,7 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
   const [storageReady, setStorageReady] = useState(false);
   const storageKey = `reso-conversation-${mode}`;
   const retentionMs = profile?.retention === "forever" ? Infinity : Number(profile?.retention ?? 30) * 86400000;
+  const abortControllerRef = useRef<AbortController | null>(null);
   useEffect(() => {
     if (!hydrated) return;
     try {
@@ -43,6 +44,13 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
       const trimmed = question.trim();
       if (!trimmed) return;
 
+      // Cancel any in-flight request before starting a new one.
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
       setError(null);
       setIsLoading(true);
       setActivity([]);
@@ -69,6 +77,7 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
         const response = await askQuestion(
           trimmed, assistantName, consent, mode,
           label => setActivity(prev => [...prev, label]), history, connectorId, webSearch, profile?.tone, [profile?.locale && profile.locale !== "en" ? `Reply in ${languageName(profile.locale)}.` : "", profile?.instructions].filter(Boolean).join(" ").slice(0, 2000),
+          abortController.signal,
         );
         if (profile?.notifications && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
           try { new Notification("ResoAgent reply ready"); } catch {}
@@ -105,8 +114,27 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
           return [...prev, assistantMessage];
         });
       } catch (err) {
-        const errMsg =
-          err instanceof Error ? err.message : "Failed to get a response.";
+        const askErr = err as AskError;
+        let errMsg: string;
+        switch (askErr.code) {
+          case "auth":
+            errMsg = askErr.message || "Authentication failed. Please check your API key or sign in.";
+            break;
+          case "rate_limit":
+            errMsg = askErr.message || "The provider is rate-limited. Please try again shortly.";
+            break;
+          case "network":
+            errMsg = askErr.message || "Network error. Check your internet connection and backend URL.";
+            break;
+          case "stream":
+            errMsg = askErr.message || "The response stream was interrupted. Please try again.";
+            break;
+          case "backend":
+            errMsg = askErr.message || "The backend is temporarily unavailable.";
+            break;
+          default:
+            errMsg = askErr.message || "Failed to get a response.";
+        }
         setError(errMsg);
         const failMessage: ChatMessageItem = {
           id: replaceMessageId || `assistant-err-${Date.now()}`,
@@ -124,11 +152,21 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
             : [...prev, failMessage]
         );
       } finally {
+        if (abortControllerRef.current === abortController) {
+          abortControllerRef.current = null;
+        }
         setIsLoading(false);
       }
     },
     [assistantName, mode, messages, profile?.tone, profile?.instructions, profile?.notifications, profile?.locale]
   );
+
+  const retry = useCallback((): void => {
+    const last = messages.at(-1);
+    if (last?.role === "user" && last.content && !isLoading) {
+      void sendMessage(last.content, [], undefined, last.connectorId, last.webSearch);
+    }
+  }, [messages, isLoading, sendMessage]);
 
   const approveToolConsent = useCallback(
     async (messageId: string, toolName: string) => {
@@ -188,6 +226,14 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
     denyToolConsent,
     clearMessages,
     setMessages,
+    retry,
+    abort: () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+        setIsLoading(false);
+      }
+    },
   };
 }
 
