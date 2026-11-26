@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { testProviderKey, saveProviderKey, updateConfig } from "../lib/api";
 import type { UserProfile } from "../lib/types";
 import { DEFAULT_RAG_ASSISTANT_LOGO, detectProviderFromKeyString } from "../lib/utils";
+import { useAuth } from "../hooks/useAuth";
 
 interface Props {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export function OnboardingModal({ isOpen, profile, onUpdateProfile, onComplete }
   const [provider, setProvider] = useState("nvidia");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const { user, loading: authLoading, configured: authConfigured, signInWithGoogle } = useAuth();
 
   useEffect(() => {
     if (!isOpen || page !== 0) return;
@@ -69,7 +71,29 @@ export function OnboardingModal({ isOpen, profile, onUpdateProfile, onComplete }
         </div>
         <h1>Meet Reso Agent</h1>
         <p>Chat, research, and work with your connected tools in one workspace.</p>
-        <button className="intro-primary" onClick={() => setPage(2)}>Get Started</button>
+        {user && (
+          <>
+            <p className="intro-signed-in">Signed in with Google as <strong>{user.email}</strong>. Your session persists across devices.</p>
+            <button className="intro-primary" disabled={authLoading} onClick={() => setPage(2)}>Continue</button>
+          </>
+        )}
+        {!user && (
+          <div className="intro-actions">
+            <button className="intro-primary" disabled={authLoading} onClick={() => setPage(2)}>Get Started</button>
+            {authConfigured && (
+              <button
+                className="intro-primary intro-google"
+                disabled={authLoading || busy}
+                onClick={async () => { try { await signInWithGoogle(); } catch (err) { setError(err instanceof Error ? err.message : "Google sign-in failed."); } }}
+              >
+                {authLoading ? "Signing in…" : "Sign in with Google"}
+              </button>
+            )}
+            {!authConfigured && (
+              <p className="intro-note">Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to enable Google login.</p>
+            )}
+          </div>
+        )}
         <a href="/privacy" target="_blank" rel="noreferrer">Read the Privacy Policy</a>
       </>}
       {page === 2 && <form onSubmit={e => { e.preventDefault(); if (profile.name.trim()) setPage(3); }}>

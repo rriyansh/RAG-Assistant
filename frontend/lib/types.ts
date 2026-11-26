@@ -39,6 +39,10 @@ export interface UserProfile {
   typeahead?: boolean;
   replySuggestions?: boolean;
   thinkHarder?: boolean;
+  /** Supabase authenticated user id when Google login is used; absent in anonymous/local mode. */
+  supabaseUserId?: string;
+  /** Authenticated user email when Google login is used; absent in anonymous/local mode. */
+  email?: string;
 }
 
 export interface SourceItem {

@@ -49,6 +49,7 @@ import {
   INBUILT_USER_PFPS,
 } from "../lib/utils";
 import { useProfile } from "../hooks/useProfile";
+import { useAuth } from "../hooks/useAuth";
 
 export interface SettingsModalProps {
   conversationMode: "chat" | "agent";
@@ -180,6 +181,7 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
     setAvatarFromFile,
     setAssistantLogoFromFile,
   } = profileState;
+  const { user, signOut: authSignOut, loading: authLoading, configured: authConfigured } = useAuth();
   const scrollPositions = React.useRef(new Map<string, number>());
   const contentRef = React.useRef<HTMLDivElement>(null);
   React.useLayoutEffect(() => {
@@ -575,6 +577,28 @@ export function SettingsModal({ startInConnectors, connectorNotice, conversation
           {activeTab === "memory" && <><h3>Data &amp; Memory</h3><label><input type="checkbox" checked={!!profile.rememberChats} onChange={e => updateProfile({rememberChats:e.target.checked})} /> Restore Chat and Agent conversations on this browser</label><label>Chat History Retention<select value={profile.retention ?? "30"} onChange={e => updateProfile({retention:e.target.value as typeof profile.retention})}><option value="30">30 days</option><option value="90">90 days</option><option value="forever">Forever</option></select></label><p>Stored on this browser when enabled. Recent turns are used as context when you continue a conversation.</p></>}
           {activeTab === "shared" && <><h3>Shared Conversations</h3><p>Create a shareable read-only link from a conversation when sharing is enabled. Shared links never expose provider API keys.</p><button type="button" className="glass-button" onClick={() => setProfileError("Open a conversation and use its share action to create a link.")}>Learn about sharing</button></>}
           {activeTab === "data" && <><h3>Data Controls</h3><label><input type="checkbox" checked={!!profile.includeAudio} onChange={e => updateProfile({includeAudio:e.target.checked})} /> Include audio recordings</label><p>Audio is not uploaded unless a voice feature explicitly requests it.</p><label><input type="checkbox" checked={profile.workNetworkAccess !== false} onChange={e => updateProfile({workNetworkAccess:e.target.checked})} /> Work network access</label><button type="button" className="glass-button destructive" onClick={() => { if (window.confirm("Delete locally stored conversations and preferences?")) { localStorage.clear(); window.location.reload(); } }}>Delete local data</button></>}
+          {activeTab === "security" && (
+            <><h3>Account &amp; Security</h3>
+            {user ? (
+              <>
+                <p>Signed in with Google as <strong>{user.email}</strong>.</p>
+                <p>Your profile and settings are linked to your Supabase account. Signing out clears your local conversation history and returns you to anonymous/local mode.</p>
+                <button type="button" className="glass-button destructive" disabled={authLoading} onClick={authSignOut}>
+                  {authLoading ? "Signing out…" : "Sign out"}
+                </button>
+              </>
+            ) : (
+              <>
+                <p>You are using Reso Agent in anonymous/local mode. No account is linked.</p>
+                {authConfigured ? (
+                  <p>Ask the operator to configure Google login (Supabase) to link an account.</p>
+                ) : (
+                  <p>Google login is not configured on this deployment.</p>
+                )}
+              </>
+            )}
+            </>
+          )}
           {activeTab === "storage" && <><h3>Storage</h3><p>Reso stores profile preferences and remembered chats in this browser. Provider keys remain on the server-side credential store and are never rendered in the UI.</p><button type="button" className="glass-button destructive" onClick={() => { if (window.confirm("Clear this browser's Reso cache?")) { localStorage.clear(); window.location.reload(); } }}>Clear browser cache</button></>}
           {activeTab === "advanced" && <><h3>Advanced</h3><label>Paste as file<select value={profile.pasteAsFile ?? "ask"} onChange={e => updateProfile({pasteAsFile:e.target.value as typeof profile.pasteAsFile})}><option value="ask">Always Ask</option><option value="always">Always</option><option value="never">Never</option></select></label><label><input type="checkbox" checked={profile.typeahead !== false} onChange={e => updateProfile({typeahead:e.target.checked})} /> Typeaheads</label><label><input type="checkbox" checked={profile.replySuggestions !== false} onChange={e => updateProfile({replySuggestions:e.target.checked})} /> Reply suggestions</label><label><input type="checkbox" checked={profile.thinkHarder !== false} onChange={e => updateProfile({thinkHarder:e.target.checked})} /> Think harder</label><p>These preferences affect the composer and response workflow for new sessions.</p></>}
           {activeTab === "skills" && <><h3>Skills</h3><p>Build custom skills from prompts or connected repositories.</p><button type="button" className="glass-button" onClick={() => { closeSheet(); window.location.assign("/studio"); }}>Create a skill</button><div className="settings-builtins"><div><FileText size={19} />Word Documents<small>Create, read, and edit documents</small></div><div><FileText size={19} />PDFs<small>Create, merge, split, and extract</small></div><div><LayoutGrid size={19} />Presentations<small>Create and edit slide decks</small></div><div><Sparkles size={19} />Skill Creator<small>Build a reusable custom workflow</small></div></div></>}

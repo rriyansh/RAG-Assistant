@@ -22,6 +22,8 @@ export const DEFAULT_PROFILE: UserProfile = {
   font: "dm-sans",
   avatarDataUrl: INBUILT_USER_PFPS[0]!.url,
   assistantLogo: DEFAULT_RAG_ASSISTANT_LOGO,
+  supabaseUserId: undefined,
+  email: undefined,
 };
 
 export function readFileAsDataUrl(file: File): Promise<string> {

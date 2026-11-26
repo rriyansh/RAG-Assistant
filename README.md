@@ -104,8 +104,49 @@ build; OTA applies web assets only.
 | `EMBEDDING_PROVIDER`, `CHROMA_PERSIST_DIR` | Backend and ingestion environment | Choose the embedding service and local index location. |
 | `RAG_BACKEND_URL` | Frontend server environment | Point Next.js API requests at the FastAPI service when deploying separately. |
 | `SITE_URL` | Frontend server environment | Set the public origin used in sharing metadata, robots.txt, and sitemap.xml when a canonical deployment URL is needed. |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Frontend build environment | Enable Supabase Auth / Google Login. Leave blank to keep anonymous/local mode. |
+| `CAPGO_TOKEN` | GitHub Actions secret only | Publish Capgo OTA bundles. OTA is gracefully skipped when unset. |
 
 See the [configuration template](.env.example) for model, retrieval, and chunking settings. The [web workspace](frontend/), [API routes](src/api/), [agent tools](src/agent/), and [ingestion script](scripts/ingest.py) are the main entry points for development. Run `npm --prefix frontend run build` to check the production frontend build.
+
+## Authentication & onboarding flow
+
+Reso Agent works without an account. On first launch the onboarding modal asks for a name, default workspace mode (Chat or Agent), and an optional LLM provider key. Users can skip the key and still use the configured hosted provider (for example the operator's NVIDIA NIM tier).
+
+### Google Login (optional)
+When `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are set, a **Sign in with Google** button appears as an early onboarding step. Signing in:
+- Creates/restores a Supabase session that persists in the browser and across Capacitor mobile sessions.
+- Links the local profile to the authenticated user id (`supabaseUserId`) without replacing the name/mode/provider setup.
+- Keeps anonymous/local mode fully available for users who skip auth.
+
+To enable it:
+1. Create a Supabase project and copy the project URL and `anon` (public) key into `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+2. In Supabase, go to Authentication → Providers, enable Google, and enter your Google OAuth client ID/secret.
+3. Add your OAuth redirect callback URL (e.g. `https://your-app.com/auth/callback`) to both the Google Cloud console redirect URIs and Supabase's redirect URL allowlist.
+4. Rebuild/redeploy the frontend so the values are embedded in the static bundle.
+
+### Logout
+Settings → Account & Security → **Sign out** clears the Supabase session, removes local conversation history, resets the profile, and re-opens onboarding so the user can sign in again or continue anonymously. No keys or tokens are stored in the client bundle or git.
+
+## Production / OTA / Auth setup
+
+### Build and deploy
+- Frontend: Next.js static export (`output: "export"`) to `frontend/out`. Host on Vercel, Cloudflare Pages/Workers, or any static host.
+- Backend: FastAPI (`src.api.main:app`) behind Uvicorn, on port `PORT` (default `8000`). Persists Chroma indexes and settings under `CHROMA_PERSIST_DIR` (`data/`).
+- Mobile: Capacitor wraps the static web bundle for Android/iOS.
+
+### Capgo OTA
+The `build-mobile` GitHub Actions workflow exports the frontend bundle, builds native Android/iOS binaries, publishes a GitHub Release, and—when the `CAPGO_TOKEN` repository secret is set—uploads the web bundle to Capgo's `production` channel with auto-bump. Existing installed apps receive the web assets on launch; the native binary is unchanged.
+
+- `CAPGO_TOKEN` is never embedded in the client bundle. It is a GitHub Secret used only by CI.
+- When `CAPGO_TOKEN` is missing, OTA upload is skipped with a clear log message; native builds and releases continue.
+- Web-asset-only changes (UI, chat, onboarding, auth UI) ship via OTA without a new native binary.
+- Changes to Capacitor plugins, permissions, app id, or native config require a new native binary build and store update; OTA cannot patch native code.
+
+Register `com.rriyansh.ressoagent` in Capgo and create the default `production` channel before the first upload. See `docs/mobile-deployment.md` for details.
+
+### Secrets never committed
+Provider API keys (`OPENAI_API_KEY`, `GROQ_API_KEY`, `NVIDIA_API_KEY`, etc.), `GH_GIST_TOKEN`, and `CAPGO_TOKEN` must be set as runtime environment variables or GitHub/CI secrets. `.env` is ignored by git; only `.env.example` (placeholders only) is committed.
 
 ## License
 
