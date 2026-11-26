@@ -23,7 +23,7 @@ export function OnboardingModal({ isOpen, profile, onUpdateProfile, onComplete }
   const [provider, setProvider] = useState("nvidia");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const { user, loading: authLoading, configured: authConfigured, signInWithGoogle } = useAuth();
+  const { user, loading: authLoading, configured: authConfigured, signInWithGoogle, signInWithGithub } = useAuth();
 
   useEffect(() => {
     if (!isOpen || page !== 0) return;
@@ -81,13 +81,22 @@ export function OnboardingModal({ isOpen, profile, onUpdateProfile, onComplete }
           <div className="intro-actions">
             <button className="intro-primary" disabled={authLoading} onClick={() => setPage(2)}>Get Started</button>
             {authConfigured && (
-              <button
-                className="intro-primary intro-google"
-                disabled={authLoading || busy}
-                onClick={async () => { try { await signInWithGoogle(); } catch (err) { setError(err instanceof Error ? err.message : "Google sign-in failed."); } }}
-              >
-                {authLoading ? "Signing in…" : "Sign in with Google"}
-              </button>
+              <>
+                <button
+                  className="intro-primary intro-google"
+                  disabled={authLoading || busy}
+                  onClick={async () => { try { await signInWithGoogle(); } catch (err) { setError(err instanceof Error ? err.message : "Google sign-in failed."); } }}
+                >
+                  {authLoading ? "Signing in…" : "Sign in with Google"}
+                </button>
+                <button
+                  className="intro-primary intro-github"
+                  disabled={authLoading || busy}
+                  onClick={async () => { try { await signInWithGithub(); } catch (err) { setError(err instanceof Error ? err.message : "GitHub sign-in failed."); } }}
+                >
+                  {authLoading ? "Signing in…" : "Sign in with GitHub"}
+                </button>
+              </>
             )}
             {!authConfigured && (
               <p className="intro-note">Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to enable Google login.</p>

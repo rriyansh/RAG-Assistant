@@ -621,6 +621,8 @@ html[data-theme="light"] .reso-workspace .reso-message :is(pre,code), html[data-
 .intro-signed-in strong { color:#211d29; }
 .intro-google { background:#ea4335; color:white; }
 .intro-google:disabled { opacity:.68; }
+.intro-github { background:#24292f; color:white; }
+.intro-github:disabled { opacity:.68; }
 .intro-note { font-size:12px; color:#756686; margin:8px 0 0; }
 .intro-skip,.reso-intro a { text-decoration:underline; text-underline-offset:4px; padding:6px; }
 .intro-back { position:absolute; inset-inline-start:18px; top:max(12px, env(safe-area-inset-top)); background:#f8f4fc; border-radius:50%; width:40px; height:40px; display:grid; place-items:center; }

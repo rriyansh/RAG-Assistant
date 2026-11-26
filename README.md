@@ -119,10 +119,13 @@ When `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are set, a *
 - Links the local profile to the authenticated user id (`supabaseUserId`) without replacing the name/mode/provider setup.
 - Keeps anonymous/local mode fully available for users who skip auth.
 
-To enable it:
+### GitHub Login (optional)
+When the same Supabase variables are set, a **Sign in with GitHub** button also appears alongside Google. It works identically, authenticating through GitHub via Supabase OAuth.
+
+To enable either (or both):
 1. Create a Supabase project and copy the project URL and `anon` (public) key into `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-2. In Supabase, go to Authentication → Providers, enable Google, and enter your Google OAuth client ID/secret.
-3. Add your OAuth redirect callback URL (e.g. `https://your-app.com/auth/callback`) to both the Google Cloud console redirect URIs and Supabase's redirect URL allowlist.
+2. In Supabase, go to Authentication → Providers, enable Google and/or GitHub, and enter each provider's OAuth client ID/secret.
+3. Add your OAuth redirect callback URL (e.g. `https://your-app.com/auth/callback`) to both the provider's console redirect URIs and Supabase's redirect URL allowlist.
 4. Rebuild/redeploy the frontend so the values are embedded in the static bundle.
 
 ### Logout

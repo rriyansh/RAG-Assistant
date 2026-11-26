@@ -13,6 +13,7 @@ interface UseAuthResult {
   loading: boolean;
   configured: boolean;
   signInWithGoogle: () => Promise<void>;
+  signInWithGithub: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -79,17 +80,25 @@ export function useAuth(): UseAuthResult {
     };
   }, [configured, clearLocalConversationState, resetProfile, reopenOnboarding, saveAuthUser]);
 
-  const signInWithGoogle = useCallback(async (): Promise<void> => {
-    if (!configured) throw new Error("Google login is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.");
+  const signInWithOAuth = useCallback(async (provider: "google" | "github"): Promise<void> => {
+    if (!configured) throw new Error("OAuth login is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.");
     const client = getSupabaseClient();
     if (!client) throw new Error("Supabase client unavailable.");
     const redirectTo = `${window.location.origin}/auth/callback`;
     const { error } = await client.auth.signInWithOAuth({
-      provider: "google",
+      provider,
       options: { redirectTo },
     });
     if (error) throw error;
   }, [configured]);
+
+  const signInWithGoogle = useCallback(async (): Promise<void> => {
+    await signInWithOAuth("google");
+  }, [signInWithOAuth]);
+
+  const signInWithGithub = useCallback(async (): Promise<void> => {
+    await signInWithOAuth("github");
+  }, [signInWithOAuth]);
 
   const signOut = useCallback(async (): Promise<void> => {
     const client = getSupabaseClient();
@@ -103,7 +112,7 @@ export function useAuth(): UseAuthResult {
     void reopenOnboarding();
   }, [clearLocalConversationState, resetProfile, reopenOnboarding, saveAuthUser]);
 
-  return { user, session, loading, configured, signInWithGoogle, signOut };
+  return { user, session, loading, configured, signInWithGoogle, signInWithGithub, signOut };
 }
 
 export default useAuth;
