@@ -5,7 +5,10 @@ export type FontId =
   | "josefin-sans"
   | "fredoka"
   | "outfit"
-  | "plus-jakarta-sans";
+  | "plus-jakarta-sans"
+  | "google-sans"
+  | "manrope"
+  | "source-sans-3";
 
 export interface UserProfile {
   name: string;
@@ -15,6 +18,27 @@ export interface UserProfile {
   font: FontId;
   avatarDataUrl?: string;
   assistantLogo?: string;
+  username?: string;
+  supabaseUserId?: string;
+  email?: string;
+  locale?: string;
+  replyLocale?: string;
+  theme?: "system" | "light" | "dark";
+  defaultMode?: "chat" | "agent";
+  actionButton?: "settings" | "connectors";
+  tone?: "formal" | "casual" | "technical";
+  instructions?: string;
+  retention?: "30" | "90" | "forever";
+  pasteAsFile?: "ask" | "always" | "never";
+  haptics?: boolean;
+  notifications?: boolean;
+  workspaceShortcut?: boolean;
+  rememberChats?: boolean;
+  includeAudio?: boolean;
+  workNetworkAccess?: boolean;
+  typeahead?: boolean;
+  replySuggestions?: boolean;
+  thinkHarder?: boolean;
 }
 
 export interface SourceItem {
@@ -27,6 +51,41 @@ export interface SourceItem {
   text?: string;
   snippet?: string;
   score?: number;
+}
+
+export interface Source {
+  doc_name: string;
+  page_number: number;
+  score: number;
+}
+
+export interface FileReview {
+  repo: string;
+  branch: string;
+  path: string;
+  message: string;
+  content: string;
+  diff?: string;
+}
+
+export interface CannedResponse {
+  id: string;
+  trigger: string;
+  response: string;
+  matchMode: "contains" | "exact";
+}
+
+export interface KeySetPayload {
+  provider: string;
+  api_key: string;
+  model?: string;
+  base_url?: string;
+}
+
+export interface KeyTestResponse {
+  valid: boolean;
+  model?: string;
+  error?: string;
 }
 
 export interface ToolCall {
@@ -42,6 +101,7 @@ export interface ToolCall {
 export interface PendingConsent {
   name: string;
   args: Record<string, unknown>;
+  approval?: string;
 }
 
 export interface ConnectorField {
@@ -113,6 +173,9 @@ export interface LLMConfig {
   temperature: number;
   max_tokens: number;
   top_p: number;
+  hosted?: boolean;
+  agent_provider?: string;
+  agent_model?: string;
 }
 
 export interface KeyStatusMap {
@@ -127,4 +190,5 @@ export interface KeyStatusMap {
 export interface KeyListResponse {
   keys: KeyStatusMap;
   active_provider?: string;
+  hosted_ready?: boolean;
 }

@@ -159,6 +159,11 @@ export async function fetchThinkingMessages(
   return data.messages;
 }
 
+export async function fetchThinking(count = 30): Promise<{ messages: string[] }> {
+  const messages = await fetchThinkingMessages();
+  return { messages: messages.slice(0, count) };
+}
+
 export async function enhancePrompt(prompt: string): Promise<string> {
   const res = await fetch("/api/prompt/enhance", {
     method: "POST",
@@ -169,8 +174,8 @@ export async function enhancePrompt(prompt: string): Promise<string> {
   return data.enhanced_prompt;
 }
 
-export async function fetchKeys(): Promise<KeyListResponse> {
-  const res = await fetch("/api/keys", { cache: "no-store" });
+export async function fetchKeys(mode?: "chat" | "agent"): Promise<KeyListResponse> {
+  const res = await fetch(`/api/keys${mode ? `?scope=${mode}` : ""}`, { cache: "no-store" });
   const data = await handleJson<KeyListResponse>(res);
   return {
     keys: data.keys || {},
@@ -207,32 +212,32 @@ export async function saveProviderKey(payload: {
   api_key: string;
   base_url?: string;
   model?: string;
-}): Promise<void> {
+}, mode?: "chat" | "agent"): Promise<void> {
   const res = await fetch("/api/keys/set", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, scope: mode }),
   });
   await handleJson(res);
 }
 
-export async function deleteProviderKey(provider: string): Promise<void> {
-  const res = await fetch(`/api/keys/${encodeURIComponent(provider)}`, {
+export async function deleteProviderKey(provider: string, mode?: "chat" | "agent"): Promise<void> {
+  const res = await fetch(`/api/keys/${encodeURIComponent(provider)}${mode ? `?scope=${mode}` : ""}`, {
     method: "DELETE",
   });
   await handleJson(res);
 }
 
-export async function fetchConfig(): Promise<LLMConfig> {
-  const res = await fetch("/api/config", { cache: "no-store" });
+export async function fetchConfig(mode?: "chat" | "agent"): Promise<LLMConfig> {
+  const res = await fetch(`/api/config${mode ? `?scope=${mode}` : ""}`, { cache: "no-store" });
   return handleJson<LLMConfig>(res);
 }
 
-export async function updateConfig(config: Partial<LLMConfig>): Promise<void> {
+export async function updateConfig(config: Partial<LLMConfig>, mode?: "chat" | "agent"): Promise<void> {
   const res = await fetch("/api/config", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(config),
+    body: JSON.stringify({ ...config, scope: mode }),
   });
   await handleJson(res);
 }

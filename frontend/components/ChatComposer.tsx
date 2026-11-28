@@ -15,6 +15,10 @@ export interface ChatComposerProps {
   hint?: boolean;
   accent?: ComposerAccent;
   className?: string;
+  modePicker?: React.ReactNode;
+  draft?: { text: string };
+  models?: unknown[];
+  mode?: "chat" | "agent";
 }
 
 const DEFAULT_PROMPTS = [
@@ -71,6 +75,8 @@ export default function ChatComposer({
   hint = false,
   accent = "ice",
   className,
+  modePicker,
+  draft,
 }: ChatComposerProps): JSX.Element {
   const reduced = useReducedMotion();
   const uid = React.useId().replace(/[^a-zA-Z0-9_-]/g, "");
@@ -84,6 +90,10 @@ export default function ChatComposer({
   const [focused, setFocused] = React.useState(false);
   const [nudge, setNudge] = React.useState(false);
   const [enhancing, setEnhancing] = React.useState(false);
+
+  React.useEffect(() => {
+    if (draft?.text) setValue(draft.text);
+  }, [draft]);
 
 
   const submit = (e?: { preventDefault: () => void }): void => {
@@ -217,6 +227,7 @@ export default function ChatComposer({
           )}
         </div>
         <div className="ppc-tools ppc-enter">
+          <div className="ppc-left">{modePicker}</div>
           <div className="ppc-right">
             <button
               type="button"

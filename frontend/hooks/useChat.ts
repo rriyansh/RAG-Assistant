@@ -3,25 +3,34 @@
 
 import { useCallback, useRef, useState } from "react";
 import { askQuestion, askQuestionStream } from "../lib/api";
-import { ChatMessageItem, PendingConsent, ToolCall } from "../lib/types";
+import { ChatMessageItem, PendingConsent, ToolCall, UserProfile } from "../lib/types";
 
-export function useChat(assistantName: string = "Assistant") {
+export function useChat(
+  assistantName: string = "Assistant",
+  _mode: "chat" | "agent" = "chat",
+  _profile?: UserProfile,
+  _hydrated = true
+) {
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [activity, setActivity] = useState<string[]>([]);
   const activeRequest = useRef<AbortController | null>(null);
 
   const sendMessage = useCallback(
     async (
       question: string,
       consent: string[] = [],
-      replaceMessageId?: string
+      replaceMessageId?: string,
+      _connectorId?: string,
+      _webSearch = true
     ) => {
       const trimmed = question.trim();
       if (!trimmed) return;
 
       setError(null);
       setIsLoading(true);
+      setActivity(["Preparing context", "Generating response"]);
 
       if (!replaceMessageId) {
         const userMessage: ChatMessageItem = {
@@ -103,6 +112,7 @@ export function useChat(assistantName: string = "Assistant") {
         }
       } finally {
         setIsLoading(false);
+        setActivity([]);
       }
     },
     [assistantName]
@@ -152,14 +162,23 @@ export function useChat(assistantName: string = "Assistant") {
     setError(null);
   }, []);
 
+  const regenerate = useCallback(() => {
+    const target = [...messages].reverse().find((message) => message.role === "assistant" && message.originalQuestion);
+    if (target?.originalQuestion) {
+      void sendMessage(target.originalQuestion, target.approvedConsent || [], target.id);
+    }
+  }, [messages, sendMessage]);
+
   return {
     messages,
+    activity,
     isLoading,
     error,
     sendMessage,
     approveToolConsent,
     denyToolConsent,
     clearMessages,
+    regenerate,
     setMessages,
     cancelResponse: () => activeRequest.current?.abort(),
   };

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Check, Copy, Download, ExternalLink, FileCode2, FileText, Globe } from "lucide-react";
+import { Check, Copy, Download, ExternalLink, FileCode2, FileText, Globe, RotateCcw } from "lucide-react";
 import { ChatMessageItem, UserProfile } from "../lib/types";
 import {
   DEFAULT_RAG_ASSISTANT_LOGO,
@@ -20,6 +20,7 @@ interface ChatMessageProps {
   onApproveConsent?: (messageId: string, toolName: string) => void;
   onDenyConsent?: (messageId: string, toolName: string) => void;
   isLoading?: boolean;
+  onRegenerate?: () => void;
 }
 
 const LANG_EXTENSION_MAP: Record<string, string> = {
@@ -85,6 +86,7 @@ export function ChatMessage({
   onApproveConsent,
   onDenyConsent,
   isLoading = false,
+  onRegenerate,
 }: ChatMessageProps) {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
@@ -163,6 +165,17 @@ export function ChatMessage({
 
         {!isUser && (
           <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+            {isLatestAssistant && onRegenerate && (
+              <button
+                type="button"
+                onClick={onRegenerate}
+                disabled={isLoading}
+                aria-label="Regenerate response"
+                className="inline-flex items-center rounded-lg border border-[#e6e4f0]/15 bg-[#141417] p-1.5 text-[#e6e4f0]/80 transition hover:text-[#f4f3f8] disabled:opacity-50"
+              >
+                <RotateCcw className="h-3 w-3" />
+              </button>
+            )}
             <button
               type="button"
               onClick={handleCopyText}
