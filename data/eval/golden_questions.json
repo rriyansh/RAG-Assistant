@@ -1,10 +1,5 @@
-{"questions": [
-  {
-    "question": "What is the main topic of the document?",
-    "answer": "The document discusses..."
-  },
-  {
-    "question": "What are the key findings?",
-    "answer": "The key findings include..."
-  }
+{"questions":[
+  {"question":"Which endpoints does Reso Agent expose for asking a question?","answer":"Reso Agent exposes POST /ask and POST /ask/stream for regular and streamed answers.","relevant_docs":["README.md"]},
+  {"question":"How are connector credentials protected on disk?","answer":"Credential JSON files are atomically replaced and restricted to owner read and write permissions (0600).","relevant_docs":["README.md"]},
+  {"question":"What vector database is used by the local RAG pipeline?","answer":"The local retrieval pipeline uses Chroma as its vector store.","relevant_docs":["README.md"]}
 ]}

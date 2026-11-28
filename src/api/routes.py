@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from src.agent.connectors import ConnectorError, connector_manager
 from src.agent.loop import ToolNotSupportedError, run_agent
@@ -32,6 +32,7 @@ from src.api.schemas import (
     ThinkingGenerateRequest,
     ToolCallSchema,
 )
+from src.api.rate_limit import rate_limit
 from src.generation.generator import generate_answer
 from src.llm.factory import (
     PROVIDER_BASE_URLS,
@@ -125,7 +126,7 @@ async def health() -> dict[str, Any]:
     }
 
 
-@router.post("/ask", response_model=AskResponse)
+@router.post("/ask", response_model=AskResponse, dependencies=[Depends(rate_limit("ask"))])
 async def ask(req: AskRequest) -> AskResponse:
     if (
         os.getenv("AGENT_ENABLED", "true").lower() == "false"
@@ -147,7 +148,7 @@ async def ask(req: AskRequest) -> AskResponse:
     )
 
 
-@router.get("/connectors", response_model=ConnectorsListResponse)
+@router.get("/connectors", response_model=ConnectorsListResponse, dependencies=[Depends(rate_limit("connectors"))])
 async def get_connectors() -> ConnectorsListResponse:
     return ConnectorsListResponse(
         connectors=[
@@ -156,7 +157,7 @@ async def get_connectors() -> ConnectorsListResponse:
     )
 
 
-@router.post("/connectors/connect", response_model=ConnectorInfoSchema)
+@router.post("/connectors/connect", response_model=ConnectorInfoSchema, dependencies=[Depends(rate_limit("connectors"))])
 async def post_connect(req: ConnectorConnectRequest) -> ConnectorInfoSchema:
     try:
         return ConnectorInfoSchema(
@@ -168,7 +169,7 @@ async def post_connect(req: ConnectorConnectRequest) -> ConnectorInfoSchema:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@router.post("/connectors/custom", response_model=ConnectorInfoSchema)
+@router.post("/connectors/custom", response_model=ConnectorInfoSchema, dependencies=[Depends(rate_limit("connectors"))])
 async def post_custom(req: CustomConnectorCreateRequest) -> ConnectorInfoSchema:
     try:
         return ConnectorInfoSchema(
@@ -186,7 +187,7 @@ async def post_custom(req: CustomConnectorCreateRequest) -> ConnectorInfoSchema:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@router.post("/connectors/toggle", response_model=ConnectorInfoSchema)
+@router.post("/connectors/toggle", response_model=ConnectorInfoSchema, dependencies=[Depends(rate_limit("connectors"))])
 async def post_toggle(req: ConnectorToggleRequest) -> ConnectorInfoSchema:
     try:
         return ConnectorInfoSchema(
@@ -196,7 +197,7 @@ async def post_toggle(req: ConnectorToggleRequest) -> ConnectorInfoSchema:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
 
-@router.delete("/connectors/{connector_id}")
+@router.delete("/connectors/{connector_id}", dependencies=[Depends(rate_limit("connectors"))])
 async def del_connector(connector_id: str) -> dict[str, str]:
     connector_manager.disconnect(connector_id)
     return {"id": connector_id, "status": "disconnected"}
@@ -215,7 +216,7 @@ async def enable_plugin(req: PluginEnableRequest) -> dict[str, Any]:
     return {"name": req.name, "enabled": req.enabled}
 
 
-@router.get("/keys")
+@router.get("/keys", dependencies=[Depends(rate_limit("keys"))])
 async def get_keys() -> dict[str, Any]:
     raw = _read_json(KEYS_PATH)
     cfg = _read_json(CONFIG_PATH)
@@ -232,12 +233,12 @@ async def get_keys() -> dict[str, Any]:
     return {"keys": masked, "active_provider": cfg.get("provider", "nvidia")}
 
 
-@router.post("/keys/detect")
+@router.post("/keys/detect", dependencies=[Depends(rate_limit("keys"))])
 async def detect_key(req: KeyDetectRequest) -> dict[str, str]:
     return {"provider": _detect_provider(req.api_key)}
 
 
-@router.post("/keys/test")
+@router.post("/keys/test", dependencies=[Depends(rate_limit("keys"))])
 async def test_key(req: KeyTestRequest) -> dict[str, Any]:
     provider_id = req.provider.lower()
     base_url = req.base_url or PROVIDER_BASE_URLS.get(
@@ -260,7 +261,7 @@ async def test_key(req: KeyTestRequest) -> dict[str, Any]:
         return {"valid": False, "error": str(exc)}
 
 
-@router.post("/keys/set")
+@router.post("/keys/set", dependencies=[Depends(rate_limit("keys"))])
 async def set_key(req: KeySetRequest) -> dict[str, Any]:
     data = _read_json(KEYS_PATH)
     data[req.provider.lower()] = {
@@ -273,7 +274,7 @@ async def set_key(req: KeySetRequest) -> dict[str, Any]:
     return {"status": "ok"}
 
 
-@router.delete("/keys/{provider}")
+@router.delete("/keys/{provider}", dependencies=[Depends(rate_limit("keys"))])
 async def del_key(provider: str) -> dict[str, str]:
     data = _read_json(KEYS_PATH)
     data.pop(provider.lower(), None)

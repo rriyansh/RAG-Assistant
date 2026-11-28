@@ -1,203 +1,92 @@
-"""Evaluation script to score against golden questions."""
-
-import argparse
-import json
-import logging
-import sys
+"""Evaluate retrieval and generation quality against a checked-in golden set."""
+from __future__ import annotations
+import argparse, json, re, sys
 from pathlib import Path
-from typing import List, Dict, Any
-
+from typing import Any
 import requests
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+def load_golden_questions(path: Path) -> list[dict[str, Any]]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return data.get("questions", []) if isinstance(data, dict) else data
 
+def _terms(value: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", value.lower()))
 
-def load_golden_questions(path: Path) -> List[Dict[str, Any]]:
-    """Load golden questions from JSON file."""
-    if not path.exists():
-        logger.warning(f"Golden questions file not found: {path}")
-        return []
+def answer_overlap(expected: str, actual: str) -> float:
+    terms = _terms(expected)
+    return len(terms & _terms(actual)) / len(terms) if terms else 0.0
 
-    with open(path) as f:
-        data = json.load(f)
+def retrieval_scores(relevant_docs: list[str], citations: list[dict[str, Any]], k: int) -> tuple[float, float]:
+    expected = {item.lower() for item in relevant_docs}
+    ranked = [str(c.get("source") or c.get("title") or c.get("document") or "").lower() for c in citations[:k]]
+    if not expected:
+        return 1.0, 1.0
+    return len(expected.intersection(ranked)) / len(expected), next((1.0 / i for i, value in enumerate(ranked, 1) if value in expected), 0.0)
 
-    # Support both list and dict with "questions" key
-    if isinstance(data, dict):
-        return data.get("questions", [])
-    return data
+def faithfulness(answer: str, citations: list[dict[str, Any]]) -> float:
+    evidence = _terms(" ".join(str(c.get("text") or c.get("content") or "") for c in citations))
+    terms = _terms(answer)
+    if not terms:
+        return 0.0
+    if not evidence:
+        return 1.0 if not citations else 0.0
+    return len(terms & evidence) / len(terms)
 
+def call_stream(api_url: str, question: str, timeout: float = 90.0) -> dict[str, Any]:
+    parts: list[str] = []
+    citations: list[dict[str, Any]] = []
+    with requests.post(f"{api_url.rstrip('/')}/ask/stream", json={"question": question}, headers={"Accept": "application/x-ndjson"}, stream=True, timeout=timeout) as response:
+        response.raise_for_status()
+        for line in response.iter_lines(decode_unicode=True):
+            if not line:
+                continue
+            event = json.loads(line)
+            if event.get("type") in {"token", "delta"}:
+                parts.append(str(event.get("content") or event.get("text") or ""))
+            elif event.get("type") == "answer":
+                parts = [str(event.get("answer") or event.get("content") or "")]
+            if event.get("citations"):
+                citations = list(event["citations"])
+            if event.get("type") == "error":
+                raise RuntimeError(str(event.get("message") or "stream failed"))
+    return {"answer": "".join(parts), "citations": citations}
 
-def evaluate_answer(
-    query: str,
-    expected: str,
-    actual: str,
-    api_url: str
-) -> Dict[str, Any]:
-    """Evaluate answer quality using LLM-as-judge via API."""
-    eval_prompt = f"""Compare the expected and actual answers for the given question.
-Rate the actual answer on a scale of 1-5 for:
-1. Accuracy - Does it correctly answer the question?
-2. Completeness - Does it cover all important points?
-3. Relevance - Is it relevant to the question?
-
-Question: {query}
-Expected: {expected}
-Actual: {actual}
-
-Return only a JSON object: {{"accuracy": X, "completeness": Y, "relevance": Z, "overall": W}}"""
-
-    try:
-        # Use the API's query endpoint with a special evaluation prompt
-        response = requests.post(
-            f"{api_url}/query",
-            json={
-                "query": eval_prompt,
-                "top_k": 1,
-                "use_reranker": False,
-                "use_web_search": False
-            },
-            timeout=30
-        )
-        if response.status_code == 200:
-            result = response.json()
-            answer = result.get("answer", "{}")
-            # Try to parse JSON from answer
-            try:
-                return json.loads(answer)
-            except json.JSONDecodeError:
-                pass
-    except Exception as e:
-        logger.warning(f"LLM evaluation failed: {e}")
-
-    # Fallback: simple string matching
-    expected_lower = expected.lower()
-    actual_lower = actual.lower()
-    overlap = len(set(expected_lower.split()) & set(actual_lower.split()))
-    total_expected = len(set(expected_lower.split()))
-
-    if total_expected == 0:
-        score = 0
-    else:
-        score = min(5, max(1, int(overlap / total_expected * 5)))
-
-    return {
-        "accuracy": score,
-        "completeness": score,
-        "relevance": score,
-        "overall": score
-    }
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Evaluate RAG system against golden questions")
-    parser.add_argument(
-        "--golden-file",
-        type=str,
-        default="./data/eval/golden_questions.json",
-        help="Path to golden questions JSON"
-    )
-    parser.add_argument(
-        "--api-url",
-        type=str,
-        default="http://localhost:8000",
-        help="API base URL"
-    )
-    parser.add_argument(
-        "--output",
-        type=str,
-        default="./data/eval/results.json",
-        help="Output file for results"
-    )
-    parser.add_argument(
-        "--limit",
-        type=int,
-        default=0,
-        help="Limit number of questions to evaluate (0 = all)"
-    )
-    args = parser.parse_args()
-
-    golden_path = Path(args.golden_file)
-    questions = load_golden_questions(golden_path)
-
-    if not questions:
-        logger.error("No questions to evaluate")
-        sys.exit(1)
-
-    if args.limit > 0:
-        questions = questions[:args.limit]
-
-    logger.info(f"Evaluating {len(questions)} questions...")
-
+def run_evaluation(questions: list[dict[str, Any]], api_url: str, top_k: int) -> dict[str, Any]:
     results = []
-    total_scores = {"accuracy": 0, "completeness": 0, "relevance": 0, "overall": 0}
+    for item in questions:
+        response = call_stream(api_url, item["question"])
+        recall, mrr = retrieval_scores(item.get("relevant_docs", []), response["citations"], top_k)
+        scores = {"recall_at_k": recall, "mrr": mrr, "faithfulness": faithfulness(response["answer"], response["citations"]), "answer_overlap": answer_overlap(item["answer"], response["answer"])}
+        results.append({**item, "actual": response["answer"], "citations": response["citations"], "scores": scores})
+    names = ("recall_at_k", "mrr", "faithfulness", "answer_overlap")
+    summary = {name: sum(r["scores"][name] for r in results) / len(results) for name in names} if results else {name: 0.0 for name in names}
+    return {"summary": summary, "results": results}
 
-    for i, q in enumerate(questions, 1):
-        query = q.get("question", "")
-        expected = q.get("answer", "")
-
-        if not query or not expected:
-            logger.warning(f"Skipping question {i}: missing fields")
-            continue
-
-        logger.info(f"[{i}/{len(questions)}] {query[:60]}...")
-
-        try:
-            response = requests.post(
-                f"{args.api_url}/query",
-                json={
-                    "query": query,
-                    "top_k": 8,
-                    "use_reranker": True,
-                    "use_web_search": False
-                },
-                timeout=60
-            )
-            response.raise_for_status()
-            result = response.json()
-            actual = result.get("answer", "")
-
-        except Exception as e:
-            logger.error(f"Query failed: {e}")
-            actual = f"ERROR: {e}"
-
-        scores = evaluate_answer(query, expected, actual, args.api_url)
-
-        for k in total_scores:
-            total_scores[k] += scores.get(k, 0)
-
-        results.append({
-            "question": query,
-            "expected": expected,
-            "actual": actual,
-            "scores": scores
-        })
-
-        logger.info(f"  Scores: {scores}")
-
-    # Calculate averages
-    n = len(results)
-    if n > 0:
-        avg_scores = {k: v / n for k, v in total_scores.items()}
-        logger.info(f"\n=== AVERAGE SCORES ({n} questions) ===")
-        for k, v in avg_scores.items():
-            logger.info(f"  {k.capitalize()}: {v:.2f}/5.0")
-
-    # Save results
-    output_path = Path(args.output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with open(output_path, "w") as f:
-        json.dump({
-            "summary": {k: v / n if n > 0 else 0 for k, v in total_scores.items()},
-            "results": results
-        }, f, indent=2)
-
-    logger.info(f"Results saved to {output_path}")
-
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--golden-file", default="data/eval/golden_questions.json")
+    parser.add_argument("--api-url", default="http://localhost:8000")
+    parser.add_argument("--output", default="data/eval/results.json")
+    parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument("--top-k", type=int, default=8)
+    parser.add_argument("--min-recall", type=float, default=0.5)
+    parser.add_argument("--min-mrr", type=float, default=0.4)
+    parser.add_argument("--min-faithfulness", type=float, default=0.4)
+    args = parser.parse_args()
+    questions = load_golden_questions(Path(args.golden_file))
+    if args.limit:
+        questions = questions[:args.limit]
+    if not questions:
+        return 1
+    try:
+        report = run_evaluation(questions, args.api_url, args.top_k)
+    except (requests.RequestException, RuntimeError, ValueError, json.JSONDecodeError) as exc:
+        report = {"summary": {}, "results": [], "error": str(exc)}
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    summary = report.get("summary", {})
+    return 0 if summary.get("recall_at_k", 0) >= args.min_recall and summary.get("mrr", 0) >= args.min_mrr and summary.get("faithfulness", 0) >= args.min_faithfulness else 2
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
