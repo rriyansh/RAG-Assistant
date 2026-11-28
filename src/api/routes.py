@@ -7,7 +7,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 
 from src.agent.connectors import ConnectorError, connector_manager
 from src.agent.loop import ToolNotSupportedError, run_agent
@@ -146,6 +147,65 @@ async def ask(req: AskRequest) -> AskResponse:
         tool_calls=[ToolCallSchema(**tc) for tc in res.get("tool_calls", [])],
         pending_consent=res.get("pending_consent", []),
     )
+
+
+@router.post("/ask/stream", dependencies=[Depends(rate_limit("ask"))])
+async def stream_answer(req: AskRequest, request: Request) -> StreamingResponse:
+    async def events():
+        try:
+            retrieved = await asyncio.to_thread(hybrid_retrieve, req.question)
+            chunks = retrieved.get("results", retrieved.get("chunks", [])) if isinstance(retrieved, dict) else list(retrieved or [])
+            from src.generation.prompt_builder import build_rag_prompt
+
+            prompt = build_rag_prompt(req.question, chunks)
+            llm = create_llm()
+            iterator = llm.stream_generate(
+                prompt,
+                system_prompt=f"You are {req.assistant_name}, an accurate grounded assistant.",
+            )
+            sentinel = object()
+            def next_token():
+                return next(iterator, sentinel)
+            while True:
+                if await request.is_disconnected():
+                    close = getattr(iterator, "close", None)
+                    if close:
+                        close()
+                    return
+                token = await asyncio.to_thread(next_token)
+                if token is sentinel:
+                    break
+                yield json.dumps({"type": "token", "content": token}) + "\n"
+            yield json.dumps({"type": "done", "citations": chunks, "source_type": "hybrid"}, default=str) + "\n"
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            yield json.dumps({"type": "error", "message": str(exc)}) + "\n"
+
+    return StreamingResponse(events(), media_type="application/x-ndjson")
+
+
+@router.get("/models")
+async def models() -> dict[str, Any]:
+    def discover() -> list[str]:
+        import requests
+
+        cfg = _read_json(CONFIG_PATH)
+        provider = str(cfg.get("provider", "nvidia"))
+        base_url = str(cfg.get("base_url") or PROVIDER_BASE_URLS.get(provider, "")).rstrip("/")
+        keys = _read_json(KEYS_PATH)
+        entry = keys.get(provider, {})
+        api_key = entry.get("api_key", "") if isinstance(entry, dict) else ""
+        response = requests.get(f"{base_url}/models", headers={"Authorization": f"Bearer {api_key}"}, timeout=10)
+        response.raise_for_status()
+        return [str(item["id"]) for item in response.json().get("data", []) if item.get("id")]
+
+    try:
+        return {"models": await asyncio.to_thread(discover)}
+    except Exception:
+        cfg = _read_json(CONFIG_PATH)
+        provider = str(cfg.get("provider", "nvidia"))
+        return {"models": [PROVIDER_DEFAULT_MODELS.get(provider, "gpt-4o-mini")]}
 
 
 @router.get("/connectors", response_model=ConnectorsListResponse, dependencies=[Depends(rate_limit("connectors"))])

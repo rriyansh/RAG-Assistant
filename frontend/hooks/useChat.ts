@@ -1,66 +1,33 @@
 // hooks/useChat.ts
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { languageName } from "../lib/locales";
-import { askQuestion } from "../lib/api";
-import { ApiMode, AskError, AskErrorCode, ChatMessageItem, PendingConsent, ToolCall, UserProfile } from "../lib/types";
+import { useCallback, useRef, useState } from "react";
+import { askQuestion, askQuestionStream } from "../lib/api";
+import { ChatMessageItem, PendingConsent, ToolCall } from "../lib/types";
 
-export function useChat(assistantName: string = "Assistant", mode: ApiMode = "agent", profile?: UserProfile, hydrated = true) {
+export function useChat(assistantName: string = "Assistant") {
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [activity, setActivity] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-
-  const [storageReady, setStorageReady] = useState(false);
-  const storageKey = `reso-conversation-${mode}`;
-  const retentionMs = profile?.retention === "forever" ? Infinity : Number(profile?.retention ?? 30) * 86400000;
-  const abortControllerRef = useRef<AbortController | null>(null);
-  useEffect(() => {
-    if (!hydrated) return;
-    try {
-      const saved = JSON.parse(localStorage.getItem(storageKey) ?? "[]") as ChatMessageItem[];
-      if (profile?.rememberChats && Array.isArray(saved)) setMessages(current => current.length ? current :
-        saved.filter(message => message.createdAt && Date.now() - message.createdAt < retentionMs));
-    } catch {}
-    setStorageReady(true);
-  }, [hydrated, storageKey, profile?.rememberChats, retentionMs]);
-  useEffect(() => {
-    if (!storageReady) return;
-    try {
-      if (!profile?.rememberChats) localStorage.removeItem(storageKey);
-      else localStorage.setItem(storageKey, JSON.stringify(messages
-        .filter(message => message.createdAt && Date.now() - message.createdAt < retentionMs)
-        .map(({id, role, content, timestamp, createdAt}) => ({id, role, content, timestamp, createdAt}))));
-    } catch {}
-  }, [storageReady, storageKey, messages, profile?.rememberChats, retentionMs]);
+  const activeRequest = useRef<AbortController | null>(null);
 
   const sendMessage = useCallback(
     async (
       question: string,
       consent: string[] = [],
-      replaceMessageId?: string, connectorId?: string, webSearch = false
+      replaceMessageId?: string
     ) => {
       const trimmed = question.trim();
       if (!trimmed) return;
 
-      // Cancel any in-flight request before starting a new one.
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      const abortController = new AbortController();
-      abortControllerRef.current = abortController;
-
       setError(null);
       setIsLoading(true);
-      setActivity([]);
 
       if (!replaceMessageId) {
         const userMessage: ChatMessageItem = {
           id: `user-${Date.now()}`,
           role: "user",
           content: trimmed,
-          createdAt: Date.now(),
           timestamp: new Date().toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
@@ -70,29 +37,43 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
       }
 
       try {
-        const prior = replaceMessageId ? messages.slice(0, Math.max(0, messages.findIndex(m => m.id === replaceMessageId) - 1)) : messages;
-        const history = prior.slice(-6).map(({role, content}) => ({
-          role, content: content.slice(-4000),
-        }));
-        const response = await askQuestion(
-          trimmed, assistantName, consent, mode,
-          label => setActivity(prev => [...prev, label]), history, connectorId, webSearch, profile?.tone, [profile?.locale && profile.locale !== "en" ? `Reply in ${languageName(profile.locale)}.` : "", profile?.instructions].filter(Boolean).join(" ").slice(0, 2000),
-          abortController.signal,
-        );
-        if (profile?.notifications && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
-          try { new Notification("ResoAgent reply ready"); } catch {}
+        if (consent.length === 0 && !replaceMessageId) {
+          const id = `assistant-${Date.now()}`;
+          const controller = new AbortController();
+          activeRequest.current?.abort();
+          activeRequest.current = controller;
+          let content = "";
+          let sources: ChatMessageItem["sources"] = [];
+          setMessages((prev) => [...prev, { id, role: "assistant", content: "", timestamp: "", originalQuestion: trimmed }]);
+          await askQuestionStream(trimmed, assistantName, consent, (event) => {
+            if (event.type === "token") content += String(event.content || "");
+            if (Array.isArray(event.citations)) sources = event.citations as ChatMessageItem["sources"];
+            if (event.type === "error") throw new Error(String(event.message || "Streaming failed"));
+            setMessages((prev) => prev.map((message) => message.id === id ? { ...message, content, sources } : message));
+          }, controller.signal);
+          activeRequest.current = null;
+          return;
         }
+        const response = await askQuestion(trimmed, assistantName, consent);
         const toolCalls: ToolCall[] = response.tool_calls || [];
-        const pendingConsentList: PendingConsent[] = toolCalls.flatMap(call =>
-          call.status === "pending" && call.approval
-            ? [{name: call.name, args: call.args, approval: call.approval}] : []
+        const pendingNames: string[] = response.pending_consent || [];
+
+        const pendingConsentList: PendingConsent[] = pendingNames.map(
+          (tName) => {
+            const matchingCall = toolCalls.find(
+              (tc) => tc.name === tName && tc.status === "pending"
+            );
+            return {
+              name: tName,
+              args: matchingCall ? matchingCall.args : {},
+            };
+          }
         );
 
         const assistantMessage: ChatMessageItem = {
           id: replaceMessageId || `assistant-${Date.now()}`,
           role: "assistant",
           content: response.answer,
-          createdAt: Date.now(),
           timestamp: new Date().toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
@@ -101,7 +82,7 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
           sourceType: response.source_type || "hybrid",
           toolCalls,
           pendingConsent: pendingConsentList,
-          originalQuestion: trimmed, connectorId, webSearch,
+          originalQuestion: trimmed,
           approvedConsent: consent,
         };
 
@@ -114,33 +95,13 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
           return [...prev, assistantMessage];
         });
       } catch (err) {
-        const askErr = err as AskError;
-        let errMsg: string;
-        switch (askErr.code) {
-          case "auth":
-            errMsg = askErr.message || "Authentication failed. Please check your API key or sign in.";
-            break;
-          case "rate_limit":
-            errMsg = askErr.message || "The provider is rate-limited. Please try again shortly.";
-            break;
-          case "network":
-            errMsg = askErr.message || "Network error. Check your internet connection and backend URL.";
-            break;
-          case "stream":
-            errMsg = askErr.message || "The response stream was interrupted. Please try again.";
-            break;
-          case "backend":
-            errMsg = askErr.message || "The backend is temporarily unavailable.";
-            break;
-          default:
-            errMsg = askErr.message || "Failed to get a response.";
-        }
+        const errMsg =
+          err instanceof Error ? err.message : "Failed to get a response.";
         setError(errMsg);
         const failMessage: ChatMessageItem = {
           id: replaceMessageId || `assistant-err-${Date.now()}`,
           role: "assistant",
           content: `Error: ${errMsg}`,
-          createdAt: Date.now(),
           timestamp: new Date().toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
@@ -152,21 +113,11 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
             : [...prev, failMessage]
         );
       } finally {
-        if (abortControllerRef.current === abortController) {
-          abortControllerRef.current = null;
-        }
         setIsLoading(false);
       }
     },
-    [assistantName, mode, messages, profile?.tone, profile?.instructions, profile?.notifications, profile?.locale]
+    [assistantName]
   );
-
-  const retry = useCallback((): void => {
-    const last = messages.at(-1);
-    if (last?.role === "user" && last.content && !isLoading) {
-      void sendMessage(last.content, [], undefined, last.connectorId, last.webSearch);
-    }
-  }, [messages, isLoading, sendMessage]);
 
   const approveToolConsent = useCallback(
     async (messageId: string, toolName: string) => {
@@ -176,7 +127,7 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
       const updatedConsent = Array.from(
         new Set([...(target.approvedConsent || []), toolName])
       );
-      await sendMessage(target.originalQuestion, updatedConsent, messageId, target.connectorId, target.webSearch);
+      await sendMessage(target.originalQuestion, updatedConsent, messageId);
     },
     [messages, sendMessage]
   );
@@ -186,14 +137,14 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
       prev.map((m) => {
         if (m.id !== messageId) return m;
         const remaining = (m.pendingConsent || []).filter(
-          (p) => p.approval !== toolName
+          (p) => p.name !== toolName
         );
         return {
           ...m,
-          content: "Tool execution was declined.",
+          content: `Tool execution of \`${toolName}\` was denied by the user.`,
           pendingConsent: remaining,
           toolCalls: (m.toolCalls || []).map((tc) =>
-            tc.approval === toolName && tc.status === "pending"
+            tc.name === toolName && tc.status === "pending"
               ? {
                   ...tc,
                   status: "error",
@@ -207,33 +158,21 @@ export function useChat(assistantName: string = "Assistant", mode: ApiMode = "ag
   }, []);
 
   const clearMessages = useCallback(() => {
+    activeRequest.current?.abort();
     setMessages([]);
     setError(null);
   }, []);
 
   return {
     messages,
-    activity,
     isLoading,
     error,
     sendMessage,
-    regenerate: (id: string) => {
-      const last = messages.at(-1);
-      if (last?.id === id && last.originalQuestion && !isLoading)
-        void sendMessage(last.originalQuestion, [], id, last.connectorId, last.webSearch);
-    },
     approveToolConsent,
     denyToolConsent,
     clearMessages,
     setMessages,
-    retry,
-    abort: () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-        setIsLoading(false);
-      }
-    },
+    cancelResponse: () => activeRequest.current?.abort(),
   };
 }
 
