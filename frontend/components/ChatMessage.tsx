@@ -92,7 +92,7 @@ export function ChatMessage({
   const resolvedAssistantName = profile?.assistantName || assistantName || "RAG Assistant";
   const resolvedUserName = profile?.name?.trim() || "User";
   const assistantLogoSrc = profile?.assistantLogo || DEFAULT_RAG_ASSISTANT_LOGO;
-  const userAvatarSrc = profile?.avatarDataUrl || INBUILT_USER_PFPS[0].url;
+  const userAvatarSrc = profile?.avatarDataUrl || INBUILT_USER_PFPS[0]?.url || DEFAULT_RAG_ASSISTANT_LOGO;
 
   const extractedFiles = useMemo(
     () => (!isUser ? extractCodeBlocks(message.content) : []),
