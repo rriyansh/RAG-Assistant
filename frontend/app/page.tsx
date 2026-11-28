@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState } from "react";
-import * as HeaderMod from "../components/Header";
-import * as ChatMessageMod from "../components/ChatMessage";
-import * as ChatComposerMod from "../components/ChatComposer";
-import * as SettingsModalMod from "../components/SettingsModal";
+import { Header as HeaderComponent } from "../components/Header";
+import { ChatMessage as ChatMessageComponent } from "../components/ChatMessage";
+import ChatComposerComponent from "../components/ChatComposer";
+import { SettingsModal as SettingsModalComponent } from "../components/SettingsModal";
 import { OnboardingModal } from "../components/OnboardingModal";
 import { useChat } from "../hooks/useChat";
 import { useProfile } from "../hooks/useProfile";
@@ -12,13 +12,13 @@ import { DEFAULT_RAG_ASSISTANT_LOGO } from "../lib/utils";
 import { Code2, Plug } from "lucide-react";
 
 const Header: React.ComponentType<any> =
-  (HeaderMod as any).default || (HeaderMod as any).Header;
+  HeaderComponent;
 const ChatMessage: React.ComponentType<any> =
-  (ChatMessageMod as any).default || (ChatMessageMod as any).ChatMessage;
+  ChatMessageComponent;
 const ChatComposer: React.ComponentType<any> =
-  (ChatComposerMod as any).default || (ChatComposerMod as any).ChatComposer;
+  ChatComposerComponent;
 const SettingsModal: React.ComponentType<any> =
-  (SettingsModalMod as any).default || (SettingsModalMod as any).SettingsModal;
+  SettingsModalComponent;
 
 const FONT_STACK_MAP: Record<string, string> = {
   "open-sans": "'Open Sans', system-ui, sans-serif",
@@ -60,9 +60,6 @@ export default function HomePage() {
     isOnboarded,
     hydrated,
     update: updateProfile,
-    setAvatarFromFile,
-    setAssistantLogoFromFile,
-    clearAssistantLogo,
     completeOnboarding,
     reopenOnboarding,
   } = useProfile();
@@ -234,9 +231,6 @@ export default function HomePage() {
         isOpen={showOnboarding}
         profile={profile}
         onUpdateProfile={updateProfile}
-        onUploadUserAvatar={setAvatarFromFile}
-        onUploadAssistantLogo={setAssistantLogoFromFile}
-        onResetAssistantLogo={clearAssistantLogo}
         onComplete={completeOnboarding}
       />
 
