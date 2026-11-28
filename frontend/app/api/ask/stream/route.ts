@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
       body: await req.text(),
-      signal: req.signal,
+      signal: AbortSignal.any([req.signal, AbortSignal.timeout(90000)]),
     });
     return new Response(response.body, {
       status: response.status,

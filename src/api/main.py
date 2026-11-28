@@ -2,10 +2,15 @@
 from __future__ import annotations
 
 import logging
+import base64
+import hashlib
+import hmac
+import json
+import time
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.agent import register_internal_plugins
@@ -39,6 +44,30 @@ app = FastAPI(
     version="2.1.0",
     lifespan=lifespan,
 )
+
+def _signed_session() -> str:
+    settings = validate_startup_config()
+    payload = base64.urlsafe_b64encode(json.dumps({"exp": int(time.time()) + settings.session_ttl_seconds}).encode()).decode().rstrip("=")
+    signature = hmac.new(settings.session_signing_secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}.{signature}"
+
+@app.middleware("http")
+async def bind_workspace(request: Request, call_next):
+    token = request.cookies.get("reso_session", "")
+    valid = False
+    if "." in token:
+        payload, signature = token.rsplit(".", 1)
+        settings = validate_startup_config()
+        expected = hmac.new(settings.session_signing_secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+        try:
+            data = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+            valid = hmac.compare_digest(signature, expected) and int(data["exp"]) > time.time()
+        except (ValueError, KeyError, json.JSONDecodeError):
+            valid = False
+    response = await call_next(request)
+    if not valid:
+        response.set_cookie("reso_session", _signed_session(), httponly=True, secure=request.url.scheme == "https", samesite="lax", max_age=validate_startup_config().session_ttl_seconds)
+    return response
 
 app.add_middleware(
     CORSMiddleware,

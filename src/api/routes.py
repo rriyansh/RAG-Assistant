@@ -4,6 +4,8 @@ import asyncio
 import json
 import os
 import tempfile
+import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -42,8 +44,11 @@ from src.llm.factory import (
     get_builtin_nvidia_key,
 )
 from src.retrieval.hybrid_retriever import hybrid_retrieve
+from src.utils.ttl_cache import TTLCache
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+_response_cache: TTLCache[AskResponse] = TTLCache(ttl_seconds=120)
 KEYS_PATH = Path("data/keys.json")
 CONFIG_PATH = Path("data/config.json")
 
@@ -129,24 +134,37 @@ async def health() -> dict[str, Any]:
 
 @router.post("/ask", response_model=AskResponse, dependencies=[Depends(rate_limit("ask"))])
 async def ask(req: AskRequest) -> AskResponse:
+    started = time.perf_counter()
+    cache_key = f"{req.assistant_name}:{req.question}"
+    if not req.consent:
+        cached = _response_cache.get(cache_key)
+        if cached is not None:
+            return cached
     if (
         os.getenv("AGENT_ENABLED", "true").lower() == "false"
         or not registry.list_for_llm()
     ):
-        return await asyncio.to_thread(_run_legacy, req.question, req.assistant_name)
+        response = await asyncio.to_thread(_run_legacy, req.question, req.assistant_name)
+        logger.info("llm_call tokens=%d latency_ms=%d estimated_cost=%.6f", len(response.answer.split()), int((time.perf_counter()-started)*1000), 0.0)
+        _response_cache.set(cache_key, response)
+        return response
     try:
         res = await run_agent(
             req.question, req.assistant_name, registry, consent=req.consent
         )
     except ToolNotSupportedError:
         return await asyncio.to_thread(_run_legacy, req.question, req.assistant_name)
-    return AskResponse(
+    response = AskResponse(
         answer=res.get("answer", ""),
         sources=res.get("sources", []),
         source_type="agent",
         tool_calls=[ToolCallSchema(**tc) for tc in res.get("tool_calls", [])],
         pending_consent=res.get("pending_consent", []),
     )
+    logger.info("llm_call tokens=%d latency_ms=%d estimated_cost=%.6f", len(response.answer.split()), int((time.perf_counter()-started)*1000), 0.0)
+    if not req.consent and not response.pending_consent:
+        _response_cache.set(cache_key, response)
+    return response
 
 
 @router.post("/ask/stream", dependencies=[Depends(rate_limit("ask"))])

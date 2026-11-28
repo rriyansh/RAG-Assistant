@@ -9,6 +9,8 @@ from src.retrieval.web_search import web_search
 from src.ingestion.web_loader import fetch_page_text
 from src.utils.config import get_settings
 from src.utils.logger import setup_logger
+from src.utils.ttl_cache import TTLCache
+from src.retrieval.reranker import Reranker
 
 logger = setup_logger(__name__)
 
@@ -16,6 +18,19 @@ FRESHNESS_WORDS = {
     "latest", "today", "current", "now", "recent", "live",
     "news", "2025", "2026", "breaking", "update",
 }
+_retrieval_cache: TTLCache[tuple[list[RetrievedChunk], bool]] = TTLCache(ttl_seconds=120)
+_reranker: Reranker | None = None
+
+def invalidate_retrieval_cache() -> None:
+    _retrieval_cache.clear()
+
+def _rerank(question: str, chunks: list[RetrievedChunk], top_k: int) -> list[RetrievedChunk]:
+    global _reranker
+    if _reranker is None:
+        _reranker = Reranker()
+    payload = [dict(vars(chunk)) for chunk in chunks]
+    ranked = _reranker.rerank(question, payload, top_k=top_k)
+    return [RetrievedChunk(**{key: item[key] for key in ("chunk_id","doc_name","page_number","source_type","text","score")}) for item in ranked]
 
 
 def _query_needs_web(q: str) -> bool:
@@ -52,6 +67,9 @@ def _rewrite_query(question: str) -> list[str]:
 
 def hybrid_retrieve(question: str) -> tuple[list[RetrievedChunk], bool]:
     settings = get_settings()
+    cached = _retrieval_cache.get(question)
+    if cached is not None:
+        return cached
     queries = _rewrite_query(question)
 
     # 1. Local search across all query variants
@@ -75,13 +93,17 @@ def hybrid_retrieve(question: str) -> tuple[list[RetrievedChunk], bool]:
     )
 
     if not needs_web:
-        return local_chunks[: settings.top_k], False
+        result = (_rerank(question, local_chunks, settings.top_k), False)
+        _retrieval_cache.set(question, result)
+        return result
 
     # 3. Live web search on the ORIGINAL question (not the rewrite)
     logger.info("Live web search triggered: %s", question)
     web_hits = web_search(question, settings.web_search_max_results)
     if not web_hits:
-        return local_chunks[: settings.top_k], False
+        result = (_rerank(question, local_chunks, settings.top_k), False)
+        _retrieval_cache.set(question, result)
+        return result
 
     web_chunks: list[RetrievedChunk] = []
     seen_urls: set[str] = set()
@@ -108,4 +130,6 @@ def hybrid_retrieve(question: str) -> tuple[list[RetrievedChunk], bool]:
     for c in web_chunks:
         merged.setdefault(c.chunk_id, c)
     ordered = sorted(merged.values(), key=lambda c: c.score, reverse=True)
-    return ordered[: settings.top_k], True
+    result = (_rerank(question, ordered, settings.top_k), True)
+    _retrieval_cache.set(question, result)
+    return result

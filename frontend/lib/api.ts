@@ -16,7 +16,8 @@ async function handleJson<T>(res: Response): Promise<T> {
     } catch {
       // ignore json parse failure
     }
-    throw new Error(detail);
+    const retryAfter = res.headers.get("Retry-After");
+    throw new Error(retryAfter ? `${detail} Retry after ${retryAfter}s.` : detail);
   }
   return res.json() as Promise<T>;
 }

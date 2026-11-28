@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     eval_min_recall_at_k: float = Field(default=0.50, ge=0.0, le=1.0)
     eval_min_mrr: float = Field(default=0.40, ge=0.0, le=1.0)
     eval_min_faithfulness: float = Field(default=0.50, ge=0.0, le=1.0)
+    pii_masking_enabled: bool = False
+    session_signing_secret: str = "development-only-change-me"
+    session_ttl_seconds: int = Field(default=86400, ge=60, le=2592000)
 
     # --- Logging ---
     log_level: str = "INFO"

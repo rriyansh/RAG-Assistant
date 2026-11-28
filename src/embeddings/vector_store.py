@@ -40,6 +40,10 @@ def reset_collection() -> None:
         name=settings.chroma_collection,
         metadata={"hnsw:space": "cosine"},
     )
+    from src.embeddings.embedder import invalidate_embedding_cache
+    from src.retrieval.hybrid_retriever import invalidate_retrieval_cache
+    invalidate_embedding_cache()
+    invalidate_retrieval_cache()
 
 
 def upsert_chunks(chunks: list[Chunk], embeddings: list[list[float]]) -> None:
@@ -60,3 +64,5 @@ def upsert_chunks(chunks: list[Chunk], embeddings: list[list[float]]) -> None:
         ],
     )
     logger.info("Upserted %d chunks", len(chunks))
+    from src.retrieval.hybrid_retriever import invalidate_retrieval_cache
+    invalidate_retrieval_cache()

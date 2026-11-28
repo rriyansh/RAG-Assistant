@@ -6,10 +6,12 @@ Supports two providers:
 """
 from openai import OpenAI
 from src.utils.config import get_settings
+from src.utils.ttl_cache import TTLCache
 
 # Lazy singletons — we create the client only once.
 _embed_client: OpenAI | None = None
 _embed_model: str = ""
+_embedding_cache: TTLCache[list[float]] = TTLCache(ttl_seconds=600)
 
 
 def _init():
@@ -38,8 +40,17 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
     """Convert a list of strings into a list of vectors."""
     _init()
     assert _embed_client is not None
-    response = _embed_client.embeddings.create(model=_embed_model, input=texts)
-    return [item.embedding for item in response.data]
+    output: list[list[float] | None] = [_embedding_cache.get(f"{_embed_model}:{text}") for text in texts]
+    missing_indexes = [i for i, value in enumerate(output) if value is None]
+    if missing_indexes:
+        response = _embed_client.embeddings.create(model=_embed_model, input=[texts[i] for i in missing_indexes])
+        for index, item in zip(missing_indexes, response.data):
+            output[index] = item.embedding
+            _embedding_cache.set(f"{_embed_model}:{texts[index]}", item.embedding)
+    return [value for value in output if value is not None]
+
+def invalidate_embedding_cache() -> None:
+    _embedding_cache.clear()
 
 
 def embed_query(text: str) -> list[float]:
