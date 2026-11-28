@@ -163,9 +163,12 @@ async def run_agent(
             spec = registry.get(tc.name) if allowed_tools is None or tc.name in allowed_tools else None
             if not spec or not spec.enabled or not spec.requires_consent:
                 continue
-            approval = hashlib.sha256(json.dumps([spec.server_id, tc.name, tc.arguments],
+            server_id = str(getattr(spec, "server_id", "") or "")
+            approval = hashlib.sha256(json.dumps([server_id, tc.name, tc.arguments],
                 sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-            if approval in remaining:
+            if tc.name in remaining:
+                remaining.remove(tc.name)
+            elif approval in remaining:
                 remaining.remove(approval)
             else:
                 if tc.name not in unapproved_tools:

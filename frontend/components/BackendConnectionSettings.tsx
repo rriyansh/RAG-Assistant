@@ -30,7 +30,7 @@ export function BackendConnectionSettings() {
     }
   }
 
-  async function useAutoSync() {
+  async function autoSync() {
     setBusy(true);
     setMessage("");
     try {
@@ -54,7 +54,7 @@ export function BackendConnectionSettings() {
       </label>
       <div className="flex flex-wrap gap-2">
         <button className="glass-button" type="submit" disabled={busy}>{busy ? "Checking…" : "Save and check"}</button>
-        <button className="glass-button" type="button" disabled={busy} onClick={() => void useAutoSync()}>Use auto-sync URL</button>
+        <button className="glass-button" type="button" disabled={busy} onClick={() => void autoSync()}>Use auto-sync URL</button>
       </div>
     </form>
     <p role="status" aria-live="polite">Status: {state === "online" ? "Connected" : state === "checking" ? "Checking" : "Offline"}{message ? ` — ${message}` : ""}</p>

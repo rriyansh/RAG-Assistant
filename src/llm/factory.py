@@ -57,13 +57,21 @@ def get_builtin_nvidia_key() -> str:
         or ""
     ).strip()
 
+def get_key(provider: str) -> dict[str, Any]:
+    value = _read_json(KEYS_PATH).get(provider, {})
+    return value if isinstance(value, dict) else {"api_key": str(value)}
+
+def list_keys() -> dict[str, dict[str, bool]]:
+    return {name: {"configured": bool(get_key(name).get("api_key"))} for name in _read_json(KEYS_PATH)}
+
 
 def create_llm() -> LLMProvider:
     cfg = _read_json(CONFIG_PATH)
-    keys = _read_json(KEYS_PATH)
-
-    provider = str(cfg.get("provider") or os.getenv("LLM_PROVIDER") or "nvidia").lower()
-    saved_entry = keys.get(provider, {})
+    provider = str(cfg.get("provider") or os.getenv("LLM_PROVIDER") or get_settings().llm_provider or "nvidia").lower()
+    saved_entry = get_key(provider)
+    if not saved_entry.get("api_key"):
+        provider = next((name for name, state in list_keys().items() if state.get("configured")), provider)
+        saved_entry = get_key(provider)
     user_key = ""
     if isinstance(saved_entry, dict):
         user_key = str(saved_entry.get("api_key") or "").strip()
@@ -91,7 +99,7 @@ def create_llm() -> LLMProvider:
     )
 
     temperature = float(cfg.get("temperature", 0.3))
-    max_tokens = int(cfg.get("max_tokens", get_settings().max_tokens))
+    max_tokens = int(cfg.get("max_tokens", getattr(get_settings(), "max_tokens", 1024)))
     top_p = float(cfg.get("top_p", 0.9))
 
     return LLMProvider(

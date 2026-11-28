@@ -71,3 +71,14 @@ def build_prompt(
         {"role": "system", "content": SYSTEM_TEMPLATE.format(assistant_name=assistant_name)},
         {"role": "user", "content": user_message},
     ]
+
+def build_rag_prompt(question: str, chunks: list, assistant_name: str = "RAG Assistant") -> str:
+    normalized = []
+    for index, chunk in enumerate(chunks):
+        if isinstance(chunk, RetrievedChunk):
+            normalized.append(chunk)
+            continue
+        metadata = chunk.get("metadata", {}) if isinstance(chunk, dict) else {}
+        normalized.append(RetrievedChunk(str(chunk.get("chunk_id", index)), str(chunk.get("doc_name") or metadata.get("source", "document")), int(chunk.get("page_number") or metadata.get("page_number", 1)), str(chunk.get("source_type", "pdf")), str(chunk.get("text", "")), float(chunk.get("score", 0))))
+    messages = build_prompt(question, normalized, assistant_name)
+    return "\n\n".join(str(message["content"]) for message in messages)
