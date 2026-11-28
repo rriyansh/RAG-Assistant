@@ -66,7 +66,7 @@ function extractCodeBlocks(content: string): ExtractedCodeFile[] {
     const ext = LANG_EXTENSION_MAP[rawLang] || "txt";
     const firstLine = code.split("\n")[0] || "";
     const nameMatch = firstLine.match(/(?:\/\/|#|\/\*|--)\s*([a-zA-Z0-9_.-]+\.[a-zA-Z0-9]+)/);
-    const filename = nameMatch ? nameMatch[1] : `script_${index}.${ext}`;
+    const filename = nameMatch?.[1] || `script_${index}.${ext}`;
     files.push({
       filename,
       language: rawLang || "text",
