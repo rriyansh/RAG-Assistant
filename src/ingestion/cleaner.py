@@ -20,8 +20,8 @@ def clean_text(text: str) -> str:
     text = re.sub(r'\s+', ' ', text)
     # Remove page numbers and headers/footers patterns
     text = re.sub(r'\n\s*\d+\s*\n', '\n', text)
-    # Remove common PDF artifacts
-    text = re.sub(r'[^\x00-\x7F]+', ' ', text)  # Non-ASCII
+    # Remove control characters while preserving Unicode scripts.
+    text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', text)
     # Remove multiple newlines
     text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()

@@ -1,4 +1,5 @@
 import re
+import tiktoken
 from src.retrieval.retriever import RetrievedChunk
 from src.utils.config import get_settings
 
@@ -41,12 +42,24 @@ def build_prompt(
         context = "<context>\n(empty — no relevant sources found)\n</context>"
     else:
         pieces = []
-        for i, c in enumerate(chunks, start=1):
+        encoder = tiktoken.get_encoding("cl100k_base")
+        budget = 6000
+        used = 0
+        for i, c in enumerate(sorted(chunks, key=lambda item: item.score, reverse=True), start=1):
+            safe_text = _mask_pii(c.text.strip())
+            tokens = encoder.encode(safe_text)
+            remaining = budget - used
+            if remaining <= 0:
+                break
+            if len(tokens) > remaining:
+                safe_text = encoder.decode(tokens[:remaining])
+                tokens = tokens[:remaining]
             pieces.append(
                 f"  <chunk id=\"{i}\" source=\"{_label(c)}\">\n"
-                f"    {_mask_pii(c.text.strip())}\n"
+                f"    {safe_text}\n"
                 f"  </chunk>"
             )
+            used += len(tokens)
         context = "<context>\n" + "\n".join(pieces) + "\n</context>"
 
     user_message = (

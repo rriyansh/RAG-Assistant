@@ -66,3 +66,8 @@ def upsert_chunks(chunks: list[Chunk], embeddings: list[list[float]]) -> None:
     logger.info("Upserted %d chunks", len(chunks))
     from src.retrieval.hybrid_retriever import invalidate_retrieval_cache
     invalidate_retrieval_cache()
+
+def replace_document_chunks(doc_name: str, chunks: list[Chunk], embeddings: list[list[float]]) -> None:
+    collection = get_collection()
+    collection.delete(where={"doc_name": doc_name})
+    upsert_chunks(chunks, embeddings)

@@ -7,6 +7,11 @@ from dataclasses import dataclass
 from src.ingestion.pdf_loader import Page
 from src.ingestion.cleaner import clean_text
 
+def _encoder():
+    settings = __import__("src.utils.config", fromlist=["get_settings"]).get_settings()
+    return tiktoken.get_encoding("cl100k_base" if settings.embedding_provider == "openai" else "o200k_base")
+
+
 @dataclass
 class Chunk:
     chunk_id: str
@@ -21,7 +26,7 @@ def chunk_page(page: Page, size: int, overlap: int) -> list[Chunk]:
     if not text:
         return []
 
-    encoder = tiktoken.get_encoding("cl100k_base")
+    encoder = _encoder()
     tokens = encoder.encode(text)
     chunks: list[Chunk] = []
     start = 0

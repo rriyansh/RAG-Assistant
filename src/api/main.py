@@ -17,6 +17,7 @@ from src.agent import register_internal_plugins
 from src.agent.connectors import connector_manager
 from src.api.routes import router
 from src.utils.config import validate_startup_config
+from src.utils.logger import configure_logging
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    configure_logging()
     validate_startup_config()
     logger.info("Initializing RAG Assistant internal tools and service connectors...")
     register_internal_plugins()
@@ -71,7 +73,7 @@ async def bind_workspace(request: Request, call_next):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[origin.strip() for origin in __import__("os").getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",") if origin.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from pypdf import PdfReader
 from src.utils.logger import setup_logger
+import subprocess
+import tempfile
 
 logger = setup_logger(__name__)
 
@@ -23,6 +25,15 @@ def load_pdf(path: Path) -> list[Page]:
     pages: list[Page] = []
     for i, raw_page in enumerate(reader.pages, start=1):
         text = raw_page.extract_text() or ""
+        if not text.strip():
+            with tempfile.TemporaryDirectory() as directory:
+                prefix = Path(directory) / "page"
+                try:
+                    subprocess.run(["pdftoppm", "-f", str(i), "-singlefile", "-png", str(path), str(prefix)], check=True, capture_output=True, timeout=30)
+                    result = subprocess.run(["tesseract", f"{prefix}.png", "stdout"], check=True, capture_output=True, text=True, timeout=30)
+                    text = result.stdout
+                except (OSError, subprocess.SubprocessError):
+                    logger.warning("OCR unavailable for %s page %d", path.name, i)
         if text.strip():
             pages.append(
                 Page(doc_name=path.name, page_number=i, text=text)

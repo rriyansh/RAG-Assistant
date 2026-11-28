@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import json
 import logging
+import random
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -87,6 +89,18 @@ class LLMProvider:
             timeout=timeout,
         )
 
+    def _completion(self, **kwargs: Any):
+        for attempt in range(4):
+            try:
+                return self.client.chat.completions.create(**kwargs)
+            except Exception as exc:
+                status = getattr(exc, "status_code", None)
+                if status != 429 and (not isinstance(status, int) or status < 500):
+                    raise
+                if attempt == 3:
+                    raise
+                time.sleep(min(8.0, (2 ** attempt) + random.uniform(0.0, 0.5)))
+
     def generate(
         self,
         prompt: str,
@@ -98,7 +112,7 @@ class LLMProvider:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt},
         ]
-        response = self.client.chat.completions.create(
+        response = self._completion(
             model=self.model,
             messages=messages,  # type: ignore[arg-type]
             temperature=temperature if temperature is not None else self.temperature,
@@ -113,7 +127,7 @@ class LLMProvider:
         prompt: str,
         system_prompt: str = "You are a helpful AI assistant.",
     ):
-        stream = self.client.chat.completions.create(
+        stream = self._completion(
             model=self.model,
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -147,7 +161,7 @@ class LLMProvider:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
 
-        response = self.client.chat.completions.create(**kwargs)
+        response = self._completion(**kwargs)
         msg = response.choices[0].message
         content = (msg.content or "").strip()
 

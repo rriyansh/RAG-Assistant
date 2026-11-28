@@ -6,6 +6,7 @@ import os
 import tempfile
 import logging
 import time
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +50,7 @@ from src.utils.ttl_cache import TTLCache
 router = APIRouter()
 logger = logging.getLogger(__name__)
 _response_cache: TTLCache[AskResponse] = TTLCache(ttl_seconds=120)
+_json_write_lock = threading.Lock()
 KEYS_PATH = Path("data/keys.json")
 CONFIG_PATH = Path("data/config.json")
 
@@ -63,25 +65,24 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
-    )
-    try:
-        os.fchmod(descriptor, 0o600)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as temporary_file:
-            json.dump(payload, temporary_file, indent=2)
-            temporary_file.flush()
-            os.fsync(temporary_file.fileno())
-        os.replace(temporary_name, path)
-    except BaseException:
+    with _json_write_lock:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        descriptor, temporary_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
         try:
-            os.close(descriptor)
-        except OSError:
-            pass
-        Path(temporary_name).unlink(missing_ok=True)
-        raise
-    os.chmod(path, 0o600)
+            os.fchmod(descriptor, 0o600)
+            with os.fdopen(descriptor, "w", encoding="utf-8") as temporary_file:
+                json.dump(payload, temporary_file, indent=2)
+                temporary_file.flush()
+                os.fsync(temporary_file.fileno())
+            os.replace(temporary_name, path)
+        except BaseException:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+            Path(temporary_name).unlink(missing_ok=True)
+            raise
+        os.chmod(path, 0o600)
 
 
 def _detect_provider(api_key: str) -> str:
