@@ -6,8 +6,6 @@ from pydantic import BaseModel, Field
 
 
 class ToolCallSchema(BaseModel):
-    approval: str | None = None
-    review: dict[str, Any] | None = None
     id: str = ""
     name: str
     args: dict[str, Any] = Field(default_factory=dict)
@@ -17,17 +15,7 @@ class ToolCallSchema(BaseModel):
     error: str | None = None
 
 
-class ConversationTurn(BaseModel):
-    role: Literal["user", "assistant"]
-    content: str = Field(max_length=4000)
-
-
 class AskRequest(BaseModel):
-    connector_id: str | None = Field(default=None, max_length=100)
-    web_search: bool = False
-    tone: Literal["formal", "casual", "technical"] = "formal"
-    instructions: str = Field(default="", max_length=2000)
-    history: list[ConversationTurn] = Field(default_factory=list, max_length=6)
     question: str = Field(..., min_length=1)
     assistant_name: str = Field(default="Assistant")
     consent: list[str] = Field(default_factory=list)
@@ -141,7 +129,6 @@ class PromptEnhanceRequest(BaseModel):
 
 
 class ConfigUpdateRequest(BaseModel):
-    hosted: bool | None = None
     provider: str | None = None
     model: str | None = None
     base_url: str | None = None
@@ -154,3 +141,6 @@ class ConfigParamsUpdateRequest(BaseModel):
     temperature: float | None = None
     max_tokens: int | None = None
     top_p: float | None = None
+
+class GitHubCommitRequest(BaseModel):
+    args: dict[str, Any]

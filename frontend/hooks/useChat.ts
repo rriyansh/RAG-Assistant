@@ -98,20 +98,9 @@ export function useChat(assistantName: string = "Assistant") {
         const errMsg =
           err instanceof Error ? err.message : "Failed to get a response.";
         setError(errMsg);
-        const failMessage: ChatMessageItem = {
-          id: replaceMessageId || `assistant-err-${Date.now()}`,
-          role: "assistant",
-          content: `Error: ${errMsg}`,
-          timestamp: new Date().toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
-        };
-        setMessages((prev) =>
-          replaceMessageId
-            ? prev.map((m) => (m.id === replaceMessageId ? failMessage : m))
-            : [...prev, failMessage]
-        );
+        if (replaceMessageId) {
+          setMessages((prev) => prev.filter((message) => message.id !== replaceMessageId));
+        }
       } finally {
         setIsLoading(false);
       }

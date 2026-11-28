@@ -35,6 +35,7 @@ from src.api.schemas import (
     PromptEnhanceRequest,
     ThinkingGenerateRequest,
     ToolCallSchema,
+    GitHubCommitRequest,
 )
 from src.api.rate_limit import rate_limit
 from src.generation.generator import generate_answer
@@ -51,6 +52,10 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 _response_cache: TTLCache[AskResponse] = TTLCache(ttl_seconds=120)
 _json_write_lock = threading.Lock()
+_idempotency_results: TTLCache[dict[str, Any]] = TTLCache(ttl_seconds=86400)
+
+def _idempotency_key(request: Request) -> str | None:
+    return request.headers.get("Idempotency-Key")
 KEYS_PATH = Path("data/keys.json")
 CONFIG_PATH = Path("data/config.json")
 
@@ -237,21 +242,30 @@ async def get_connectors() -> ConnectorsListResponse:
 
 
 @router.post("/connectors/connect", response_model=ConnectorInfoSchema, dependencies=[Depends(rate_limit("connectors"))])
-async def post_connect(req: ConnectorConnectRequest) -> ConnectorInfoSchema:
+async def post_connect(req: ConnectorConnectRequest, request: Request) -> ConnectorInfoSchema:
+    key = _idempotency_key(request)
+    if key and (cached := _idempotency_results.get(f"connect:{key}")):
+        return ConnectorInfoSchema(**cached)
     try:
-        return ConnectorInfoSchema(
+        result = ConnectorInfoSchema(
             **await asyncio.to_thread(
                 connector_manager.connect, req.id, req.credentials
             )
         )
+        if key:
+            _idempotency_results.set(f"connect:{key}", result.model_dump())
+        return result
     except ConnectorError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/connectors/custom", response_model=ConnectorInfoSchema, dependencies=[Depends(rate_limit("connectors"))])
-async def post_custom(req: CustomConnectorCreateRequest) -> ConnectorInfoSchema:
+async def post_custom(req: CustomConnectorCreateRequest, request: Request) -> ConnectorInfoSchema:
+    key = _idempotency_key(request)
+    if key and (cached := _idempotency_results.get(f"custom:{key}")):
+        return ConnectorInfoSchema(**cached)
     try:
-        return ConnectorInfoSchema(
+        result = ConnectorInfoSchema(
             **await asyncio.to_thread(
                 connector_manager.add_custom_connector,
                 req.id,
@@ -262,6 +276,9 @@ async def post_custom(req: CustomConnectorCreateRequest) -> ConnectorInfoSchema:
                 req.api_key,
             )
         )
+        if key:
+            _idempotency_results.set(f"custom:{key}", result.model_dump())
+        return result
     except ConnectorError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -280,6 +297,21 @@ async def post_toggle(req: ConnectorToggleRequest) -> ConnectorInfoSchema:
 async def del_connector(connector_id: str) -> dict[str, str]:
     connector_manager.disconnect(connector_id)
     return {"id": connector_id, "status": "disconnected"}
+
+@router.post("/github/commit")
+async def github_commit(req: GitHubCommitRequest, request: Request) -> dict[str, Any]:
+    key = _idempotency_key(request)
+    if not key:
+        raise HTTPException(status_code=400, detail="Idempotency-Key header is required")
+    if cached := _idempotency_results.get(f"github:{key}"):
+        return cached
+    spec = registry.get("github_commit_file")
+    if spec is None or not spec.enabled:
+        raise HTTPException(status_code=404, detail="GitHub commit connector is unavailable")
+    result = await spec.handler(**req.args) if asyncio.iscoroutinefunction(spec.handler) else await asyncio.to_thread(spec.handler, **req.args)
+    payload = result if isinstance(result, dict) else {"result": result}
+    _idempotency_results.set(f"github:{key}", payload)
+    return payload
 
 
 @router.get("/plugins", response_model=PluginsListResponse)

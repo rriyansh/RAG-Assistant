@@ -10,7 +10,10 @@ import time
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+import uuid
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.agent import register_internal_plugins
@@ -55,6 +58,8 @@ def _signed_session() -> str:
 
 @app.middleware("http")
 async def bind_workspace(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    request.state.request_id = request_id
     token = request.cookies.get("reso_session", "")
     valid = False
     if "." in token:
@@ -69,7 +74,21 @@ async def bind_workspace(request: Request, call_next):
     response = await call_next(request)
     if not valid:
         response.set_cookie("reso_session", _signed_session(), httponly=True, secure=request.url.scheme == "https", samesite="lax", max_age=validate_startup_config().session_ttl_seconds)
+    response.headers["X-Request-ID"] = request_id
     return response
+
+@app.exception_handler(HTTPException)
+async def http_error(request: Request, exc: HTTPException):
+    return JSONResponse(status_code=exc.status_code, content={"code": f"http_{exc.status_code}", "message": str(exc.detail), "request_id": getattr(request.state, "request_id", "")}, headers=exc.headers)
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, exc: RequestValidationError):
+    return JSONResponse(status_code=422, content={"code": "validation_error", "message": "Request validation failed", "request_id": getattr(request.state, "request_id", "")})
+
+@app.exception_handler(Exception)
+async def unhandled_error(request: Request, exc: Exception):
+    logger.exception("Unhandled request error request_id=%s", getattr(request.state, "request_id", ""))
+    return JSONResponse(status_code=500, content={"code": "internal_error", "message": "Internal server error", "request_id": getattr(request.state, "request_id", "")})
 
 app.add_middleware(
     CORSMiddleware,

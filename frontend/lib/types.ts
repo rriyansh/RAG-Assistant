@@ -1,4 +1,3 @@
-import type { Locale } from "./locales";
 export type FontId =
   | "open-sans"
   | "system"
@@ -6,26 +5,9 @@ export type FontId =
   | "josefin-sans"
   | "fredoka"
   | "outfit"
-  | "plus-jakarta-sans"
-  | "google-sans"
-  | "manrope"
-  | "source-sans-3";
+  | "plus-jakarta-sans";
 
 export interface UserProfile {
-  locale?: Locale;
-  replyLocale?: Locale;
-  defaultMode?: ApiMode;
-  username?: string;
-  theme?: "system" | "light" | "dark";
-  haptics?: boolean;
-  notifications?: boolean;
-  workspaceShortcut?: boolean;
-  actionButton?: "settings" | "connectors";
-  tone?: "formal" | "casual" | "technical";
-  instructions?: string;
-  webSearchDefault?: boolean;
-  retention?: "30" | "90" | "forever";
-  rememberChats?: boolean;
   name: string;
   assistantName: string;
   headline: string;
@@ -33,16 +15,6 @@ export interface UserProfile {
   font: FontId;
   avatarDataUrl?: string;
   assistantLogo?: string;
-  includeAudio?: boolean;
-  workNetworkAccess?: boolean;
-  pasteAsFile?: "ask" | "always" | "never";
-  typeahead?: boolean;
-  replySuggestions?: boolean;
-  thinkHarder?: boolean;
-  /** Supabase authenticated user id when Google login is used; absent in anonymous/local mode. */
-  supabaseUserId?: string;
-  /** Authenticated user email when Google login is used; absent in anonymous/local mode. */
-  email?: string;
 }
 
 export interface SourceItem {
@@ -50,20 +22,14 @@ export interface SourceItem {
   doc_name?: string;
   title?: string;
   page?: number;
+  page_number?: number;
   url?: string;
   text?: string;
   snippet?: string;
   score?: number;
 }
 
-export type ApiMode = "chat" | "agent";
-export interface FileReview {
-  repo: string; branch: string; path: string; message: string;
-  content: string; diff: string; expected_sha: string;
-}
 export interface ToolCall {
-  approval?: string;
-  review?: FileReview;
   id: string;
   name: string;
   args: Record<string, unknown>;
@@ -74,7 +40,6 @@ export interface ToolCall {
 }
 
 export interface PendingConsent {
-  approval: string;
   name: string;
   args: Record<string, unknown>;
 }
@@ -125,14 +90,11 @@ export interface ChatMessageItem {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
-  createdAt?: number;
   sources?: SourceItem[];
   sourceType?: string;
   toolCalls?: ToolCall[];
   pendingConsent?: PendingConsent[];
   originalQuestion?: string;
-  connectorId?: string;
-  webSearch?: boolean;
   approvedConsent?: string[];
 }
 
@@ -145,7 +107,6 @@ export interface AskApiResponse {
 }
 
 export interface LLMConfig {
-  hosted?: boolean;
   provider: string;
   model: string;
   base_url?: string;
@@ -164,19 +125,6 @@ export interface KeyStatusMap {
 }
 
 export interface KeyListResponse {
-  hosted_ready?: boolean;
   keys: KeyStatusMap;
   active_provider?: string;
-}
-
-export interface KeySetPayload { provider: string; api_key: string; model?: string; base_url?: string }
-export interface KeyTestResponse { valid: boolean; model?: string; error?: string }
-export interface Source { doc_name: string; page_number: number; score: number }
-export interface CannedResponse { id: string; trigger: string; response: string; matchMode: "exact" | "contains" }
-
-export type AskErrorCode = "network" | "auth" | "rate_limit" | "backend" | "stream" | "unknown";
-
-export interface AskError extends Error {
-  code: AskErrorCode;
-  status?: number;
 }
