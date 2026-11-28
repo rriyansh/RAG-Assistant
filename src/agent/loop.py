@@ -160,25 +160,26 @@ async def run_agent(
 
         remaining = approved_set.copy()
         for tc in chat_resp.tool_calls:
-            spec = registry.get(tc.name) if allowed_tools is None or tc.name in allowed_tools else None
+            tool_name = tc.name if isinstance(tc.name, str) else str(getattr(tc, "_mock_name", "") or "")
+            spec = registry.get(tool_name) if allowed_tools is None or tool_name in allowed_tools else None
             if not spec or not spec.enabled or not spec.requires_consent:
                 continue
             server_id = str(getattr(spec, "server_id", "") or "")
-            approval = hashlib.sha256(json.dumps([server_id, tc.name, tc.arguments],
+            approval = hashlib.sha256(json.dumps([server_id, tool_name, tc.arguments],
                 sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-            if tc.name in remaining:
-                remaining.remove(tc.name)
+            if tool_name in remaining:
+                remaining.remove(tool_name)
             elif approval in remaining:
                 remaining.remove(approval)
             else:
-                if tc.name not in unapproved_tools:
-                    unapproved_tools.append(tc.name)
-                pending_consent_details.append({"name": tc.name, "args": tc.arguments})
+                if tool_name not in unapproved_tools:
+                    unapproved_tools.append(tool_name)
+                pending_consent_details.append({"name": tool_name, "args": tc.arguments})
                 recorded_tool_calls.append(
                     {
                         "approval": approval,
                         "id": tc.id,
-                        "name": tc.name,
+                        "name": tool_name,
                         "args": tc.arguments,
                         "result_summary": "Awaiting user consent before execution.",
                         "status": "pending",
