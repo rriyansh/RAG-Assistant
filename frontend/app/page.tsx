@@ -96,7 +96,7 @@ export default function HomePage() {
 
   let lastAssistantIndex = -1;
   for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === "assistant") {
+    if (messages[i]?.role === "assistant") {
       lastAssistantIndex = i;
       break;
     }
