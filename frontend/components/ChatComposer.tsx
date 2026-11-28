@@ -10,15 +10,19 @@ export type ComposerAccent = "ice" | "ember" | "lime";
 export interface ChatComposerProps {
   onSubmit: (question: string) => void | Promise<void>;
   disabled?: boolean;
-  mode?: "agent" | "chat";
-  draft?: { text: string };
-  models?: string[];
-  modelNotes?: string[];
+  prompts?: string[];
+  placeholder?: string;
   hint?: boolean;
   accent?: ComposerAccent;
   className?: string;
-  modePicker?: React.ReactNode;
 }
+
+const DEFAULT_PROMPTS = [
+  "What does the document say about data retention?",
+  "Summarize the key recommendations.",
+  "List every action item in section 3.",
+  "Compare the two policy versions.",
+];
 
 const ACCENTS: Record<ComposerAccent, { a1: string; a2: string; a3: string; glow: string; ink: string }> = {
   ice: { a1: "#e8f6ff", a2: "#a9dcff", a3: "#5fb2f2", glow: "rgba(95,178,242,.42)", ink: "#06233a" },
@@ -62,14 +66,11 @@ function useReducedMotion(): boolean {
 export default function ChatComposer({
   onSubmit,
   disabled = false,
-  draft,
-  mode = "agent",
-  models = ["Turbo", "Studio", "Deep"],
-  modelNotes,
+  prompts = DEFAULT_PROMPTS,
+  placeholder = "Ask about your documents...",
   hint = false,
   accent = "ice",
   className,
-  modePicker,
 }: ChatComposerProps): JSX.Element {
   const reduced = useReducedMotion();
   const uid = React.useId().replace(/[^a-zA-Z0-9_-]/g, "");
@@ -77,24 +78,13 @@ export default function ChatComposer({
 
   const formRef = React.useRef<HTMLFormElement | null>(null);
   const inputRef = React.useRef<HTMLTextAreaElement | null>(null);
-  const modelBtnRef = React.useRef<HTMLButtonElement | null>(null);
-  const menuRef = React.useRef<HTMLDivElement | null>(null);
 
   const [value, setValue] = React.useState("");
-  React.useEffect(() => {
-    if (draft) {
-      setValue(draft.text);
-      inputRef.current?.focus();
-    }
-  }, [draft]);
-  const [model, setModel] = React.useState(0);
-  const [menuOpen, setMenuOpen] = React.useState(false);
+  const [typed, setTyped] = React.useState("");
+  const [focused, setFocused] = React.useState(false);
   const [nudge, setNudge] = React.useState(false);
   const [enhancing, setEnhancing] = React.useState(false);
 
-  const note = (i: number): string =>
-    modelNotes?.[i] ??
-    (i === 0 ? "Fastest drafts" : i === models.length - 1 ? "Most careful" : "Balanced");
 
   const submit = (e?: { preventDefault: () => void }): void => {
     if (e) e.preventDefault();
@@ -122,7 +112,7 @@ export default function ChatComposer({
     if (!text || enhancing) return;
     setEnhancing(true);
     try {
-      const res = await enhancePrompt(text, mode);
+      const res = await enhancePrompt(text);
       setValue(res);
       inputRef.current?.focus();
     } catch {
@@ -132,42 +122,44 @@ export default function ChatComposer({
     }
   };
 
+  const promptKey = prompts.join("|");
   React.useEffect(() => {
-    if (!menuOpen) return;
-    const first = menuRef.current?.querySelector<HTMLElement>("[role=menuitemradio]");
-    first?.focus();
-    const down = (e: PointerEvent): void => {
-      if (
-        menuRef.current?.contains(e.target as Node) ||
-        modelBtnRef.current?.contains(e.target as Node)
-      )
-        return;
-      setMenuOpen(false);
-    };
-    const key = (e: KeyboardEvent): void => {
-      if (e.key === "Escape") {
-        setMenuOpen(false);
-        modelBtnRef.current?.focus();
+    if (!prompts.length) return;
+    if (reduced) {
+      setTyped(prompts[0] ?? "");
+      return;
+    }
+    let i = 0;
+    let n = 0;
+    let back = false;
+    let id = 0;
+    const tick = (): void => {
+      const full = prompts[i % prompts.length] ?? "";
+      if (!back) {
+        n += 1;
+        setTyped(full.slice(0, n));
+        if (n >= full.length) {
+          back = true;
+          id = window.setTimeout(tick, 2400);
+          return;
+        }
+        id = window.setTimeout(tick, 28 + Math.random() * 42);
+      } else {
+        n = Math.max(0, n - 3);
+        setTyped(full.slice(0, n));
+        if (n === 0) {
+          back = false;
+          i += 1;
+          id = window.setTimeout(tick, 420);
+          return;
+        }
+        id = window.setTimeout(tick, 16);
       }
     };
-    document.addEventListener("pointerdown", down);
-    document.addEventListener("keydown", key);
-    return () => {
-      document.removeEventListener("pointerdown", down);
-      document.removeEventListener("keydown", key);
-    };
-  }, [menuOpen]);
+    id = window.setTimeout(tick, 900);
+    return () => window.clearTimeout(id);
+  }, [promptKey, reduced]);
 
-  const menuKeys = (e: React.KeyboardEvent<HTMLDivElement>): void => {
-    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-    e.preventDefault();
-    const items = Array.from(
-      menuRef.current?.querySelectorAll<HTMLElement>("[role=menuitemradio]") ?? []
-    );
-    const at = items.indexOf(document.activeElement as HTMLElement);
-    const next = items[(at + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length];
-    next?.focus();
-  };
 
   const sheen = (e: React.PointerEvent<HTMLFormElement>): void => {
     const el = e.currentTarget;
@@ -177,7 +169,7 @@ export default function ChatComposer({
   };
 
   const empty = value.trim().length === 0;
-  const ids = { input: `${uid}-input`, menu: `${uid}-menu` };
+  const ids = { input: `${uid}-input` };
   const style = {
     "--ppc-a1": tone.a1,
     "--ppc-a2": tone.a2,
@@ -206,12 +198,10 @@ export default function ChatComposer({
             className="ppc-input"
             rows={1}
             value={value}
-            onFocus={(event) => {
-              const input = event.currentTarget;
-              requestAnimationFrame(() => input.scrollIntoView({ behavior: "smooth", block: "nearest" }));
-            }}
             disabled={disabled}
             onChange={(e) => setValue(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
@@ -219,10 +209,15 @@ export default function ChatComposer({
               }
             }}
           />
+          {empty && (
+            <span className="ppc-ph" aria-hidden="true">
+              {focused ? placeholder : typed}
+              {!focused && <i className="ppc-caret" />}
+            </span>
+          )}
         </div>
         <div className="ppc-tools ppc-enter">
           <div className="ppc-right">
-            {modePicker}
             <button
               type="button"
               onClick={runEnhance}
@@ -233,45 +228,6 @@ export default function ChatComposer({
             >
               <Wand2 size={14} className={enhancing ? "animate-pulse" : ""} />
             </button>
-            {models.length > 0 && <div className="ppc-model-wrap">
-              <button
-                ref={modelBtnRef}
-                type="button"
-                className="ppc-model"
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-                aria-controls={ids.menu}
-                disabled={disabled}
-                onClick={() => setMenuOpen((o) => !o)}
-              >
-                <PixelIcon name="bolt" />
-                <span>{models[model]}</span>
-                <svg className="ppc-chev" viewBox="0 0 10 6" aria-hidden="true">
-                  <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-              {menuOpen && (
-                <div ref={menuRef} id={ids.menu} className="ppc-menu" role="menu" aria-label="Model" onKeyDown={menuKeys}>
-                  {models.map((m, i) => (
-                    <button
-                      key={m}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={model === i}
-                      className="ppc-menu-item"
-                      onClick={() => {
-                        setModel(i);
-                        setMenuOpen(false);
-                        modelBtnRef.current?.focus();
-                      }}
-                    >
-                      <span>{m}</span>
-                      <small>{note(i)}</small>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>}
             <button
               type="submit"
               className="ppc-send"

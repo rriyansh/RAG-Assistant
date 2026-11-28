@@ -137,6 +137,26 @@ async def health() -> dict[str, Any]:
         "free_nvidia_ready": bool(get_builtin_nvidia_key()),
     }
 
+@router.get("/health/ready")
+async def health_ready():
+    async def check(name: str, operation):
+        try:
+            await asyncio.wait_for(asyncio.to_thread(operation), timeout=8)
+            return {"status": "ok"}
+        except Exception as exc:
+            return {"status": "error", "message": str(exc)[:160]}
+
+    from src.embeddings.vector_store import get_collection
+    from src.embeddings.embedder import embed_query
+    checks = {
+        "chroma": await check("chroma", lambda: get_collection().count()),
+        "embedding": await check("embedding", lambda: embed_query("readiness probe")),
+        "provider": await check("provider", lambda: create_llm().generate("Reply OK", max_tokens=2)),
+    }
+    ready = all(item["status"] == "ok" for item in checks.values())
+    from fastapi.responses import JSONResponse
+    return JSONResponse(status_code=200 if ready else 503, content={"status": "ready" if ready else "not_ready", "dependencies": checks})
+
 
 @router.post("/ask", response_model=AskResponse, dependencies=[Depends(rate_limit("ask"))])
 async def ask(req: AskRequest) -> AskResponse:

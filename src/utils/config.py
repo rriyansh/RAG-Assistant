@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     chunk_size: int = Field(default=400, ge=64, le=4000)
     chunk_overlap: int = Field(default=50, ge=0, le=1000)
     top_k: int = Field(default=8, ge=1, le=50)
+    max_tokens: int = Field(default=1024, ge=64, le=32768)
 
     # --- Web search ---
     web_search_enabled: bool = True
