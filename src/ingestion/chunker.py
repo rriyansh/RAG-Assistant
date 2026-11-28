@@ -59,3 +59,9 @@ def chunk_pages(pages: list[Page], size: int, overlap: int) -> list[Chunk]:
     for page in pages:
         all_chunks.extend(chunk_page(page, size, overlap))
     return all_chunks
+
+def chunk_text(text: str, chunk_size: int, chunk_overlap: int) -> list[str]:
+    encoder = _encoder()
+    tokens = encoder.encode(clean_text(text))
+    step = max(1, chunk_size - chunk_overlap)
+    return [encoder.decode(tokens[start:start + chunk_size]).strip() for start in range(0, len(tokens), step) if tokens[start:start + chunk_size]]

@@ -120,6 +120,22 @@ def _run_legacy(question: str, assistant_name: str) -> AskResponse:
         if isinstance(ret, dict)
         else (list(ret) if isinstance(ret, list) else [])
     )
+
+async def _answer(req: AskRequest, manager: Any = connector_manager) -> AskResponse:
+    llm = create_llm()
+    direct = await asyncio.to_thread(llm.generate, req.question)
+    if not direct.startswith("SEARCH_PUBLIC:"):
+        return AskResponse(answer=direct)
+    query = direct.split(":", 1)[1].strip()
+    sources: list[dict[str, Any]] = []
+    try:
+        spec = manager.registry.get("web_search")
+        if spec:
+            sources = await asyncio.to_thread(spec.handler, query=query)
+    except Exception:
+        sources = []
+    grounded = await asyncio.to_thread(llm.generate, f"Question: {req.question}\nPublic sources: {json.dumps(sources)}")
+    return AskResponse(answer=grounded, sources=sources, source_type="web" if sources else "hybrid")
     gen = generate_answer(question, chunks, assistant_name=assistant_name)
     ans = gen.get("answer", "") if isinstance(gen, dict) else str(gen)
     return AskResponse(

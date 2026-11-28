@@ -7,12 +7,27 @@ import json
 import logging
 import random
 import time
+from urllib.parse import urlparse
 from dataclasses import dataclass, field
 from typing import Any
 
 from openai import OpenAI
 
 logger = logging.getLogger(__name__)
+
+class ProviderResponseError(RuntimeError):
+    pass
+
+def custom_endpoint(value: str) -> str:
+    parsed = urlparse(value.strip())
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise ValueError("Invalid custom endpoint")
+    if parsed.scheme == "http" and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
+        raise ValueError("Remote custom endpoints must use HTTPS")
+    path = parsed.path.rstrip("/")
+    if path.endswith("/chat/completions"):
+        path = path[:-len("/chat/completions")]
+    return parsed._replace(path=path.rstrip("/"), params="", query="", fragment="").geturl()
 
 
 @dataclass
@@ -119,6 +134,8 @@ class LLMProvider:
             max_tokens=max_tokens if max_tokens is not None else self.max_tokens,
             top_p=self.top_p,
         )
+        if not getattr(response, "choices", None):
+            raise ProviderResponseError("Provider returned no choices")
         content = response.choices[0].message.content
         return content.strip() if content else ""
 
